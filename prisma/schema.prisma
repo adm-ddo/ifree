@@ -1,0 +1,282 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum StatusTurno {
+  ABERTO
+  CONCLUIDO
+  PAGO
+  ERRO_PAGAMENTO
+}
+
+enum StatusPagamento {
+  PENDENTE
+  PROCESSANDO
+  CONCLUIDO
+  FALHOU
+}
+
+enum TipoDocumentoPessoa {
+  CPF
+  CNPJ
+}
+
+enum TipoChavePix {
+  CPF
+  CNPJ
+  EMAIL
+  TELEFONE
+  ALEATORIA
+}
+
+/// Como a empresa trata o intervalo/pausa dentro de turnos longos —
+/// NENHUMA mantém o comportamento de sempre (paga o turno inteiro).
+/// AUTOMATICA_* desconta um intervalo fixo do cálculo em turnos acima de
+/// 6h, sem exigir nenhuma ação da pessoa no totem (a alternativa, pausa
+/// registrada manualmente, não tem incentivo pra ser usada de verdade —
+/// ninguém bate uma pausa que reduz o próprio pagamento).
+enum ModoPausa {
+  NENHUMA
+  AUTOMATICA_30
+  AUTOMATICA_60
+}
+
+/// Como o freelancer é remunerado num vínculo específico com a empresa.
+/// HORA é o padrão (valor/hora da função, arredondado por bloco de 5min).
+/// DIARIA paga um valor fixo combinado com a pessoa, escalonado pelas
+/// faixas de horas mínimas configuradas na empresa (ver
+/// Empresa.diariaLimiarMeiaMin/diariaLimiarCompletaMin) — decisão de quem
+/// habilita é sempre do dono, não da pessoa, pra evitar que ela escolha o
+/// modo mais vantajoso caso a caso.
+enum ModoPagamento {
+  HORA
+  DIARIA
+}
+
+/// Com que frequência a pessoa recebe o que ganhou — independente de como
+/// o valor é calculado (ver ModoPagamento). DIARIA é o comportamento de
+/// sempre (o Pagamento do turno já fica pronto assim que ele fecha).
+/// SEMANAL acumula os turnos da semana (ver Empresa.semanaPagamentoInicioDia)
+/// pra pagar tudo de uma vez no dia configurado (Empresa.semanaPagamentoDia).
+enum FrequenciaPagamento {
+  DIARIA
+  SEMANAL
+}
+
+model Empresa {
+  id                       Int       @id @default(autoincrement())
+  nome                     String
+  cnpj                     String
+  endereco                 String?
+  /// Texto próprio do termo de aceite/contrato, editado em /configuracoes —
+  /// null usa o texto padrão do sistema (src/lib/termos.ts). Mesma fonte
+  /// pra tela de aceite do totem e pro PDF do contrato.
+  termosContrato           String?
+  modoPausa                ModoPausa @default(NENHUMA)
+  /// Faixas de horas (em minutos) que definem quanto da diária a pessoa
+  /// recebe: abaixo de diariaLimiarMeiaMin paga metade, entre esse limiar
+  /// e diariaLimiarCompletaMin paga 75%, a partir daí paga o valor cheio.
+  diariaLimiarMeiaMin      Int       @default(240)
+  diariaLimiarCompletaMin  Int       @default(360)
+  /// Horário (minutos desde meia-noite, horário de Brasília) usado como
+  /// horaSaida quando o fechamento automático encerra um turno que ninguém
+  /// bateu saída — ver src/lib/fechamento-automatico.ts. Padrão 23:30.
+  horarioFechamentoMin     Int       @default(1410)
+  /// Dia da semana (ISO: 1=segunda...7=domingo) em que a semana de
+  /// pagamento começa — a semana fechada vai desse dia até 6 dias depois.
+  /// Padrão segunda a domingo.
+  semanaPagamentoInicioDia Int       @default(1)
+  /// Dia da semana (ISO: 1=segunda...7=domingo) em que os valores da
+  /// semana fechada são pagos — pra quem está em frequência SEMANAL.
+  /// Padrão quarta-feira.
+  semanaPagamentoDia       Int       @default(3)
+  criadoEm                 DateTime  @default(now())
+
+  usuarios      UsuarioEmpresa[]
+  funcoes       Funcao[]
+  totens        Totem[]
+  turnos        Turno[]
+  vinculos      VinculoPessoaEmpresa[]
+  sessoesAtivas Sessao[]               @relation("EmpresaAtiva")
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  senhaHash    String
+  nomeCompleto String?
+  cpf          String?  @unique
+  isMaster     Boolean  @default(false)
+  criadoEm     DateTime @default(now())
+
+  empresas UsuarioEmpresa[]
+  sessoes  Sessao[]
+}
+
+model UsuarioEmpresa {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  empresaId Int
+  criadoEm  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, empresaId])
+}
+
+model Sessao {
+  id             Int      @id @default(autoincrement())
+  token          String   @unique
+  usuarioId      Int
+  empresaAtivaId Int?
+  criadoEm       DateTime @default(now())
+  expiraEm       DateTime
+
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresaAtiva Empresa? @relation("EmpresaAtiva", fields: [empresaAtivaId], references: [id], onDelete: SetNull)
+}
+
+/// Totem físico (tablet). Token próprio por dispositivo p/ poder revogar
+/// um tablet perdido/roubado sem afetar os outros.
+model Totem {
+  id        Int      @id @default(autoincrement())
+  empresaId Int
+  nome      String
+  token     String   @unique
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  turnos  Turno[]
+}
+
+/// Registro global da pessoa física — a mesma pessoa pode trabalhar p/
+/// múltiplas empresas, então não é escopado por tenant.
+model Pessoa {
+  id            Int                 @id @default(autoincrement())
+  documento     String              @unique
+  tipoDocumento TipoDocumentoPessoa @default(CPF)
+  nome          String
+  telefone      String
+  endereco      String
+  numero        String?
+  complemento   String?
+  chavePix      String
+  tipoChavePix  TipoChavePix        @default(CPF)
+  fotoUrl       String?
+  criadoEm      DateTime            @default(now())
+
+  vinculos VinculoPessoaEmpresa[]
+  turnos   Turno[]
+}
+
+/// Vínculo da pessoa numa empresa específica — criado automaticamente no
+/// primeiro check-in bem-sucedido naquele totem.
+model VinculoPessoaEmpresa {
+  id                  Int                 @id @default(autoincrement())
+  pessoaId            Int
+  empresaId           Int
+  ativo               Boolean             @default(true)
+  /// Modo de pagamento dessa pessoa NESTA empresa — configurado pelo dono
+  /// em /freelancers/[id], não pela pessoa no totem.
+  modoPagamento       ModoPagamento       @default(HORA)
+  /// Valor fixo da diária combinado com a pessoa — obrigatório quando
+  /// modoPagamento é DIARIA, ignorado (deve ficar null) quando é HORA.
+  valorDiaria         Decimal?            @db.Decimal(10, 2)
+  /// Com que frequência essa pessoa recebe NESTA empresa — configurado
+  /// pelo dono, igual ao modoPagamento.
+  frequenciaPagamento FrequenciaPagamento @default(DIARIA)
+  criadoEm            DateTime            @default(now())
+
+  pessoa  Pessoa  @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([pessoaId, empresaId])
+}
+
+model Funcao {
+  id              Int      @id @default(autoincrement())
+  empresaId       Int
+  nome            String
+  valorHoraPadrao Decimal  @db.Decimal(10, 2)
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  turnos  Turno[]
+
+  @@unique([empresaId, nome])
+}
+
+model Turno {
+  id                          Int                 @id @default(autoincrement())
+  pessoaId                    Int
+  empresaId                   Int
+  totemId                     Int?
+  funcaoId                    Int
+  valorHoraAplicado           Decimal             @db.Decimal(10, 2)
+  /// Snapshot do modo de pagamento do vínculo no momento do check-in — não
+  /// muda retroativamente se o dono alterar o vínculo depois.
+  modoPagamentoAplicado       ModoPagamento       @default(HORA)
+  /// Snapshot do valor da diária no check-in, quando modoPagamentoAplicado
+  /// é DIARIA; null quando é HORA.
+  valorDiariaAplicada         Decimal?            @db.Decimal(10, 2)
+  /// Snapshot da frequência de pagamento do vínculo no check-in — mesma
+  /// lógica do modoPagamentoAplicado, não muda retroativamente. Usada pro
+  /// relatório semanal saber quais turnos entram na conta.
+  frequenciaPagamentoAplicada FrequenciaPagamento @default(DIARIA)
+  horaEntrada                 DateTime
+  horaSaida                   DateTime?
+  minutosTrabalhados          Int?
+  minutosDescontadosPausa     Int?
+  minutosArredondados         Int?
+  valorTotal                  Decimal?            @db.Decimal(10, 2)
+  status                      StatusTurno         @default(ABERTO)
+  /// true quando o cron de fechamento automático encerrou o turno (ninguém
+  /// bateu saída até o corte) — sem foto/assinatura de saída, então a tela
+  /// de detalhe e o recibo precisam sinalizar isso de forma diferente.
+  fechamentoAutomatico        Boolean             @default(false)
+  fotoEntradaUrl              String
+  fotoSaidaUrl                String?
+  assinaturaContratoUrl       String
+  assinaturaReciboUrl         String?
+  criadoEm                    DateTime            @default(now())
+  atualizadoEm                DateTime            @updatedAt
+
+  pessoa    Pessoa     @relation(fields: [pessoaId], references: [id])
+  empresa   Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  totem     Totem?     @relation(fields: [totemId], references: [id], onDelete: SetNull)
+  funcao    Funcao     @relation(fields: [funcaoId], references: [id])
+  pagamento Pagamento?
+
+  @@index([empresaId, status])
+  @@index([pessoaId, empresaId, status])
+}
+
+model Pagamento {
+  id                  Int             @id @default(autoincrement())
+  turnoId             Int             @unique
+  valor               Decimal         @db.Decimal(10, 2)
+  chavePixDestino     String
+  tipoChavePixDestino TipoChavePix    @default(CPF)
+  status              StatusPagamento @default(PENDENTE)
+  idTransacaoExterna  String?
+  tentativas          Int             @default(0)
+  erro                String?
+  criadoEm            DateTime        @default(now())
+  atualizadoEm        DateTime        @updatedAt
+  processadoEm        DateTime?
+
+  turno Turno @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}

@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #0d1b2a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-urbanist);
+  --font-mono: var(--font-geist-mono);
+
+  /* Marca iFREE — verde-água */
+  --color-brand-50: #e6fbf5;
+  --color-brand-100: #c8f5e7;
+  --color-brand-200: #96ebd1;
+  --color-brand-300: #5fddba;
+  --color-brand-400: #2ecfa3;
+  --color-brand-500: #00c896;
+  --color-brand-600: #00ad82;
+  --color-brand-700: #00906d;
+  --color-brand-800: #007459;
+  --color-brand-900: #005c47;
+
+  /* Marca iFREE — azul-marinho */
+  --color-navy-50: #f2f4f7;
+  --color-navy-100: #e4e8ee;
+  --color-navy-200: #c6ceda;
+  --color-navy-300: #9fabc0;
+  --color-navy-400: #6d7e9a;
+  --color-navy-500: #47597a;
+  --color-navy-600: #2f4160;
+  --color-navy-700: #1b263b;
+  --color-navy-800: #14202f;
+  --color-navy-900: #0d1b2a;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Modo kiosk do totem (ativado via TotemKioskGuard, escopado pela classe
+   no <html> — nunca afeta o painel administrativo). Bloqueia seleção de
+   texto e o "elástico" de pull-to-refresh, que só atrapalham num tablet
+   fixo em pé de balcão. */
+html.totem-kiosk,
+html.totem-kiosk body {
+  overscroll-behavior: none;
+}
+
+html.totem-kiosk * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+html.totem-kiosk input,
+html.totem-kiosk textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
