@@ -52,8 +52,11 @@ export async function GET() {
       horaEntrada: t.horaEntrada,
       horaSaida: t.horaSaida,
       valorTotal: Number(t.valorTotal),
-      chavePix: t.pessoa.chavePix,
-      tipoChavePix: t.pessoa.tipoChavePix,
+      // Turno com valorTotal só existe pro caminho EXTRA, que sempre tem
+      // PIX — "??" só satisfaz o tipo (chavePix é opcional no schema pra
+      // acomodar o CLT).
+      chavePix: t.pessoa.chavePix ?? "",
+      tipoChavePix: t.pessoa.tipoChavePix ?? "CPF",
       status: t.status,
     }));
 

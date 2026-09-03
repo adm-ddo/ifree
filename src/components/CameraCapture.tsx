@@ -14,7 +14,7 @@ const QUALIDADE_JPEG = 0.82;
 export default function CameraCapture({
   onCapture,
 }: {
-  onCapture: (dataUrl: string) => void;
+  onCapture: (dataUrl: string) => void | Promise<void>;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -22,6 +22,10 @@ export default function CameraCapture({
   const [pronto, setPronto] = useState(false);
   const [iniciado, setIniciado] = useState(false);
   const [contagem, setContagem] = useState(CONTAGEM_INICIAL);
+  // Depois da foto tirada, alguns fluxos (ex.: ponto do CLT) já mandam pro
+  // servidor aqui dentro — sem isso a tela ficava parada em "Capturando..."
+  // enquanto esperava a rede, parecendo travada.
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -51,7 +55,7 @@ export default function CameraCapture({
     };
   }, []);
 
-  function capturar() {
+  async function capturar() {
     const video = videoRef.current;
     if (!video) return;
 
@@ -65,9 +69,17 @@ export default function CameraCapture({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    onCapture(canvas.toDataURL("image/jpeg", QUALIDADE_JPEG));
     streamRef.current?.getTracks().forEach((t) => t.stop());
+
+    setEnviando(true);
+    try {
+      await onCapture(canvas.toDataURL("image/jpeg", QUALIDADE_JPEG));
+    } finally {
+      // Só importa quando o fluxo dá erro e volta pra esta mesma tela
+      // (câmera já foi desligada acima, então não dá pra tirar outra foto
+      // aqui mesmo — quem chama decide se refaz a etapa do zero).
+      setEnviando(false);
+    }
   }
 
   // Clicar em "Tirar foto" só começa a contagem — dá tempo da pessoa se
@@ -77,8 +89,11 @@ export default function CameraCapture({
   useEffect(() => {
     if (!pronto || !iniciado) return;
     if (contagem === 0) {
-      capturar();
-      return;
+      // setTimeout (mesmo 0ms) tira a chamada de dentro do corpo síncrono
+      // do efeito — capturar() agora atualiza estado (setEnviando) logo de
+      // cara, e chamar isso direto no efeito dispara renders em cascata.
+      const id = setTimeout(capturar, 0);
+      return () => clearTimeout(id);
     }
     const id = setTimeout(() => setContagem((c) => c - 1), 1000);
     return () => clearTimeout(id);
@@ -113,8 +128,15 @@ export default function CameraCapture({
           Tirar foto
         </button>
       ) : (
-        <p className="text-4xl font-semibold text-navy-900">
-          {contagem > 0 ? `Tirando foto em ${contagem}...` : "Capturando..."}
+        <p className="text-4xl font-semibold text-navy-900 flex items-center gap-3">
+          {enviando && (
+            <span className="h-7 w-7 rounded-full border-4 border-navy-900 border-t-transparent animate-spin" />
+          )}
+          {enviando
+            ? "Enviando..."
+            : contagem > 0
+              ? `Tirando foto em ${contagem}...`
+              : "Capturando..."}
         </p>
       )}
     </div>

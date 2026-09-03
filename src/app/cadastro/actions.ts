@@ -2,10 +2,15 @@
 
 import { prisma } from "@/lib/prisma";
 import { criarSessao, hashSenha } from "@/lib/auth";
+import { criarTokenAutenticacao } from "@/lib/tokenAutenticacao";
+import { enviarEmailVerificacao } from "@/lib/email";
 import { apenasDigitos, cpfValido } from "@/lib/cpf";
+import { captchaValido } from "@/lib/captcha";
 import { redirect } from "next/navigation";
 
-export type CadastroState = { erro?: string } | undefined;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export type CadastroState = { erro?: string; sucesso?: boolean } | undefined;
 
 export async function cadastrarConta(
   _prev: CadastroState,
@@ -18,8 +23,15 @@ export async function cadastrarConta(
   const senha = String(formData.get("senha") ?? "");
   const cpf = apenasDigitos(String(formData.get("cpf") ?? ""));
 
+  if (!(await captchaValido(formData))) {
+    return { erro: "Verificação de segurança falhou. Atualize a página e tente de novo." };
+  }
+
   if (!nomeCompleto || !email || !senha || !cpf) {
     return { erro: "Preencha todos os campos." };
+  }
+  if (!EMAIL_REGEX.test(email)) {
+    return { erro: "Informe um e-mail válido." };
   }
   if (senha.length < 8) {
     return { erro: "A senha deve ter pelo menos 8 caracteres." };
@@ -43,6 +55,23 @@ export async function cadastrarConta(
     data: { nomeCompleto, email, senhaHash, cpf },
   });
 
-  await criarSessao(usuario.id);
-  redirect("/empresas");
+  // Sem criarSessao aqui de propósito — login só libera depois que a
+  // pessoa clicar no link do e-mail (ver src/app/verificar-email/[token]/page.tsx).
+  const token = await criarTokenAutenticacao(usuario.id, "VERIFICACAO_EMAIL", 24);
+  const envio = await enviarEmailVerificacao(email, nomeCompleto, token);
+
+  if (!envio.sucesso) {
+    // Provedor de e-mail fora do ar ou ainda não configurado (RESEND_API_KEY
+    // ausente) — não faz sentido travar o acesso de alguém que não tem
+    // como receber o link de confirmação. Libera direto, mesmo
+    // comportamento de antes desta feature existir.
+    await prisma.usuario.update({
+      where: { id: usuario.id },
+      data: { emailVerificadoEm: new Date() },
+    });
+    await criarSessao(usuario.id);
+    redirect("/empresas");
+  }
+
+  return { sucesso: true };
 }

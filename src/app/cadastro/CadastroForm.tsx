@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { apenasDigitos, formatarCpf } from "@/lib/cpf";
 import { cadastrarConta } from "./actions";
+import CaptchaWidget from "@/components/CaptchaWidget";
 
 export default function CadastroForm() {
   const [state, formAction, pending] = useActionState(
@@ -11,6 +12,25 @@ export default function CadastroForm() {
     undefined
   );
   const [cpf, setCpf] = useState("");
+
+  if (state?.sucesso) {
+    return (
+      <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm w-full max-w-md">
+        <h1 className="text-xl font-semibold text-navy-900">Quase lá!</h1>
+        <p className="text-sm text-stone-600">
+          Enviamos um link de confirmação pro e-mail que você cadastrou.
+          Clique nele pra ativar sua conta e continuar.
+        </p>
+        <p className="text-xs text-stone-500">
+          Não chegou? Confira a caixa de spam, ou{" "}
+          <Link href="/login" className="text-brand-700 underline">
+            volte pro login
+          </Link>{" "}
+          pra reenviar.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form
@@ -74,6 +94,8 @@ export default function CadastroForm() {
           className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
+
+      <CaptchaWidget />
 
       {state?.erro && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

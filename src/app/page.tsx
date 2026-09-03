@@ -11,7 +11,7 @@ const PASSOS = [
   {
     numero: "1",
     titulo: "O extra bate o CPF no totem",
-    desc: "Num tablet fixo no local ou até no próprio celular da pessoa. Cadastro na primeira vez, foto (que já comprova que ela está no lugar certo) e assinatura digital do contrato — tudo em menos de 1 minuto.",
+    desc: "Num tablet fixo no local — ou no celular da própria empresa, se ainda não tiver tablet. Cadastro na primeira vez, foto (que já comprova que ela está no lugar certo) e assinatura digital do contrato — tudo em menos de 1 minuto.",
   },
   {
     numero: "2",
@@ -58,7 +58,7 @@ const DORES = [
 const LIBERDADE_PONTOS = [
   "Paga só o que foi trabalhado, em blocos de 5 minutos — nada de arredondar a hora pra cima ou pra baixo.",
   "Sem escala fixa e sem vínculo empregatício: cada turno é um combinado novo, o extra decide se topa.",
-  "O extra vê no próprio celular quanto vai receber antes de assinar o turno — sem letra miúda, sem desconfiança.",
+  "O extra vê na tela, antes de assinar o turno, exatamente quanto vai receber — sem letra miúda, sem desconfiança.",
 ];
 
 const SEGMENTOS = [
@@ -143,12 +143,13 @@ export default async function Home() {
         />
         <div className="relative mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-32 flex flex-col items-center text-center gap-6 lg:gap-8">
           <span className="lg:hidden">
-            <Logo size={56} claro />
-          </span>
-          <span className="hidden lg:inline-block">
             <Logo size={76} claro />
           </span>
-          <span className="rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-brand-300">
+          <span className="hidden lg:inline-block">
+            <Logo size={108} claro />
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-brand-300">
+            <LogoIcon size={15} />
             Para restaurantes, bares e quem contrata extra
           </span>
           <h1 className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tight text-white leading-[1.05]">
@@ -196,11 +197,34 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* Vídeo de apresentação */}
+      <section className="bg-white">
+        <div className="mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 flex flex-col gap-8 lg:gap-10 items-center">
+          <div className="text-center flex flex-col gap-2 lg:gap-3 items-center">
+            <p className="text-brand-600 font-semibold text-sm lg:text-base tracking-wide uppercase">
+              Veja em 90 segundos
+            </p>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-navy-900 max-w-2xl">
+              Entenda o iFREE em menos de 2 minutos
+            </h2>
+          </div>
+          <video
+            className="w-full max-w-3xl rounded-2xl border border-stone-200 shadow-xl"
+            src="/video/apresentacao-ifree.mp4"
+            playsInline
+            controls
+            preload="metadata"
+          >
+            Seu navegador não suporta vídeo em HTML5.
+          </video>
+        </div>
+      </section>
+
       {/* Liberdade pra quem trabalha */}
       <section className="relative overflow-hidden bg-navy-900 text-white">
         <LogoIcon
-          size={340}
-          className="pointer-events-none absolute -right-16 -bottom-16 opacity-[0.06] hidden sm:block"
+          size={380}
+          className="pointer-events-none absolute -right-16 -bottom-16 opacity-[0.1] hidden sm:block"
         />
         <div className="relative mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div className="flex flex-col gap-4 lg:gap-5">
@@ -239,19 +263,19 @@ export default async function Home() {
       {/* Para quem é */}
       <section className="mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 flex flex-col gap-10 lg:gap-14">
         <div className="text-center flex flex-col gap-2 lg:gap-3 items-center">
-          <p className="text-stone-500 text-sm lg:text-base max-w-2xl lg:max-w-3xl mb-2">
-            O iFREE nasceu no balcão de um restaurante, resolvendo a dor
-            de cabeça de pagar certo o extra do fim de semana — hoje virou
-            o sistema que restaurantes, bares e lanchonetes do Brasil
-            inteiro usam pra parar de se preocupar com escala, planilha e
-            pagamento de extra.
-          </p>
           <p className="text-brand-600 font-semibold text-sm lg:text-base tracking-wide uppercase">
             Para quem é o iFREE?
           </p>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-navy-900">
             Feito pro restaurante. Bom pra qualquer negócio com extra.
           </h2>
+          <p className="text-stone-500 text-sm lg:text-base max-w-2xl lg:max-w-3xl mt-1">
+            O iFREE nasceu no balcão de um restaurante, resolvendo a dor
+            de cabeça de pagar certo o extra do fim de semana — hoje virou
+            o sistema que restaurantes, bares e lanchonetes do Brasil
+            inteiro usam pra parar de se preocupar com escala, planilha e
+            pagamento de extra.
+          </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           {SEGMENTOS.map((s) => (
@@ -315,20 +339,29 @@ export default async function Home() {
           <span className="text-4xl lg:text-5xl shrink-0">📱</span>
           <div>
             <p className="font-bold text-navy-900 lg:text-lg">
-              Não precisa comprar tablet nem computador
+              Comece sem comprar nada
             </p>
             <p className="text-stone-600 text-sm lg:text-base mt-1">
-              O check-in funciona no navegador de qualquer celular — inclusive
-              o da própria pessoa. A foto tirada na hora já comprova que ela
-              está no lugar certo.
+              O check-in funciona no navegador de qualquer celular da
+              empresa — não precisa ser logo o tablet dedicado — então dá pra
+              testar hoje mesmo com o celular que você já tem. Quando
+              quiser um totem fixo com a cara do seu negócio,{" "}
+              <a href="#kit" className="text-brand-700 font-semibold hover:underline">
+                a gente monta o kit completo pra você
+              </a>
+              .
             </p>
           </div>
         </div>
       </section>
 
       {/* Kit completo pro balcão */}
-      <section className="bg-navy-900">
-        <div className="mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 flex flex-col gap-10 lg:gap-14">
+      <section id="kit" className="relative overflow-hidden bg-navy-900 scroll-mt-20">
+        <LogoIcon
+          size={380}
+          className="pointer-events-none absolute -left-20 -top-20 opacity-[0.1] hidden sm:block"
+        />
+        <div className="relative mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 flex flex-col gap-10 lg:gap-14">
           <div className="text-center flex flex-col gap-2 lg:gap-3 items-center">
             <p className="text-brand-400 font-semibold text-sm lg:text-base tracking-wide uppercase">
               Kit completo
@@ -386,11 +419,52 @@ export default async function Home() {
         </div>
       </section>
 
+      {/* iFREE Conecta */}
+      <section className="relative overflow-hidden bg-navy-900">
+        <LogoIcon
+          size={380}
+          className="pointer-events-none absolute -right-24 -bottom-24 opacity-[0.08] hidden sm:block"
+        />
+        <div className="relative mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 flex flex-col items-center text-center gap-6 lg:gap-8">
+          <p className="text-brand-400 font-semibold text-sm lg:text-base tracking-wide uppercase">
+            iFREE Conecta
+          </p>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white max-w-2xl">
+            Freelancers e empresas, no mesmo lugar
+          </h2>
+          <p className="text-navy-200 max-w-xl lg:max-w-2xl text-base lg:text-lg">
+            Um cadastro só, reputação que atravessa empresas, vagas
+            publicadas e um chat direto no app quando rola match. Sem
+            perder um bom freelancer no WhatsApp de outra pessoa.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 lg:gap-4 mt-2">
+            <Link
+              href="/portal/entrar"
+              className="rounded-xl bg-brand-500 hover:bg-brand-400 text-navy-900 text-base lg:text-lg font-bold px-7 py-4 lg:px-9 lg:py-5 transition-colors shadow-lg shadow-brand-500/20"
+            >
+              🧑‍🍳 Sou freelancer
+            </Link>
+            <Link
+              href="/login"
+              className="rounded-xl border border-white/20 text-white hover:bg-white/10 text-base lg:text-lg font-bold px-7 py-4 lg:px-9 lg:py-5 transition-colors"
+            >
+              🏢 Sou empresa
+            </Link>
+          </div>
+          <Link
+            href="/conecta"
+            className="text-navy-300 hover:text-white text-sm lg:text-base underline underline-offset-4 mt-1"
+          >
+            Saiba mais sobre o Conecta →
+          </Link>
+        </div>
+      </section>
+
       {/* CTA final */}
       <section className="mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl w-full px-4 py-16 sm:py-24 lg:py-28">
         <div className="rounded-3xl bg-navy-900 text-white p-8 sm:p-12 lg:p-16 flex flex-col items-center text-center gap-5 lg:gap-6">
-          <LogoIcon size={44} className="lg:hidden" />
-          <LogoIcon size={60} className="hidden lg:block" />
+          <LogoIcon size={60} className="lg:hidden" />
+          <LogoIcon size={84} className="hidden lg:block" />
           <p className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight max-w-lg lg:max-w-2xl">
             Pronto pra dar liberdade ao seu extra — e controle pro seu bolso?
           </p>
@@ -425,6 +499,15 @@ export default async function Home() {
             <Logo size={30} />
           </span>
           <div className="flex items-center gap-5 text-sm lg:text-base text-stone-500">
+            <Link
+              href="/conecta"
+              className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:text-brand-800 transition-colors"
+            >
+              Descubra →
+            </Link>
+            <Link href="/portal/entrar" className="hover:text-brand-700 transition-colors">
+              Já trabalhou por aqui? Acesse seu perfil
+            </Link>
             <WhatsAppButton
               mensagem={MENSAGEM_PADRAO}
               className="inline-flex items-center gap-1.5 hover:text-brand-700 transition-colors"

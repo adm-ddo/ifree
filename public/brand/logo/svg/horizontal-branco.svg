@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 220">
+    <g transform="translate(10,25) scale(1.5)">
+    <path d="M 66 30 C 82 20 100 10 116 4 C 106 16 92 26 78 34 C 74 36 68 35 66 30 Z" fill="#009E77" />
+    <path d="M 69 36 C 84 28 98 22 110 20 C 100 30 88 38 78 42 C 74 43 70 40 69 36 Z" fill="#00B285" />
+    <path d="M 71 42 C 82 37 92 34 100 34 C 92 42 82 47 75 47 C 72 47 70 45 71 42 Z" fill="#00C896" />
+    <circle cx="44" cy="50" r="32" fill="none" stroke="#00C896" stroke-width="11" />
+    <circle cx="44" cy="50" r="26.5" fill="#FFFFFF" />
+    <rect x="41" y="25" width="6" height="13" rx="3" fill="#14171A" />
+    <rect x="41" y="62" width="6" height="13" rx="3" fill="#14171A" />
+    <rect x="19" y="47" width="13" height="6" rx="3" fill="#14171A" />
+    <rect x="56" y="47" width="13" height="6" rx="3" fill="#14171A" />
+    <path d="M 38 48 L 44 55 L 55 35" fill="none" stroke="#14171A" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+    <text x="222" y="130" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="900" font-size="118" letter-spacing="-3">
+      <tspan fill="#00C896">i</tspan><tspan fill="#FFFFFF">FREE</tspan>
+    </text>
+    <text x="228" y="172" font-family="Arial Black, Arial, Helvetica, sans-serif" font-weight="700" font-size="26" letter-spacing="0.3" fill="#FFFFFF" opacity="0.92">Entrou. Trabalhou. Recebeu.</text>
+  </svg>

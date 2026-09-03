@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
 import { dataISOBrasil, inicioUltimaSemanaFechadaBrasil } from "@/lib/data";
 import { gerarPdfRelatorioSemanal } from "@/lib/relatorio-semanal-pdf";
+import type { TipoChavePix } from "@/generated/prisma/enums";
 
 /** Sempre a última semana de pagamento já fechada por completo (ver
  * inicioUltimaSemanaFechadaBrasil) — só faz sentido pra quem está com
@@ -34,13 +35,16 @@ export async function GET() {
 
   const porPessoa = new Map<
     string,
-    { chavePix: string; tipoChavePix: (typeof turnos)[number]["pessoa"]["tipoChavePix"]; quantidadeTurnos: number; valorTotal: number }
+    { chavePix: string; tipoChavePix: TipoChavePix; quantidadeTurnos: number; valorTotal: number }
   >();
   for (const turno of turnos) {
     if (turno.valorTotal === null) continue;
+    // Turno com frequenciaPagamentoAplicada SEMANAL só existe pro caminho
+    // EXTRA, que sempre tem PIX — o "??" aqui é só pra satisfazer o tipo
+    // (Pessoa.chavePix é opcional no schema pra acomodar o CLT).
     const atual = porPessoa.get(turno.pessoa.nome) ?? {
-      chavePix: turno.pessoa.chavePix,
-      tipoChavePix: turno.pessoa.tipoChavePix,
+      chavePix: turno.pessoa.chavePix ?? "",
+      tipoChavePix: turno.pessoa.tipoChavePix ?? "CPF",
       quantidadeTurnos: 0,
       valorTotal: 0,
     };

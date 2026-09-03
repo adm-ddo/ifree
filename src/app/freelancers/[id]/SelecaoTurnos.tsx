@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
+import { marcarPagamentoPagoManualmente } from "@/app/pagamentos/actions";
+import { corGrupoPagamento } from "@/lib/grupo-pagamento";
 import type { StatusTurno } from "@/generated/prisma/enums";
 
 type TurnoResumo = {
@@ -12,6 +14,22 @@ type TurnoResumo = {
   valorTotal: number | null;
   status: StatusTurno;
   temRecibo: boolean;
+  /// PIX ainda não confirmado (Pagamento em PENDENTE ou FALHOU) — mostra o
+  /// atalho de marcar como pago bem aqui, junto do termo/recibo, pra não
+  /// precisar ir até /pagamentos só pra isso.
+  podeMarcarComoPago: boolean;
+  /// Não-nulo quando este turno foi pago junto de outros na mesma
+  /// transferência PIX — ver GrupoPagamento no schema.
+  grupoPagamentoId: number | null;
+  /// Ninguém bateu a saída (fechamentoAutomatico) e ainda não foi resolvido
+  /// de nenhuma forma — mostra o aviso amarelo bem aqui, igual ao de
+  /// /turnos/[id], pra não precisar entrar no turno pra descobrir.
+  precisaResolverSaida: boolean;
+  /// Elegível pra corrigir o horário de saída (ver corrigirSaidaTurno em
+  /// src/app/turnos/actions.ts) — mostra o atalho direto pro formulário na
+  /// página de detalhe, sem precisar procurar pelo link genérico
+  /// "Detalhes".
+  podeCorrigirSaida: boolean;
 };
 
 const STATUS_LABEL: Record<StatusTurno, string> = {
@@ -30,6 +48,33 @@ const STATUS_CLASSE: Record<StatusTurno, string> = {
 
 export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
+  const [marcandoIds, setMarcandoIds] = useState<Set<number>>(new Set());
+  const [pagosLocal, setPagosLocal] = useState<Set<number>>(new Set());
+  const [erroPorId, setErroPorId] = useState<Map<number, string>>(new Map());
+  const [, startTransition] = useTransition();
+
+  function marcarComoPago(turnoId: number) {
+    setErroPorId((atual) => {
+      const novo = new Map(atual);
+      novo.delete(turnoId);
+      return novo;
+    });
+    setMarcandoIds((atual) => new Set(atual).add(turnoId));
+    startTransition(async () => {
+      try {
+        await marcarPagamentoPagoManualmente(turnoId);
+        setPagosLocal((atual) => new Set(atual).add(turnoId));
+      } catch {
+        setErroPorId((atual) => new Map(atual).set(turnoId, "Não foi possível marcar como pago."));
+      } finally {
+        setMarcandoIds((atual) => {
+          const novo = new Set(atual);
+          novo.delete(turnoId);
+          return novo;
+        });
+      }
+    });
+  }
 
   function alternar(id: number) {
     setSelecionados((atual) => {
@@ -96,6 +141,11 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
                   entrada {turno.dataLabel}
                   {turno.horaSaidaLabel ? ` · saída ${turno.horaSaidaLabel}` : ""}
                 </p>
+                {turno.precisaResolverSaida && (
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    ⏱️ Ninguém bateu a saída — o sistema encerrou sozinho
+                  </p>
+                )}
               </div>
             </label>
 
@@ -110,6 +160,27 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
               >
                 {STATUS_LABEL[turno.status]}
               </span>
+              {turno.grupoPagamentoId !== null && (
+                <span
+                  className={`text-xs rounded-full border px-2 py-1 ${corGrupoPagamento(turno.grupoPagamentoId)}`}
+                  title="Pago junto com outros turnos numa única transferência PIX"
+                >
+                  🔗 Pago em grupo
+                </span>
+              )}
+              {turno.podeMarcarComoPago && !pagosLocal.has(turno.id) && (
+                <button
+                  type="button"
+                  onClick={() => marcarComoPago(turno.id)}
+                  disabled={marcandoIds.has(turno.id)}
+                  className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-medium px-3 py-1.5 disabled:opacity-50 transition-colors"
+                >
+                  {marcandoIds.has(turno.id) ? "Marcando..." : "💰 Marcar como pago"}
+                </button>
+              )}
+              {erroPorId.has(turno.id) && (
+                <span className="text-xs text-red-600">{erroPorId.get(turno.id)}</span>
+              )}
               <Link
                 href={`/turnos/${turno.id}/contrato/pdf`}
                 target="_blank"
@@ -124,6 +195,23 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
                   className="text-xs text-brand-700 hover:underline"
                 >
                   Ver recibo
+                </Link>
+              )}
+              {turno.grupoPagamentoId !== null && (
+                <Link
+                  href={`/pagamentos/grupo/${turno.grupoPagamentoId}/recibo/pdf`}
+                  target="_blank"
+                  className="text-xs text-brand-700 hover:underline"
+                >
+                  Recibo agrupado
+                </Link>
+              )}
+              {turno.podeCorrigirSaida && (
+                <Link
+                  href={`/turnos/${turno.id}#corrigir-saida`}
+                  className="text-xs text-amber-700 hover:underline font-medium"
+                >
+                  🔧 Corrigir horário de saída
                 </Link>
               )}
               <Link

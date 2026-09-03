@@ -21,7 +21,7 @@ export default async function EquipePage() {
             id: true,
             nomeCompleto: true,
             email: true,
-            empresas: { select: { empresaId: true } },
+            empresas: { select: { empresaId: true, responsavelEtica: true } },
           },
         });
 
@@ -61,6 +61,9 @@ export default async function EquipePage() {
                       nomeCompleto: membro.nomeCompleto,
                       email: membro.email,
                       empresaIdsComAcesso: membro.empresas.map((e) => e.empresaId),
+                      empresaIdsResponsavelEtica: membro.empresas
+                        .filter((e) => e.responsavelEtica)
+                        .map((e) => e.empresaId),
                     }}
                     empresas={sessao.minhasEmpresas}
                   />

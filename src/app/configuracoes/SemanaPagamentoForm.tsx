@@ -19,6 +19,16 @@ export default function SemanaPagamentoForm({
   const [state, formAction, pending] = useActionState(atualizarSemanaPagamento, undefined);
   const [inicioDia, setInicioDia] = useState(inicioDiaAtual);
 
+  // Resincroniza durante a renderização se o dado real mudar por outro
+  // caminho (ex.: página se atualiza sozinha após salvar outro card desta
+  // mesma tela) — sem isso o select podia ficar preso no valor de quando
+  // a tela abriu.
+  const [inicioDiaAnterior, setInicioDiaAnterior] = useState(inicioDiaAtual);
+  if (inicioDiaAtual !== inicioDiaAnterior) {
+    setInicioDiaAnterior(inicioDiaAtual);
+    setInicioDia(inicioDiaAtual);
+  }
+
   return (
     <form
       action={formAction}

@@ -1,23 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
-import { dataISOBrasil, formatarDataHora, instanteBrasil } from "@/lib/data";
-import type { StatusTurno } from "@/generated/prisma/enums";
+import {
+  dataISOBrasil,
+  formatarDataHoraComDiaSemana,
+  instanteBrasil,
+  inicioDaSemanaBrasil,
+  inicioDoMesBrasil,
+} from "@/lib/data";
+import { classificarTurno } from "@/lib/turno";
+import SelecaoTurnosGlobal from "./SelecaoTurnosGlobal";
+import type { StatusTurno, FrequenciaPagamento } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
-
-const STATUS_LABEL: Record<StatusTurno, string> = {
-  ABERTO: "Aberto",
-  CONCLUIDO: "Concluído",
-  PAGO: "Pago",
-  ERRO_PAGAMENTO: "Erro no pagamento",
-};
-
-const STATUS_CLASSE: Record<StatusTurno, string> = {
-  ABERTO: "bg-blue-50 text-blue-700 border-blue-200",
-  CONCLUIDO: "bg-amber-50 text-amber-700 border-amber-200",
-  PAGO: "bg-brand-50 text-brand-700 border-brand-200",
-  ERRO_PAGAMENTO: "bg-red-50 text-red-700 border-red-200",
-};
 
 const FILTROS: { valor: StatusTurno | "TODOS"; label: string }[] = [
   { valor: "TODOS", label: "Todos" },
@@ -27,19 +21,35 @@ const FILTROS: { valor: StatusTurno | "TODOS"; label: string }[] = [
   { valor: "ERRO_PAGAMENTO", label: "Erro no pagamento" },
 ];
 
+const FREQUENCIAS: { valor: FrequenciaPagamento | "TODAS"; label: string }[] = [
+  { valor: "TODAS", label: "Todas as frequências" },
+  { valor: "DIARIA", label: "Diária" },
+  { valor: "SEMANAL", label: "Semanal" },
+];
+
 export default async function TurnosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; nome?: string; de?: string; ate?: string }>;
+  searchParams: Promise<{
+    status?: string;
+    frequencia?: string;
+    nome?: string;
+    de?: string;
+    ate?: string;
+  }>;
 }) {
   const sessao = await requireTenant();
-  const { status, nome, de, ate } = await searchParams;
+  const { status, frequencia, nome, de, ate } = await searchParams;
   const statusFiltro = FILTROS.some((f) => f.valor === status) ? (status as StatusTurno) : null;
+  const frequenciaFiltro = FREQUENCIAS.some((f) => f.valor === frequencia)
+    ? (frequencia as FrequenciaPagamento)
+    : null;
   const nomeFiltro = nome?.trim() || "";
 
   const where: Prisma.TurnoWhereInput = {
     empresaId: sessao.empresaEfetivoId,
     ...(statusFiltro ? { status: statusFiltro } : {}),
+    ...(frequenciaFiltro ? { frequenciaPagamentoAplicada: frequenciaFiltro } : {}),
     ...(nomeFiltro ? { pessoa: { nome: { contains: nomeFiltro, mode: "insensitive" } } } : {}),
     ...(de || ate
       ? {
@@ -57,26 +67,59 @@ export default async function TurnosPage({
     take: 100,
     select: {
       id: true,
+      pessoaId: true,
       horaEntrada: true,
       horaSaida: true,
       valorTotal: true,
       status: true,
       fechamentoAutomatico: true,
+      correcaoSaidaEm: true,
       modoPagamentoAplicado: true,
+      frequenciaPagamentoAplicada: true,
+      assinaturaContratoUrl: true,
+      criadoManualmente: true,
+      criadoManualmentePorEmail: true,
+      turnoDobrado: true,
       pessoa: { select: { nome: true } },
       funcao: { select: { nome: true } },
     },
   });
 
-  // Preserva status/nome/período ao trocar o filtro de status pelos pills.
+  // Classificação ☀️/🌙 de cada turno — busca em lote o corte do dia da
+  // empresa e o turno fixo de cada pessoa listada, ao invés de 1 query por
+  // linha (ver mesmo padrão em src/lib/fechamento-automatico.ts).
+  const empresaConfig = await prisma.empresa.findUniqueOrThrow({
+    where: { id: sessao.empresaEfetivoId },
+    select: { horarioInicioDiaMin: true, horarioInicioNoiteMin: true },
+  });
+  const vinculos = await prisma.vinculoPessoaEmpresa.findMany({
+    where: { empresaId: sessao.empresaEfetivoId, pessoaId: { in: turnos.map((t) => t.pessoaId) } },
+    select: { pessoaId: true, turnoPredefinido: true },
+  });
+  const turnoPredefinidoPorPessoa = new Map(vinculos.map((v) => [v.pessoaId, v.turnoPredefinido]));
+
+  // Preserva status/frequência/nome/período ao trocar qualquer um dos
+  // filtros pelos pills — cada href* abaixo parte de paramsBase e só
+  // sobrescreve o próprio filtro que representa.
   const paramsBase = new URLSearchParams();
+  if (statusFiltro) paramsBase.set("status", statusFiltro);
+  if (frequenciaFiltro) paramsBase.set("frequencia", frequenciaFiltro);
   if (nomeFiltro) paramsBase.set("nome", nomeFiltro);
   if (de) paramsBase.set("de", de);
   if (ate) paramsBase.set("ate", ate);
 
   const hrefStatus = (valor: StatusTurno | "TODOS") => {
     const params = new URLSearchParams(paramsBase);
-    if (valor !== "TODOS") params.set("status", valor);
+    if (valor === "TODOS") params.delete("status");
+    else params.set("status", valor);
+    const query = params.toString();
+    return query ? `/turnos?${query}` : "/turnos";
+  };
+
+  const hrefFrequencia = (valor: FrequenciaPagamento | "TODAS") => {
+    const params = new URLSearchParams(paramsBase);
+    if (valor === "TODAS") params.delete("frequencia");
+    else params.set("frequencia", valor);
     const query = params.toString();
     return query ? `/turnos?${query}` : "/turnos";
   };
@@ -84,14 +127,29 @@ export default async function TurnosPage({
   const agora = new Date();
   const hojeISO = dataISOBrasil(agora);
   const ontemISO = dataISOBrasil(new Date(agora.getTime() - 24 * 60 * 60 * 1000));
+  const inicioSemanaISO = dataISOBrasil(inicioDaSemanaBrasil(agora));
+  const inicioMesISO = dataISOBrasil(inicioDoMesBrasil(agora));
 
-  const hrefPeriodo = (dataISO: string) => {
+  /** Preserva status/frequência/nome ao trocar de atalho de período —
+   * mesmo espírito de hrefStatus/hrefFrequencia, só que aqui de/ate vêm
+   * sempre do atalho clicado, nunca de paramsBase (senão um atalho preso
+   * ficaria "grudado" ao trocar de outro). */
+  const hrefPeriodoRange = (deISO: string, ateISO: string) => {
     const params = new URLSearchParams();
     if (statusFiltro) params.set("status", statusFiltro);
+    if (frequenciaFiltro) params.set("frequencia", frequenciaFiltro);
     if (nomeFiltro) params.set("nome", nomeFiltro);
-    params.set("de", dataISO);
-    params.set("ate", dataISO);
+    params.set("de", deISO);
+    params.set("ate", ateISO);
     return `/turnos?${params.toString()}`;
+  };
+
+  const hrefLimparPeriodoEBusca = () => {
+    const params = new URLSearchParams();
+    if (statusFiltro) params.set("status", statusFiltro);
+    if (frequenciaFiltro) params.set("frequencia", frequenciaFiltro);
+    const query = params.toString();
+    return query ? `/turnos?${query}` : "/turnos";
   };
 
   return (
@@ -121,8 +179,24 @@ export default async function TurnosPage({
       </div>
 
       <div className="flex flex-wrap gap-2">
+        {FREQUENCIAS.map((f) => (
+          <Link
+            key={f.valor}
+            href={hrefFrequencia(f.valor)}
+            className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+              (frequenciaFiltro ?? "TODAS") === f.valor
+                ? "bg-navy-800 text-white border-navy-800"
+                : "border-stone-300 text-stone-600 hover:bg-stone-50"
+            }`}
+          >
+            {f.label}
+          </Link>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
         <Link
-          href={hrefPeriodo(hojeISO)}
+          href={hrefPeriodoRange(hojeISO, hojeISO)}
           className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
             de === hojeISO && ate === hojeISO
               ? "bg-brand-600 text-white border-brand-600"
@@ -132,7 +206,7 @@ export default async function TurnosPage({
           Hoje
         </Link>
         <Link
-          href={hrefPeriodo(ontemISO)}
+          href={hrefPeriodoRange(ontemISO, ontemISO)}
           className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
             de === ontemISO && ate === ontemISO
               ? "bg-brand-600 text-white border-brand-600"
@@ -141,10 +215,31 @@ export default async function TurnosPage({
         >
           Ontem
         </Link>
+        <Link
+          href={hrefPeriodoRange(inicioSemanaISO, hojeISO)}
+          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+            de === inicioSemanaISO && ate === hojeISO
+              ? "bg-brand-600 text-white border-brand-600"
+              : "border-stone-300 text-stone-600 hover:bg-stone-50"
+          }`}
+        >
+          Esta semana
+        </Link>
+        <Link
+          href={hrefPeriodoRange(inicioMesISO, hojeISO)}
+          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+            de === inicioMesISO && ate === hojeISO
+              ? "bg-brand-600 text-white border-brand-600"
+              : "border-stone-300 text-stone-600 hover:bg-stone-50"
+          }`}
+        >
+          Este mês
+        </Link>
       </div>
 
       <form className="flex flex-wrap items-end gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
         {statusFiltro && <input type="hidden" name="status" value={statusFiltro} />}
+        {frequenciaFiltro && <input type="hidden" name="frequencia" value={frequenciaFiltro} />}
         <label className="flex flex-col gap-1 text-sm text-stone-700">
           Nome
           <input
@@ -181,7 +276,7 @@ export default async function TurnosPage({
         </button>
         {(nomeFiltro || de || ate) && (
           <Link
-            href={hrefStatus(statusFiltro ?? "TODOS")}
+            href={hrefLimparPeriodoEBusca()}
             className="text-sm text-stone-500 hover:underline px-2 py-2"
           >
             Limpar
@@ -189,48 +284,42 @@ export default async function TurnosPage({
         )}
       </form>
 
-      {turnos.length === 0 && (
+      {turnos.length === 0 ? (
         <p className="text-stone-500 text-sm">Nenhum turno encontrado.</p>
+      ) : (
+        <SelecaoTurnosGlobal
+          turnos={turnos.map((turno) => ({
+            id: turno.id,
+            pessoaNome: turno.pessoa.nome,
+            funcaoNome: turno.funcao.nome,
+            entradaLabel: formatarDataHoraComDiaSemana(turno.horaEntrada),
+            saidaLabel: turno.horaSaida
+              ? formatarDataHoraComDiaSemana(turno.horaSaida, turno.horaEntrada)
+              : null,
+            valorTotal: turno.valorTotal !== null ? Number(turno.valorTotal) : null,
+            status: turno.status,
+            fechamentoAutomatico: turno.fechamentoAutomatico,
+            podeCorrigirSaida:
+              turno.status !== "ABERTO" &&
+              (turno.fechamentoAutomatico || turno.correcaoSaidaEm !== null),
+            modoDiaria: turno.modoPagamentoAplicado === "DIARIA",
+            frequenciaSemanal: turno.frequenciaPagamentoAplicada === "SEMANAL",
+            turnoDobrado: turno.turnoDobrado,
+            tipoTurno: turno.turnoDobrado
+              ? null
+              : classificarTurno(
+                  turno.horaEntrada,
+                  turnoPredefinidoPorPessoa.get(turno.pessoaId) ?? "LIVRE",
+                  empresaConfig.horarioInicioDiaMin,
+                  empresaConfig.horarioInicioNoiteMin
+                ),
+            temContrato: turno.assinaturaContratoUrl !== null,
+            temRecibo: turno.horaSaida !== null && turno.valorTotal !== null,
+            criadoManualmente: turno.criadoManualmente,
+            criadoManualmentePorEmail: turno.criadoManualmentePorEmail,
+          }))}
+        />
       )}
-
-      <ul className="flex flex-col gap-2">
-        {turnos.map((turno) => (
-          <li key={turno.id}>
-            <Link
-              href={`/turnos/${turno.id}`}
-              className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between hover:border-brand-300 transition-colors"
-            >
-              <div>
-                <p className="font-medium text-navy-900 flex items-center gap-1.5">
-                  {turno.pessoa.nome}
-                  {turno.modoPagamentoAplicado === "DIARIA" && (
-                    <span className="text-[10px] font-medium uppercase tracking-wide rounded-full border border-amber-200 bg-amber-50 text-amber-700 px-1.5 py-0.5 shrink-0">
-                      Diária
-                    </span>
-                  )}
-                </p>
-                <p className="text-xs text-stone-500">
-                  {turno.funcao.nome} · entrada {formatarDataHora(turno.horaEntrada)}
-                  {turno.horaSaida ? ` · saída ${formatarDataHora(turno.horaSaida)}` : ""}
-                  {turno.fechamentoAutomatico ? " · encerrado automaticamente" : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                {turno.valorTotal !== null && (
-                  <span className="text-sm font-medium text-stone-700">
-                    R$ {Number(turno.valorTotal).toFixed(2)}
-                  </span>
-                )}
-                <span
-                  className={`text-xs rounded-full border px-2 py-1 ${STATUS_CLASSE[turno.status]}`}
-                >
-                  {STATUS_LABEL[turno.status]}
-                </span>
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

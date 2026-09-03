@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { notFound } from "next/navigation";
 import { requireTenant } from "@/lib/auth";
-import { buscarTurnoDaEmpresa } from "@/lib/turno";
+import { buscarTurnoDaEmpresa, type TurnoComRelacoes } from "@/lib/turno";
 import { baixarComoDataUrl } from "@/lib/blob";
 import { gerarPdfContratos, type DadosContrato } from "@/lib/contrato-pdf";
 import { resolverTermos } from "@/lib/termos";
+
+type TurnoComContrato = TurnoComRelacoes & {
+  assinaturaContratoUrl: NonNullable<TurnoComRelacoes["assinaturaContratoUrl"]>;
+};
+
+function temContrato(turno: TurnoComRelacoes): turno is TurnoComContrato {
+  return turno.assinaturaContratoUrl !== null;
+}
 
 export async function GET(req: Request) {
   const sessao = await requireTenant();
@@ -19,7 +27,9 @@ export async function GET(req: Request) {
   const turnos = await Promise.all(
     ids.map((id) => buscarTurnoDaEmpresa(id, sessao.empresaEfetivoId))
   );
-  const encontrados = turnos.filter((t): t is NonNullable<typeof t> => t !== null);
+  const encontrados = turnos
+    .filter((t): t is NonNullable<typeof t> => t !== null)
+    .filter(temContrato);
   if (encontrados.length === 0) notFound();
 
   const itens: DadosContrato[] = await Promise.all(
@@ -33,7 +43,7 @@ export async function GET(req: Request) {
       valorHoraAplicado: Number(turno.valorHoraAplicado),
       horaEntrada: turno.horaEntrada,
       assinaturaContratoDataUrl: await baixarComoDataUrl(turno.assinaturaContratoUrl),
-      termos: resolverTermos(turno.empresa.termosContrato, turno.empresa.modoPausa),
+      termos: resolverTermos(turno.empresa.termosContrato, turno.empresa.modoPausaDia, turno.empresa.modoPausaNoite),
     }))
   );
 

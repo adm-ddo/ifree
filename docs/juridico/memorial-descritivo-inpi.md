@@ -13,7 +13,7 @@
 
 | Campo | Valor |
 |---|---|
-| Título do programa | iFreela |
+| Título do programa | iFree |
 | Titular | **[PREENCHER — CPF ou CNPJ + nome/razão social]** |
 | Autor(es) | **[PREENCHER — nome completo, CPF, nacionalidade de quem desenvolveu]** |
 | Data de criação | 12/08/2026 (início do desenvolvimento) |
@@ -33,7 +33,7 @@
 
 ## 3. Resumo das funcionalidades
 
-O iFreela é um sistema de gestão de freelancers e prestadores de serviço
+O iFree é um sistema de gestão de freelancers e prestadores de serviço
 avulso ("extras"), voltado a empresas que contratam esse tipo de mão de
 obra por hora, por dia ou por serviço específico. O sistema resolve o
 controle manual (planilhas, papel) desse tipo de contratação, oferecendo:

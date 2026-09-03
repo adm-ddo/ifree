@@ -7,34 +7,77 @@ const RETENCAO_DIAS = 30;
 /** Backup "lógico" (dados, não schema): um JSON com o conteúdo de cada
  * tabela de negócio, gerado via Prisma Client — não depende do binário
  * `pg_dump`, que não está disponível no runtime serverless da Vercel.
- * `Sessao` fica de fora de propósito: são tokens efêmeros sem valor de
- * negócio, e não faz sentido guardar credenciais de sessão num backup. */
+ *
+ * Ficam de fora DE PROPÓSITO só as tabelas puramente efêmeras, sem valor
+ * de negócio nenhum se perdidas (a própria pessoa gera outra na hora):
+ * Sessao, SessaoPessoa (tokens de login) e TokenAutenticacao/
+ * TokenAutenticacaoPessoa (links de verificação de e-mail/redefinição de
+ * senha, todos de curta duração). Todo o resto do schema — incluindo
+ * cobrança/assinatura, histórico salarial, avaliações e o módulo Conecta
+ * (vagas/candidaturas/conversas) — entra, porque perder isso silenciosamente
+ * só apareceria numa recuperação de desastre real, tarde demais pra
+ * consertar. Versão 3 do formato: soma as 7 tabelas que a versão 2 não
+ * cobria (ver histórico do arquivo pra versão 2, só as 10 tabelas
+ * originais). */
 async function coletarDados() {
-  const [empresas, usuarios, usuarioEmpresas, totens, pessoas, vinculos, funcoes, turnos, pagamentos] =
-    await Promise.all([
-      prisma.empresa.findMany(),
-      prisma.usuario.findMany(),
-      prisma.usuarioEmpresa.findMany(),
-      prisma.totem.findMany(),
-      prisma.pessoa.findMany(),
-      prisma.vinculoPessoaEmpresa.findMany(),
-      prisma.funcao.findMany(),
-      prisma.turno.findMany(),
-      prisma.pagamento.findMany(),
-    ]);
-
-  return {
-    versao: 1,
-    geradoEm: new Date().toISOString(),
+  const [
     empresas,
+    cobrancasMensalidade,
     usuarios,
     usuarioEmpresas,
     totens,
     pessoas,
     vinculos,
+    historicoSalarial,
     funcoes,
     turnos,
+    avaliacoes,
+    registrosPonto,
     pagamentos,
+    vagas,
+    candidaturas,
+    conversas,
+    mensagens,
+  ] = await Promise.all([
+    prisma.empresa.findMany(),
+    prisma.cobrancaMensalidade.findMany(),
+    prisma.usuario.findMany(),
+    prisma.usuarioEmpresa.findMany(),
+    prisma.totem.findMany(),
+    prisma.pessoa.findMany(),
+    prisma.vinculoPessoaEmpresa.findMany(),
+    prisma.historicoSalarial.findMany(),
+    prisma.funcao.findMany(),
+    prisma.turno.findMany(),
+    prisma.avaliacao.findMany(),
+    prisma.registroPonto.findMany(),
+    prisma.pagamento.findMany(),
+    prisma.vaga.findMany(),
+    prisma.candidatura.findMany(),
+    prisma.conversa.findMany(),
+    prisma.mensagem.findMany(),
+  ]);
+
+  return {
+    versao: 3,
+    geradoEm: new Date().toISOString(),
+    empresas,
+    cobrancasMensalidade,
+    usuarios,
+    usuarioEmpresas,
+    totens,
+    pessoas,
+    vinculos,
+    historicoSalarial,
+    funcoes,
+    turnos,
+    avaliacoes,
+    registrosPonto,
+    pagamentos,
+    vagas,
+    candidaturas,
+    conversas,
+    mensagens,
   };
 }
 

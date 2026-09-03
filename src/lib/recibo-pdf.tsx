@@ -1,6 +1,6 @@
 import "server-only";
 import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
-import { formatarDataHora } from "@/lib/data";
+import { formatarDataHora, formatarDataHoraComDiaSemana } from "@/lib/data";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO, LABEL_TIPO_CHAVE_PIX } from "@/lib/documento";
 import type { TipoDocumentoPessoa, TipoChavePix, ModoPagamento } from "@/generated/prisma/enums";
 
@@ -35,6 +35,14 @@ const styles = StyleSheet.create({
   assinaturaImg: { width: 220, height: 80, objectFit: "contain" },
   assinaturaLinha: { borderTop: "0.5pt solid #78716c", width: 220, marginTop: 4 },
   assinaturaLabel: { fontSize: 8, color: "#78716c", marginTop: 4, textAlign: "center" },
+  semAssinaturaBox: {
+    marginTop: 24,
+    padding: 10,
+    backgroundColor: "#fffbeb",
+    border: "0.5pt solid #fde68a",
+    borderRadius: 6,
+  },
+  semAssinaturaTexto: { fontSize: 8, color: "#92400e", lineHeight: 1.5, textAlign: "center" },
   rodape: {
     position: "absolute",
     bottom: 20,
@@ -63,7 +71,13 @@ export type DadosRecibo = {
   valorTotal: number;
   chavePixDestino: string;
   tipoChavePixDestino: TipoChavePix;
-  assinaturaReciboDataUrl: string;
+  /// Null quando o turno foi encerrado sem a pessoa passar pelo totem de
+  /// novo pra confirmar (fechamento automático, ou saída corrigida na mão
+  /// depois) — nesse caso o recibo sai sem a imagem de assinatura, com um
+  /// aviso no lugar (ver fechamentoAutomatico/correcaoSaidaEm abaixo).
+  assinaturaReciboDataUrl: string | null;
+  fechamentoAutomatico: boolean;
+  correcaoSaidaEm: Date | null;
 };
 
 function ReciboPagina(props: DadosRecibo) {
@@ -101,11 +115,13 @@ function ReciboPagina(props: DadosRecibo) {
           <Text style={styles.secaoTitulo}>Período trabalhado</Text>
           <View style={styles.linha}>
             <Text style={styles.label}>Entrada</Text>
-            <Text style={styles.valor}>{formatarDataHora(props.horaEntrada)}</Text>
+            <Text style={styles.valor}>{formatarDataHoraComDiaSemana(props.horaEntrada)}</Text>
           </View>
           <View style={styles.linha}>
             <Text style={styles.label}>Saída</Text>
-            <Text style={styles.valor}>{formatarDataHora(props.horaSaida)}</Text>
+            <Text style={styles.valor}>
+              {formatarDataHoraComDiaSemana(props.horaSaida, props.horaEntrada)}
+            </Text>
           </View>
           <View style={styles.linha}>
             <Text style={styles.label}>Tempo (arredondado p/ 5min)</Text>
@@ -156,7 +172,7 @@ function ReciboPagina(props: DadosRecibo) {
 
         <Text style={styles.paragrafo}>
           Este recibo confirma o encerramento do serviço iniciado em{" "}
-          {formatarDataHora(props.horaEntrada)}, cujos termos foram lidos e
+          {formatarDataHoraComDiaSemana(props.horaEntrada)}, cujos termos foram lidos e
           aceitos digitalmente pelo(a) Contratado(a) no início do turno, por
           meio do contrato de prestação de serviço eventual firmado naquele
           momento.
@@ -167,15 +183,32 @@ function ReciboPagina(props: DadosRecibo) {
           revisão jurídica antes do uso em produção.
         </Text>
 
-        <View style={styles.assinaturaBox}>
-          {/* eslint-disable-next-line jsx-a11y/alt-text -- Image aqui é do @react-pdf/renderer, não HTML; não tem prop alt */}
-          <Image src={props.assinaturaReciboDataUrl} style={styles.assinaturaImg} />
-          <View style={styles.assinaturaLinha} />
-          <Text style={styles.assinaturaLabel}>
-            {props.pessoaNome} · confirmo o recebimento do valor acima,
-            assinado digitalmente no totem em {formatarDataHora(props.horaSaida)}
-          </Text>
-        </View>
+        {props.assinaturaReciboDataUrl ? (
+          <View style={styles.assinaturaBox}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text -- Image aqui é do @react-pdf/renderer, não HTML; não tem prop alt */}
+            <Image src={props.assinaturaReciboDataUrl} style={styles.assinaturaImg} />
+            <View style={styles.assinaturaLinha} />
+            <Text style={styles.assinaturaLabel}>
+              {props.pessoaNome} · confirmo o recebimento do valor acima,
+              assinado digitalmente no totem em{" "}
+              {formatarDataHoraComDiaSemana(props.horaSaida, props.horaEntrada)}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.semAssinaturaBox}>
+            <Text style={styles.semAssinaturaTexto}>
+              ⚠️ Sem assinatura de confirmação de recebimento — {props.pessoaNome}{" "}
+              não bateu a saída no totem;{" "}
+              {props.fechamentoAutomatico
+                ? "o sistema encerrou este turno automaticamente"
+                : "a saída deste turno foi definida manualmente pela empresa"}
+              {props.correcaoSaidaEm &&
+                ` (horário corrigido pela empresa em ${formatarDataHora(props.correcaoSaidaEm)})`}
+              . A confirmação de recebimento do valor deve ser obtida por
+              outro meio.
+            </Text>
+          </View>
+        )}
 
         <Text
           style={styles.rodape}

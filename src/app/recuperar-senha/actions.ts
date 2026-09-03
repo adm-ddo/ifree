@@ -1,53 +1,38 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { hashSenha } from "@/lib/auth";
-import { apenasDigitos, cpfValido } from "@/lib/cpf";
-import { redirect } from "next/navigation";
+import { criarTokenAutenticacao, tokenRecenteExiste } from "@/lib/tokenAutenticacao";
+import { enviarEmailRecuperacaoSenha } from "@/lib/email";
+import { captchaValido } from "@/lib/captcha";
 
-export type RecuperarSenhaState = { erro?: string } | undefined;
+export type RecuperarSenhaState = { erro?: string; sucesso?: boolean } | undefined;
 
-const ERRO_GENERICO = "Não encontramos uma conta com esses dados.";
-
-export async function recuperarSenha(
+/** Sempre a mesma mensagem de sucesso, exista ou não o e-mail na base —
+ * nunca revela quem está cadastrado (mesmo cuidado que o fluxo antigo,
+ * baseado em nome+CPF, já tinha com sua mensagem de erro genérica). */
+export async function solicitarRecuperacaoSenha(
   _prev: RecuperarSenhaState,
   formData: FormData
 ): Promise<RecuperarSenhaState> {
-  const nomeCompleto = String(formData.get("nomeCompleto") ?? "").trim();
-  const cpfBruto = String(formData.get("cpf") ?? "").trim();
-  const novaSenha = String(formData.get("novaSenha") ?? "");
-  const confirmarSenha = String(formData.get("confirmarSenha") ?? "");
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  if (!email) return { erro: "Informe o e-mail." };
 
-  if (!nomeCompleto || !cpfBruto || !novaSenha || !confirmarSenha) {
-    return { erro: "Preencha todos os campos." };
-  }
-  if (novaSenha.length < 8) {
-    return { erro: "A nova senha deve ter pelo menos 8 caracteres." };
-  }
-  if (novaSenha !== confirmarSenha) {
-    return { erro: "As senhas não conferem." };
+  if (!(await captchaValido(formData))) {
+    return { erro: "Verificação de segurança falhou. Atualize a página e tente de novo." };
   }
 
-  const cpf = apenasDigitos(cpfBruto);
-  if (!cpfValido(cpf)) {
-    return { erro: ERRO_GENERICO };
+  const usuario = await prisma.usuario.findUnique({ where: { email } });
+  if (usuario) {
+    // Evita spam de clique no botão de reenviar: não manda outro e-mail
+    // se já existe um link válido enviado há menos de 2 minutos.
+    const jaTemTokenRecente = await tokenRecenteExiste(usuario.id, "RECUPERACAO_SENHA", 2);
+    if (!jaTemTokenRecente) {
+      const token = await criarTokenAutenticacao(usuario.id, "RECUPERACAO_SENHA", 1);
+      await enviarEmailRecuperacaoSenha(email, usuario.nomeCompleto ?? "", token);
+    }
   }
 
-  const usuario = await prisma.usuario.findUnique({ where: { cpf } });
-  if (
-    !usuario ||
-    !usuario.nomeCompleto ||
-    usuario.nomeCompleto.trim().toLowerCase() !== nomeCompleto.toLowerCase()
-  ) {
-    return { erro: ERRO_GENERICO };
-  }
-
-  const senhaHash = await hashSenha(novaSenha);
-
-  await prisma.$transaction([
-    prisma.usuario.update({ where: { id: usuario.id }, data: { senhaHash } }),
-    prisma.sessao.deleteMany({ where: { usuarioId: usuario.id } }),
-  ]);
-
-  redirect("/login");
+  return { sucesso: true };
 }

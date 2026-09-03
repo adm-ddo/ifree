@@ -1,6 +1,6 @@
 import "server-only";
 import { Document, Page, Text, View, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
-import { formatarDataHora } from "@/lib/data";
+import { formatarDataHora, formatarDataHoraComDiaSemana } from "@/lib/data";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO } from "@/lib/documento";
 import type { TipoDocumentoPessoa } from "@/generated/prisma/enums";
 
@@ -88,7 +88,7 @@ function ContratoPagina(props: DadosContrato) {
           </View>
           <View style={styles.linha}>
             <Text style={styles.label}>Início do turno</Text>
-            <Text style={styles.valor}>{formatarDataHora(props.horaEntrada)}</Text>
+            <Text style={styles.valor}>{formatarDataHoraComDiaSemana(props.horaEntrada)}</Text>
           </View>
         </View>
 
@@ -111,7 +111,7 @@ function ContratoPagina(props: DadosContrato) {
           <View style={styles.assinaturaLinha} />
           <Text style={styles.assinaturaLabel}>
             {props.pessoaNome} · assinado digitalmente no totem em{" "}
-            {formatarDataHora(props.horaEntrada)}
+            {formatarDataHoraComDiaSemana(props.horaEntrada)}
           </Text>
         </View>
 

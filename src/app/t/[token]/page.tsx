@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { resolverTotemAtivo } from "@/lib/totem";
 import { resolverTermos } from "@/lib/termos";
+import { garantirTokenDenuncia } from "@/lib/etica";
 import TotemFlow from "./TotemFlow";
 
 // Trava o zoom por pinça — o totem é um kiosk de toque único, dar zoom só
@@ -37,7 +38,7 @@ export default async function TotemPage({
   const totem = await resolverTotemAtivo(token);
   if (!totem) notFound();
 
-  const [funcoes, empresa] = await Promise.all([
+  const [funcoes, empresa, tokenDenuncia] = await Promise.all([
     prisma.funcao.findMany({
       where: { empresaId: totem.empresaId, ativo: true },
       orderBy: { nome: "asc" },
@@ -45,8 +46,9 @@ export default async function TotemPage({
     }),
     prisma.empresa.findUniqueOrThrow({
       where: { id: totem.empresaId },
-      select: { termosContrato: true, modoPausa: true },
+      select: { termosContrato: true, modoPausaDia: true, modoPausaNoite: true },
     }),
+    garantirTokenDenuncia(totem.empresaId),
   ]);
 
   return (
@@ -54,7 +56,8 @@ export default async function TotemPage({
       token={token}
       empresaNome={totem.empresaNome}
       funcoes={funcoes.map((f) => ({ ...f, valorHoraPadrao: Number(f.valorHoraPadrao) }))}
-      termos={resolverTermos(empresa.termosContrato, empresa.modoPausa)}
+      termos={resolverTermos(empresa.termosContrato, empresa.modoPausaDia, empresa.modoPausaNoite)}
+      tokenDenuncia={tokenDenuncia}
     />
   );
 }

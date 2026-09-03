@@ -7,16 +7,14 @@ import { gerarPdfRecibos, type DadosRecibo } from "@/lib/recibo-pdf";
 
 type TurnoComRecibo = TurnoComRelacoes & {
   horaSaida: NonNullable<TurnoComRelacoes["horaSaida"]>;
-  assinaturaReciboUrl: NonNullable<TurnoComRelacoes["assinaturaReciboUrl"]>;
   valorTotal: NonNullable<TurnoComRelacoes["valorTotal"]>;
 };
 
+// Não exige mais assinaturaReciboUrl — turnos encerrados automaticamente
+// (ninguém bateu a saída) também geram recibo agora, sem a imagem de
+// assinatura, com um aviso no lugar (ver src/lib/recibo-pdf.tsx).
 function temRecibo(turno: TurnoComRelacoes): turno is TurnoComRecibo {
-  return (
-    turno.horaSaida !== null &&
-    turno.assinaturaReciboUrl !== null &&
-    turno.valorTotal !== null
-  );
+  return turno.horaSaida !== null && turno.valorTotal !== null;
 }
 
 export async function GET(req: Request) {
@@ -54,9 +52,15 @@ export async function GET(req: Request) {
       minutosDescontadosPausa: turno.minutosDescontadosPausa ?? 0,
       minutosArredondados: turno.minutosArredondados ?? 0,
       valorTotal: Number(turno.valorTotal),
-      chavePixDestino: turno.pessoa.chavePix,
-      tipoChavePixDestino: turno.pessoa.tipoChavePix,
-      assinaturaReciboDataUrl: await baixarComoDataUrl(turno.assinaturaReciboUrl),
+      // Turno sempre é do caminho EXTRA, que sempre tem PIX — "??" só
+      // satisfaz o tipo (chavePix é opcional no schema pra acomodar o CLT).
+      chavePixDestino: turno.pessoa.chavePix ?? "",
+      tipoChavePixDestino: turno.pessoa.tipoChavePix ?? "CPF",
+      assinaturaReciboDataUrl: turno.assinaturaReciboUrl
+        ? await baixarComoDataUrl(turno.assinaturaReciboUrl)
+        : null,
+      fechamentoAutomatico: turno.fechamentoAutomatico,
+      correcaoSaidaEm: turno.correcaoSaidaEm,
     }))
   );
 

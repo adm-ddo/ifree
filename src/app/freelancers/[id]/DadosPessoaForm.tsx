@@ -11,6 +11,12 @@ type Dados = {
   numero: string;
   complemento: string;
   chavePix: string;
+  email: string;
+  rg: string;
+  dataNascimento: string;
+  cep: string;
+  contatoEmergenciaNome: string;
+  contatoEmergenciaTelefone: string;
 };
 
 export default function DadosPessoaForm({
@@ -23,6 +29,16 @@ export default function DadosPessoaForm({
   const [state, formAction, pending] = useActionState(atualizarDadosPessoaAdmin, undefined);
   const [aberto, setAberto] = useState(false);
   const [chavePix, setChavePix] = useState(dadosIniciais.chavePix);
+
+  // Resincroniza durante a renderização se o dado do banco mudar depois da
+  // primeira montagem (ex.: página se atualiza sozinha após salvar outro
+  // card desta mesma tela) — sem isso o campo ficava preso no valor de
+  // quando a tela abriu.
+  const [chavePixAnterior, setChavePixAnterior] = useState(dadosIniciais.chavePix);
+  if (dadosIniciais.chavePix !== chavePixAnterior) {
+    setChavePixAnterior(dadosIniciais.chavePix);
+    setChavePix(dadosIniciais.chavePix);
+  }
 
   if (!aberto) {
     return (
@@ -117,6 +133,65 @@ export default function DadosPessoaForm({
           </span>
         )}
       </label>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          E-mail (opcional)
+          <input
+            name="email"
+            type="email"
+            defaultValue={dadosIniciais.email}
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          RG (opcional)
+          <input
+            name="rg"
+            defaultValue={dadosIniciais.rg}
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          Data de nascimento (opcional)
+          <input
+            name="dataNascimento"
+            type="date"
+            defaultValue={dadosIniciais.dataNascimento}
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          CEP (opcional)
+          <input
+            name="cep"
+            defaultValue={dadosIniciais.cep}
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          Contato de emergência — nome (opcional)
+          <input
+            name="contatoEmergenciaNome"
+            defaultValue={dadosIniciais.contatoEmergenciaNome}
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          Contato de emergência — telefone (opcional)
+          <input
+            name="contatoEmergenciaTelefone"
+            defaultValue={dadosIniciais.contatoEmergenciaTelefone}
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </label>
+      </div>
 
       {state?.erro && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

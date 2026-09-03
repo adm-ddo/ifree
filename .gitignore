@@ -48,3 +48,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# configuração local do Claude Code (específica desta máquina)
+/.claude

@@ -15,11 +15,13 @@ export async function GET(
   if (!Number.isInteger(turnoId)) notFound();
 
   const turno = await buscarTurnoDaEmpresa(turnoId, sessao.empresaEfetivoId);
-  if (!turno || !turno.horaSaida || !turno.assinaturaReciboUrl || turno.valorTotal === null) {
+  if (!turno || !turno.horaSaida || turno.valorTotal === null) {
     notFound();
   }
 
-  const assinaturaReciboDataUrl = await baixarComoDataUrl(turno.assinaturaReciboUrl);
+  const assinaturaReciboDataUrl = turno.assinaturaReciboUrl
+    ? await baixarComoDataUrl(turno.assinaturaReciboUrl)
+    : null;
 
   const pdfBytes = await gerarPdfRecibo({
     empresaNome: turno.empresa.nome,
@@ -37,9 +39,13 @@ export async function GET(
     minutosDescontadosPausa: turno.minutosDescontadosPausa ?? 0,
     minutosArredondados: turno.minutosArredondados ?? 0,
     valorTotal: Number(turno.valorTotal),
-    chavePixDestino: turno.pessoa.chavePix,
-    tipoChavePixDestino: turno.pessoa.tipoChavePix,
+    // Turno sempre é do caminho EXTRA, que sempre tem PIX — "??" só
+    // satisfaz o tipo (chavePix é opcional no schema pra acomodar o CLT).
+    chavePixDestino: turno.pessoa.chavePix ?? "",
+    tipoChavePixDestino: turno.pessoa.tipoChavePix ?? "CPF",
     assinaturaReciboDataUrl,
+    fechamentoAutomatico: turno.fechamentoAutomatico,
+    correcaoSaidaEm: turno.correcaoSaidaEm,
   });
 
   return new NextResponse(new Uint8Array(pdfBytes), {

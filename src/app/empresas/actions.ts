@@ -6,15 +6,18 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSessao, SESSAO_COOKIE } from "@/lib/auth";
 import { lerDadosEmpresa, type DadosEmpresaState } from "@/lib/empresa";
+import { TRIAL_DIAS } from "@/lib/assinatura";
+import { enviarEmailNovoCadastro } from "@/lib/email";
 
 export async function selecionarEmpresa(empresaId: number) {
   const sessao = await requireSessao();
 
   // Checagem de posse: só pode selecionar uma empresa que realmente é sua.
-  const vinculo = await prisma.usuarioEmpresa.findUnique({
-    where: { usuarioId_empresaId: { usuarioId: sessao.usuarioId, empresaId } },
-  });
-  if (!vinculo) {
+  // sessao.minhasEmpresas já veio carregado por requireSessao (getSessao) —
+  // conferir em memória evita uma segunda ida ao banco só pra repetir a
+  // mesma pergunta, o que importa aqui porque troca de empresa é um
+  // caminho sensível a latência (o usuário está esperando na hora).
+  if (!sessao.minhasEmpresas.some((e) => e.id === empresaId)) {
     throw new Error("Essa empresa não pertence a este login.");
   }
 
@@ -40,13 +43,36 @@ export async function cadastrarNovaEmpresa(
   const resultado = lerDadosEmpresa(formData);
   if ("erro" in resultado) return resultado;
 
+  const trialVenceEm = new Date(Date.now() + TRIAL_DIAS * 24 * 60 * 60 * 1000);
+
   const empresa = await prisma.$transaction(async (tx) => {
-    const novaEmpresa = await tx.empresa.create({ data: resultado.dados });
+    const novaEmpresa = await tx.empresa.create({
+      data: { ...resultado.dados, statusAssinatura: "TRIAL", assinaturaVenceEm: trialVenceEm },
+    });
+    // responsavelEtica: true — quem cria a empresa é o dono, mantém acesso
+    // à Central de Ética por padrão (mesmo espírito do backfill da
+    // migração: ninguém fica sem acesso à própria empresa por padrão, só
+    // logins secundários criados depois em /equipe nascem sem a marcação).
     await tx.usuarioEmpresa.create({
-      data: { usuarioId: sessao.usuarioId, empresaId: novaEmpresa.id },
+      data: { usuarioId: sessao.usuarioId, empresaId: novaEmpresa.id, responsavelEtica: true },
     });
     return novaEmpresa;
   });
+
+  // Avisa o dono do sistema — nunca lança se falhar, não pode travar o
+  // cadastro de quem está se cadastrando.
+  if (process.env.MASTER_EMAIL) {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: sessao.usuarioId },
+      select: { nomeCompleto: true, email: true },
+    });
+    await enviarEmailNovoCadastro(process.env.MASTER_EMAIL, {
+      nomeEmpresa: empresa.nome,
+      cnpj: empresa.cnpj,
+      nomeDono: usuario?.nomeCompleto ?? "—",
+      emailDono: usuario?.email ?? sessao.email,
+    });
+  }
 
   const token = (await cookies()).get(SESSAO_COOKIE)?.value;
   if (token) {

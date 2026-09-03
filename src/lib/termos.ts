@@ -42,14 +42,31 @@ const CLAUSULAS_LGPD: readonly string[] = [
  * aqui como texto por extenso pra compor a frase da cláusula. */
 const LIMIAR_PAUSA_HORAS_EXTENSO = "6 (seis) horas";
 
+function minutosExtenso(modoPausa: ModoPausa): string {
+  return modoPausa === "AUTOMATICA_60" ? "60 (sessenta) minutos" : "30 (trinta) minutos";
+}
+
 /** Frase que avisa o(a) freelancer, no próprio termo que assina, quanto de
  * intervalo já está embutido no valor/hora — pra não virar surpresa no
- * recibo. Só existe quando a empresa tem desconto automático configurado;
- * sem desconto (NENHUMA), não há nada a avisar. */
-function clausulaPausa(modoPausa: ModoPausa): string | null {
-  if (modoPausa === "NENHUMA") return null;
-  const minutosExtenso = modoPausa === "AUTOMATICA_60" ? "60 (sessenta) minutos" : "30 (trinta) minutos";
-  return `Em turnos acima de ${LIMIAR_PAUSA_HORAS_EXTENSO}, o valor/hora já contempla um intervalo de ${minutosExtenso}, que fica à disposição do(a) Contratado(a) para usar como preferir (descanso, alimentação, etc.) — esse tempo já está descontado do cálculo do pagamento.`;
+ * recibo. Dia e noite podem ter descontos diferentes (turnos de naipes
+ * diferentes costumam ter durações bem diferentes); só menciona o(s)
+ * período(s) que de fato têm desconto configurado — sem desconto nenhum
+ * (NENHUMA nos dois), não há nada a avisar. */
+function clausulaPausa(modoPausaDia: ModoPausa, modoPausaNoite: ModoPausa): string | null {
+  if (modoPausaDia === "NENHUMA" && modoPausaNoite === "NENHUMA") return null;
+
+  if (modoPausaDia === modoPausaNoite) {
+    return `Em turnos acima de ${LIMIAR_PAUSA_HORAS_EXTENSO}, o valor/hora já contempla um intervalo de ${minutosExtenso(modoPausaDia)}, que fica à disposição do(a) Contratado(a) para usar como preferir (descanso, alimentação, etc.) — esse tempo já está descontado do cálculo do pagamento.`;
+  }
+
+  const partes: string[] = [];
+  if (modoPausaDia !== "NENHUMA") {
+    partes.push(`${minutosExtenso(modoPausaDia)} em turnos do período diurno`);
+  }
+  if (modoPausaNoite !== "NENHUMA") {
+    partes.push(`${minutosExtenso(modoPausaNoite)} em turnos do período noturno`);
+  }
+  return `Em turnos acima de ${LIMIAR_PAUSA_HORAS_EXTENSO}, o valor/hora já contempla um intervalo — de ${partes.join(", e de ")} — que fica à disposição do(a) Contratado(a) para usar como preferir (descanso, alimentação, etc.) — esse tempo já está descontado do cálculo do pagamento.`;
 }
 
 /** Resolve os termos efetivos de uma empresa: o texto personalizado dela
@@ -61,14 +78,15 @@ function clausulaPausa(modoPausa: ModoPausa): string | null {
  * de pausa nunca desatualize se o dono trocar a configuração depois. */
 export function resolverTermos(
   termosContratoEmpresa: string | null,
-  modoPausa: ModoPausa
+  modoPausaDia: ModoPausa,
+  modoPausaNoite: ModoPausa
 ): string[] {
   const paragrafos =
     !termosContratoEmpresa || !termosContratoEmpresa.trim()
       ? [...TERMOS_CONTRATO]
       : textoParaTermos(termosContratoEmpresa);
 
-  const clausulaPausaTexto = clausulaPausa(modoPausa);
+  const clausulaPausaTexto = clausulaPausa(modoPausaDia, modoPausaNoite);
   const extras = [...CLAUSULAS_LGPD, ...(clausulaPausaTexto ? [clausulaPausaTexto] : [])];
 
   if (paragrafos.length <= 1) return [...paragrafos, ...extras];

@@ -12,11 +12,69 @@ export function formatarDataHora(data: Date): string {
   }).format(data);
 }
 
+/** Instante convertido pro formato que um <input type="datetime-local">
+ * aceita como value/defaultValue ("YYYY-MM-DDTHH:mm"), sempre no horário
+ * de Brasília — datetime-local é "sem fuso", então sem forçar o fuso aqui
+ * o valor exibido dependeria do fuso do navegador de quem preenche. */
+export function paraDatetimeLocalBrasil(data: Date): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: FUSO_HORARIO_BRASIL,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(data);
+  const obter = (tipo: string) => partes.find((p) => p.type === tipo)?.value ?? "00";
+  return `${obter("year")}-${obter("month")}-${obter("day")}T${obter("hour")}:${obter("minute")}`;
+}
+
 export function formatarHora(data: Date): string {
   return new Intl.DateTimeFormat("pt-BR", {
     timeStyle: "short",
     timeZone: FUSO_HORARIO_BRASIL,
   }).format(data);
+}
+
+const DIAS_SEMANA_EXTENSO = [
+  "domingo",
+  "segunda-feira",
+  "terça-feira",
+  "quarta-feira",
+  "quinta-feira",
+  "sexta-feira",
+  "sábado",
+] as const;
+
+const INDICE_EXTENSO_POR_ABREV: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+/** Nome por extenso do dia da semana, em minúsculas (ex.: "quarta-feira"),
+ * no calendário de Brasília. */
+export function nomeDiaSemanaBrasil(instante: Date): string {
+  const abrev = new Intl.DateTimeFormat("en-US", {
+    timeZone: FUSO_HORARIO_BRASIL,
+    weekday: "short",
+  }).format(instante);
+  return DIAS_SEMANA_EXTENSO[INDICE_EXTENSO_POR_ABREV[abrev]];
+}
+
+/** formatarDataHora() com o dia da semana entre parênteses — ex.: "26/08/2026,
+ * 15:45 (quarta-feira)". `diaReferencia` força qual dia usar pro dia da
+ * semana: um turno que atravessa a virada (entrada de noite, saída de
+ * madrugada) sempre usa o dia em que o TURNO COMEÇOU, tanto na entrada
+ * quanto na saída — sem isso a saída mostraria o dia seguinte, dando a
+ * impressão de dois turnos diferentes. */
+export function formatarDataHoraComDiaSemana(data: Date, diaReferencia?: Date): string {
+  return `${formatarDataHora(data)} (${nomeDiaSemanaBrasil(diaReferencia ?? data)})`;
 }
 
 /** Data (YYYY-MM-DD) do instante, no calendário de Brasília — base pros
@@ -28,6 +86,22 @@ export function dataISOBrasil(instante: Date): string {
     month: "2-digit",
     day: "2-digit",
   }).format(instante);
+}
+
+/** Minutos desde meia-noite (horário de Brasília) do instante — usado pra
+ * classificar um turno como "dia" ou "noite" pelo horário de entrada
+ * quando a pessoa não tem turno fixo configurado (ver
+ * src/lib/turno.ts:classificarTurno). */
+export function minutosDesdeMeiaNoiteBrasil(instante: Date): number {
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: FUSO_HORARIO_BRASIL,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instante);
+  const hora = Number(partes.find((p) => p.type === "hour")?.value ?? "0");
+  const minuto = Number(partes.find((p) => p.type === "minute")?.value ?? "0");
+  return hora * 60 + minuto;
 }
 
 /** Converte uma data (YYYY-MM-DD) mais um horário em minutos desde

@@ -7,12 +7,16 @@ export default function SignaturePadInput({
   onConfirm,
   confirmLabel = "Confirmar assinatura",
 }: {
-  onConfirm: (dataUrl: string) => void;
+  onConfirm: (dataUrl: string) => void | Promise<void>;
   confirmLabel?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const padRef = useRef<SignaturePad | null>(null);
   const [vazio, setVazio] = useState(true);
+  // Sem isso, num tablet com rede lenta a pessoa via o botão continuar
+  // clicável durante o envio e batia de novo — cada clique extra disparava
+  // outro iniciarTurno/concluirTurno, arriscando duplicar o turno no banco.
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -55,10 +59,18 @@ export default function SignaturePadInput({
     setVazio(true);
   }
 
-  function confirmar() {
+  async function confirmar() {
     const pad = padRef.current;
-    if (!pad || pad.isEmpty()) return;
-    onConfirm(pad.toDataURL("image/png"));
+    if (!pad || pad.isEmpty() || enviando) return;
+    setEnviando(true);
+    try {
+      await onConfirm(pad.toDataURL("image/png"));
+    } finally {
+      // Se onConfirm der certo, o componente pai normalmente já troca de
+      // tela (some este componente); isso só importa quando dá erro e a
+      // pessoa continua na mesma tela, precisando poder tentar de novo.
+      setEnviando(false);
+    }
   }
 
   return (
@@ -71,17 +83,21 @@ export default function SignaturePadInput({
         <button
           type="button"
           onClick={limpar}
-          className="rounded-xl border border-stone-300 text-lg px-6 py-3 text-stone-700 hover:bg-stone-50"
+          disabled={enviando}
+          className="rounded-xl border border-stone-300 text-lg px-6 py-3 text-stone-700 hover:bg-stone-50 disabled:opacity-50"
         >
           Limpar
         </button>
         <button
           type="button"
           onClick={confirmar}
-          disabled={vazio}
-          className="rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-lg font-medium px-8 py-3 disabled:opacity-50 transition-colors"
+          disabled={vazio || enviando}
+          className="rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-lg font-medium px-8 py-3 disabled:opacity-50 transition-colors flex items-center gap-2"
         >
-          {confirmLabel}
+          {enviando && (
+            <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+          )}
+          {enviando ? "Enviando..." : confirmLabel}
         </button>
       </div>
     </div>

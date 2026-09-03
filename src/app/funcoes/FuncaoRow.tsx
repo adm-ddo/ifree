@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { alternarAtivoFuncao, atualizarValorHoraFuncao, excluirFuncao } from "./actions";
+import { alternarAtivoFuncao, atualizarValorHoraFuncao, atualizarNomeFuncao, excluirFuncao } from "./actions";
 import { formatarValorMoeda } from "@/lib/moeda";
 
 type Funcao = { id: number; nome: string; valorHoraPadrao: number; ativo: boolean };
@@ -9,16 +9,40 @@ type Funcao = { id: number; nome: string; valorHoraPadrao: number; ativo: boolea
 export default function FuncaoRow({ funcao }: { funcao: Funcao }) {
   const [pending, startTransition] = useTransition();
   const [valor, setValor] = useState(funcao.valorHoraPadrao.toFixed(2));
+  const [nome, setNome] = useState(funcao.nome);
+  const [erroNome, setErroNome] = useState<string | null>(null);
 
   return (
     <li className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="font-medium text-navy-900">
-          {funcao.nome}{" "}
+        <div className="flex items-center gap-1.5">
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            onBlur={() => {
+              const nomeLimpo = nome.trim();
+              if (!nomeLimpo || nomeLimpo === funcao.nome) {
+                setNome(funcao.nome);
+                setErroNome(null);
+                return;
+              }
+              startTransition(async () => {
+                const resultado = await atualizarNomeFuncao(funcao.id, nomeLimpo);
+                if (resultado?.erro) {
+                  setErroNome(resultado.erro);
+                  setNome(funcao.nome);
+                } else {
+                  setErroNome(null);
+                }
+              });
+            }}
+            className="font-medium text-navy-900 border border-transparent hover:border-stone-300 rounded-lg px-2 py-1 -mx-2 -my-1 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+          />
           {!funcao.ativo && (
             <span className="text-xs text-stone-500 font-normal">(desativada)</span>
           )}
-        </p>
+        </div>
+        {erroNome && <p className="text-xs text-red-600 mt-1">{erroNome}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2 shrink-0">
         <div className="flex items-center gap-1">

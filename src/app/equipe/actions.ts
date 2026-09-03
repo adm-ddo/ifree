@@ -90,3 +90,31 @@ export async function alternarAcessoEquipe(
 
   revalidatePath("/equipe");
 }
+
+/** Marca/desmarca um membro como responsável pela Central de Ética
+ * NAQUELA empresa — só faz sentido pra quem já tem acesso geral (ver
+ * alternarAcessoEquipe acima); mesmas checagens de posse/alvo. */
+export async function alternarResponsavelEtica(
+  usuarioId: number,
+  empresaId: number,
+  valor: boolean
+): Promise<void> {
+  const sessao = await requireSessao();
+
+  const minhaEmpresa = sessao.minhasEmpresas.some((e) => e.id === empresaId);
+  if (!minhaEmpresa) return;
+  if (usuarioId === sessao.usuarioId) return;
+
+  const alvo = await prisma.usuario.findUnique({
+    where: { id: usuarioId },
+    select: { isMaster: true },
+  });
+  if (!alvo || alvo.isMaster) return;
+
+  await prisma.usuarioEmpresa.updateMany({
+    where: { usuarioId, empresaId },
+    data: { responsavelEtica: valor },
+  });
+
+  revalidatePath("/equipe");
+}

@@ -9,6 +9,8 @@ const EMPRESA_SELECT = {
   nome: true,
   cnpj: true,
   endereco: true,
+  statusAssinatura: true,
+  assinaturaVenceEm: true,
   _count: {
     select: { funcoes: true, totens: true, turnos: true },
   },
@@ -51,12 +53,20 @@ export default async function MasterPage() {
             tem acesso total (cadastrar, editar e apagar) a qualquer uma delas.
           </p>
         </div>
-        <Link
-          href="/master/freelancers"
-          className="rounded-lg border border-stone-300 text-sm px-4 py-2 hover:bg-stone-50 shrink-0"
-        >
-          👤 Ver freelancers
-        </Link>
+        <div className="flex gap-2 shrink-0">
+          <Link
+            href="/master/assinaturas"
+            className="rounded-lg border border-stone-300 text-sm px-4 py-2 hover:bg-stone-50"
+          >
+            💳 Assinaturas
+          </Link>
+          <Link
+            href="/master/freelancers"
+            className="rounded-lg border border-stone-300 text-sm px-4 py-2 hover:bg-stone-50"
+          >
+            👤 Ver freelancers
+          </Link>
+        </div>
       </div>
 
       {totalEmpresas === 0 && pessoas.length === 0 && (
@@ -86,6 +96,8 @@ export default async function MasterPage() {
                       nome: empresa.nome,
                       cnpj: empresa.cnpj,
                       endereco: empresa.endereco,
+                      statusAssinatura: empresa.statusAssinatura,
+                      assinaturaVenceEm: empresa.assinaturaVenceEm,
                       counts: empresa._count,
                     }}
                     jaMinha={idsMinhasEmpresas.has(empresa.id)}
@@ -113,6 +125,8 @@ export default async function MasterPage() {
                   nome: empresa.nome,
                   cnpj: empresa.cnpj,
                   endereco: empresa.endereco,
+                  statusAssinatura: empresa.statusAssinatura,
+                  assinaturaVenceEm: empresa.assinaturaVenceEm,
                   counts: empresa._count,
                 }}
                 jaMinha={idsMinhasEmpresas.has(empresa.id)}

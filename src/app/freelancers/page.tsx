@@ -13,7 +13,7 @@ export default async function FreelancersPage({
   const mostrarDesativados = desativados === "1";
 
   const vinculos = await prisma.vinculoPessoaEmpresa.findMany({
-    where: { empresaId: sessao.empresaEfetivoId },
+    where: { empresaId: sessao.empresaEfetivoId, tipoVinculo: "EXTRA" },
     orderBy: { pessoa: { nome: "asc" } },
     select: {
       ativo: true,
@@ -77,8 +77,8 @@ export default async function FreelancersPage({
               documento: v.pessoa.documento,
               tipoDocumento: v.pessoa.tipoDocumento,
               telefone: v.pessoa.telefone,
-              chavePix: v.pessoa.chavePix,
-              tipoChavePix: v.pessoa.tipoChavePix,
+              chavePix: v.pessoa.chavePix ?? "",
+              tipoChavePix: v.pessoa.tipoChavePix ?? "CPF",
               ativo: v.ativo,
             }}
           />

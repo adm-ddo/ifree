@@ -18,6 +18,16 @@ export default function PagamentoForm({
   const [state, formAction, pending] = useActionState(atualizarModoPagamentoVinculo, undefined);
   const [modo, setModo] = useState<ModoPagamento>(modoPagamentoAtual);
 
+  // Resincroniza durante a renderização se o dado real mudar por outro
+  // caminho (ex.: página se atualiza sozinha após salvar outro card desta
+  // mesma tela) — sem isso o campo "valor da diária" podia ficar
+  // escondido/aparecendo errado em relação ao modo realmente salvo.
+  const [modoAnterior, setModoAnterior] = useState(modoPagamentoAtual);
+  if (modoPagamentoAtual !== modoAnterior) {
+    setModoAnterior(modoPagamentoAtual);
+    setModo(modoPagamentoAtual);
+  }
+
   return (
     <form
       action={formAction}

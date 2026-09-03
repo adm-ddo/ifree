@@ -2,13 +2,30 @@
 
 import { useTransition } from "react";
 import { acessarEmpresa, excluirEmpresaMaster, vincularEmpresaAoMeuLogin } from "./actions";
+import type { StatusAssinatura } from "@/generated/prisma/enums";
 
 type Empresa = {
   id: number;
   nome: string;
   cnpj: string;
   endereco: string | null;
+  statusAssinatura: StatusAssinatura;
+  assinaturaVenceEm: Date | null;
   counts: { funcoes: number; totens: number; turnos: number };
+};
+
+const STATUS_LABEL: Record<StatusAssinatura, string> = {
+  TRIAL: "Trial",
+  ATIVA: "Ativa",
+  ATRASADA: "Atrasada",
+  CANCELADA: "Cancelada",
+};
+
+const STATUS_CLASSE: Record<StatusAssinatura, string> = {
+  TRIAL: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  ATIVA: "bg-brand-50 text-brand-700 border-brand-200",
+  ATRASADA: "bg-red-50 text-red-700 border-red-200",
+  CANCELADA: "bg-stone-100 text-stone-600 border-stone-200",
 };
 
 export default function EmpresaMasterRow({
@@ -23,7 +40,14 @@ export default function EmpresaMasterRow({
   return (
     <li className="rounded-xl border border-stone-200 bg-stone-50 p-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <p className="font-medium text-navy-900">{empresa.nome}</p>
+        <p className="font-medium text-navy-900 flex items-center gap-1.5 flex-wrap">
+          {empresa.nome}
+          <span
+            className={`text-[10px] font-medium uppercase tracking-wide rounded-full border px-1.5 py-0.5 shrink-0 ${STATUS_CLASSE[empresa.statusAssinatura]}`}
+          >
+            {STATUS_LABEL[empresa.statusAssinatura]}
+          </span>
+        </p>
         <p className="text-sm text-stone-500">
           {empresa.cnpj}
           {empresa.endereco ? ` · ${empresa.endereco}` : ""}

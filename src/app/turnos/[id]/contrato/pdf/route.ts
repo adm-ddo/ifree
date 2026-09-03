@@ -16,7 +16,7 @@ export async function GET(
   if (!Number.isInteger(turnoId)) notFound();
 
   const turno = await buscarTurnoDaEmpresa(turnoId, sessao.empresaEfetivoId);
-  if (!turno) notFound();
+  if (!turno || !turno.assinaturaContratoUrl) notFound();
 
   const assinaturaContratoDataUrl = await baixarComoDataUrl(turno.assinaturaContratoUrl);
 
@@ -30,7 +30,7 @@ export async function GET(
     valorHoraAplicado: Number(turno.valorHoraAplicado),
     horaEntrada: turno.horaEntrada,
     assinaturaContratoDataUrl,
-    termos: resolverTermos(turno.empresa.termosContrato, turno.empresa.modoPausa),
+    termos: resolverTermos(turno.empresa.termosContrato, turno.empresa.modoPausaDia, turno.empresa.modoPausaNoite),
   });
 
   return new NextResponse(new Uint8Array(pdfBytes), {

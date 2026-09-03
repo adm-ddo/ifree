@@ -22,11 +22,59 @@ enum StatusPagamento {
   PROCESSANDO
   CONCLUIDO
   FALHOU
+  /// Dispensado manualmente pelo dono (ex.: extra pago por fora, antes de
+  /// virar CLT) — nunca gerado pelo fluxo normal de pagamento. Para de
+  /// contar como pendente (não entra em STATUS_PENDENTES), mas o valor
+  /// original fica preservado no registro pra histórico/auditoria.
+  CANCELADO
 }
 
 enum TipoDocumentoPessoa {
   CPF
   CNPJ
+}
+
+/// Tipo de vínculo da pessoa com a empresa — decide qual fluxo se aplica no
+/// totem e nos relatórios. EXTRA é o comportamento de sempre (Turno +
+/// Pagamento via PIX). CLT é controle interno de jornada (RegistroPonto),
+/// sem cálculo de valor nem pagamento — ver docs/juridico e o disclaimer
+/// nas telas voltadas pro CLT: isso NÃO é um registrador eletrônico de
+/// ponto oficial (Portaria MTE 671/2021), é só controle interno.
+enum TipoVinculo {
+  EXTRA
+  CLT
+}
+
+/// Turno fixo da pessoa (só relevante pra EXTRA) — usado pelo fechamento
+/// automático pra decidir qual horário de corte aplicar quando ela
+/// esquece de bater saída. LIVRE (padrão) deixa o sistema inferir pelo
+/// horário de entrada — ver src/lib/turno.ts:classificarTurno.
+enum TurnoPredefinido {
+  MANHA
+  NOITE
+  LIVRE
+}
+
+/// Escala de trabalho do funcionário CLT — hoje é só informativo (aparece
+/// no cadastro e no relatório de horas como referência). Não há comparação
+/// automática contra o que foi de fato trabalhado nessa versão.
+enum EscalaTrabalho {
+  CINCO_X_DOIS
+  SEIS_X_UM
+  DOZE_X_TRINTA_E_SEIS
+  OUTRA
+}
+
+/// Status de um RegistroPonto (bater ponto de funcionário CLT) — separado
+/// de StatusTurno porque o ciclo de vida é mais simples (sem pagamento).
+/// PENDENTE_CORRECAO é usado pelo fechamento automático quando ninguém
+/// bateu a saída até o corte do dia — ver src/lib/fechamento-automatico.ts.
+/// Diferente do Turno (que fecha sozinho com um horário inventado), aqui a
+/// gente não inventa hora de saída de um registro de jornada.
+enum StatusRegistroPonto {
+  ABERTO
+  CONCLUIDO
+  PENDENTE_CORRECAO
 }
 
 enum TipoChavePix {
@@ -72,40 +120,153 @@ enum FrequenciaPagamento {
 }
 
 model Empresa {
-  id                       Int       @id @default(autoincrement())
-  nome                     String
-  cnpj                     String
-  endereco                 String?
+  id                         Int       @id @default(autoincrement())
+  nome                       String
+  cnpj                       String
+  endereco                   String?
   /// Texto próprio do termo de aceite/contrato, editado em /configuracoes —
   /// null usa o texto padrão do sistema (src/lib/termos.ts). Mesma fonte
   /// pra tela de aceite do totem e pro PDF do contrato.
-  termosContrato           String?
-  modoPausa                ModoPausa @default(NENHUMA)
+  termosContrato             String?
+  /// Desconto automático de intervalo, separado por turno do dia e da
+  /// noite — turnos mais longos (ex.: noite de evento) costumam precisar
+  /// de um intervalo diferente do turno do dia. Ver classificarTurno em
+  /// src/lib/turno.ts pra saber qual dos dois vale pra cada turno.
+  modoPausaDia               ModoPausa @default(NENHUMA)
+  modoPausaNoite             ModoPausa @default(NENHUMA)
   /// Faixas de horas (em minutos) que definem quanto da diária a pessoa
   /// recebe: abaixo de diariaLimiarMeiaMin paga metade, entre esse limiar
   /// e diariaLimiarCompletaMin paga 75%, a partir daí paga o valor cheio.
-  diariaLimiarMeiaMin      Int       @default(240)
-  diariaLimiarCompletaMin  Int       @default(360)
-  /// Horário (minutos desde meia-noite, horário de Brasília) usado como
+  diariaLimiarMeiaMin        Int       @default(240)
+  diariaLimiarCompletaMin    Int       @default(360)
+  /// Horário oficial de início de cada turno (minutos desde meia-noite,
+  /// Brasília) — usado por classificarTurno (src/lib/turno.ts) pra
+  /// classificar quem não tem turno fixo (LIVRE): o corte é o meio do
+  /// caminho entre os dois inícios, não o fim do turno do dia (chegar
+  /// bem antes do início da noite ainda conta como turno da noite, não
+  /// do dia).
+  horarioInicioDiaMin        Int       @default(540)  // 09:00
+  horarioInicioNoiteMin      Int       @default(960)  // 16:00
+  /// Horários (minutos desde meia-noite, horário de Brasília) usados como
   /// horaSaida quando o fechamento automático encerra um turno que ninguém
-  /// bateu saída — ver src/lib/fechamento-automatico.ts. Padrão 23:30.
-  horarioFechamentoMin     Int       @default(1410)
+  /// bateu saída — ver src/lib/fechamento-automatico.ts. Qual dos dois se
+  /// aplica depende da classificação do turno (ver
+  /// src/lib/turno.ts:classificarTurno) ou de turnoDobrado.
+  horarioFechamentoDiaMin    Int       @default(1020) // 17:00
+  horarioFechamentoNoiteMin  Int       @default(1410) // 23:30
   /// Dia da semana (ISO: 1=segunda...7=domingo) em que a semana de
   /// pagamento começa — a semana fechada vai desse dia até 6 dias depois.
   /// Padrão segunda a domingo.
-  semanaPagamentoInicioDia Int       @default(1)
+  semanaPagamentoInicioDia   Int       @default(1)
   /// Dia da semana (ISO: 1=segunda...7=domingo) em que os valores da
   /// semana fechada são pagos — pra quem está em frequência SEMANAL.
   /// Padrão quarta-feira.
-  semanaPagamentoDia       Int       @default(3)
-  criadoEm                 DateTime  @default(now())
+  semanaPagamentoDia         Int       @default(3)
+  /// Se funcionários CLT precisam bater o intervalo intrajornada no totem
+  /// (entrada e saída do intervalo) — configuração única pra empresa toda,
+  /// não por funcionário. false = só entrada/saída do dia.
+  funcionariosBaterIntervalo Boolean   @default(false)
+  /// Horário padrão (entrada/saída, minutos desde meia-noite Brasília) de
+  /// cada escala CLT, um par pro turno da manhã e um pro turno da noite —
+  /// null enquanto a empresa não configurou, e nesse caso não há
+  /// comparação nenhuma (mesmo espírito informativo de sempre). OUTRA não
+  /// tem padrão aqui de propósito — é a escala "não se encaixa em nenhum
+  /// padrão fixo". Qual par vale pra cada pessoa depende de
+  /// VinculoPessoaEmpresa.escalaTurno (null/MANHA usa os campos "Manha"
+  /// abaixo, NOITE usa os "Noite"); VinculoPessoaEmpresa.horarioEntradaMin/
+  /// horarioSaidaMin pode sobrescrever isso pra uma pessoa específica (ver
+  /// src/lib/ponto.ts:horarioEsperadoClt).
+  horarioEntrada5x2Min        Int?
+  horarioSaida5x2Min          Int?
+  horarioEntrada5x2NoiteMin   Int?
+  horarioSaida5x2NoiteMin     Int?
+  horarioEntrada6x1Min        Int?
+  horarioSaida6x1Min          Int?
+  horarioEntrada6x1NoiteMin   Int?
+  horarioSaida6x1NoiteMin     Int?
+  horarioEntrada12x36Min      Int?
+  horarioSaida12x36Min        Int?
+  horarioEntrada12x36NoiteMin Int?
+  horarioSaida12x36NoiteMin   Int?
+  /// Controle comercial — não afeta o totem, só o painel administrativo
+  /// (ver requireTenant em src/lib/auth.ts). TRIAL/ATIVA liberam o painel;
+  /// ATRASADA/CANCELADA bloqueiam (exceto pra sessão master). Vira ATRASADA
+  /// sozinho pelo cron diário quando assinaturaVenceEm passa; volta pra
+  /// ATIVA na hora que o webhook da Pagar.me confirma uma cobrança paga.
+  statusAssinatura  StatusAssinatura @default(TRIAL)
+  /// Fim do período de teste grátis, ou (depois de pago pela primeira vez)
+  /// o próximo vencimento — sempre a mesma coluna, o significado muda
+  /// conforme o status.
+  assinaturaVenceEm DateTime?
+  /// Valor da mensalidade combinado com essa empresa — null usa o valor
+  /// padrão (ver src/lib/assinatura.ts). Sem preço fixo em código porque
+  /// cada negociação pode ser diferente.
+  valorMensalidade  Decimal?         @db.Decimal(10, 2)
+  /// Token do link público do Canal de Denúncias desta empresa
+  /// (/denuncia/[token]) — nasce null e é gerado sob demanda na primeira
+  /// visita à Central de Ética (mesmo idioma do token do Totem: aleatório,
+  /// não sequencial, funciona como senha de acesso ao canal). Nullable
+  /// pra não precisar de script de backfill pras empresas já existentes.
+  tokenDenuncia     String?          @unique
+  /// Prazo (dias corridos, a partir do recebimento) considerado dentro do
+  /// SLA de tratativa de uma denúncia — usado só pro alerta "SLA vencido"
+  /// na Central de Ética, ajustável em Configurações.
+  slaDenunciaDias   Int              @default(30)
+  criadoEm                   DateTime  @default(now())
 
-  usuarios      UsuarioEmpresa[]
-  funcoes       Funcao[]
-  totens        Totem[]
-  turnos        Turno[]
-  vinculos      VinculoPessoaEmpresa[]
-  sessoesAtivas Sessao[]               @relation("EmpresaAtiva")
+  usuarios             UsuarioEmpresa[]
+  funcoes              Funcao[]
+  totens               Totem[]
+  turnos               Turno[]
+  registrosPonto       RegistroPonto[]
+  vinculos             VinculoPessoaEmpresa[]
+  sessoesAtivas        Sessao[]               @relation("EmpresaAtiva")
+  cobrancasMensalidade CobrancaMensalidade[]
+  vagas                Vaga[]
+  conversas            Conversa[]
+  denuncias            Denuncia[]
+  gruposPagamento      GrupoPagamento[]
+}
+
+enum StatusAssinatura {
+  TRIAL
+  ATIVA
+  ATRASADA
+  CANCELADA
+}
+
+enum StatusCobranca {
+  PENDENTE
+  PAGA
+  EXPIRADA
+  CANCELADA
+}
+
+/// Uma cobrança PIX avulsa de mensalidade — gerada sob demanda quando o
+/// dono da empresa clica em "gerar PIX" (não é recorrência automática).
+/// Diferente de Pagamento (que é 1 pagamento por Turno, saída de dinheiro
+/// pros extras): aqui é entrada de dinheiro, N cobranças por empresa ao
+/// longo do tempo.
+model CobrancaMensalidade {
+  id                 Int            @id @default(autoincrement())
+  empresaId          Int
+  valor              Decimal        @db.Decimal(10, 2)
+  /// "2026-08" — mês de competência, evita gerar duas cobranças pro mesmo
+  /// mês se a pessoa clicar em "gerar PIX" mais de uma vez.
+  referenciaMes      String
+  status             StatusCobranca @default(PENDENTE)
+  idTransacaoExterna String?
+  /// Copia-e-cola do PIX.
+  qrCode             String?
+  qrCodeImagemUrl    String?
+  expiraEm           DateTime
+  pagoEm             DateTime?
+  criadoEm           DateTime       @default(now())
+  atualizadoEm       DateTime       @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, status])
 }
 
 model Usuario {
@@ -115,16 +276,53 @@ model Usuario {
   nomeCompleto String?
   cpf          String?  @unique
   isMaster     Boolean  @default(false)
+  /// Null enquanto a pessoa não clicou no link de confirmação enviado
+  /// no cadastro — login fica bloqueado até confirmar (ver
+  /// src/app/login/actions.ts). Contas já existentes antes deste campo
+  /// existir foram marcadas como verificadas na migração, pra ninguém
+  /// ficar bloqueado de uma hora pra outra.
+  emailVerificadoEm DateTime?
   criadoEm     DateTime @default(now())
 
   empresas UsuarioEmpresa[]
   sessoes  Sessao[]
+  tokensAutenticacao TokenAutenticacao[]
+}
+
+enum TipoTokenAutenticacao {
+  VERIFICACAO_EMAIL
+  RECUPERACAO_SENHA
+}
+
+/// Token de uso único enviado por e-mail — confirmação de cadastro ou
+/// recuperação de senha. Mesmo padrão de token aleatório já usado em
+/// Sessao/Totem (randomBytes(32) em hex), só que de curta duração e
+/// marcado como usado depois de consumido (nunca reaproveitável).
+model TokenAutenticacao {
+  id        Int                    @id @default(autoincrement())
+  token     String                 @unique
+  usuarioId Int
+  tipo      TipoTokenAutenticacao
+  expiraEm  DateTime
+  usadoEm   DateTime?
+  criadoEm  DateTime               @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId, tipo])
 }
 
 model UsuarioEmpresa {
   id        Int      @id @default(autoincrement())
   usuarioId Int
   empresaId Int
+  /// Marca quem enxerga a Central de Ética desta empresa — acesso
+  /// restrito de propósito (diferente do resto do sistema, onde todo
+  /// UsuarioEmpresa vê tudo), já que denúncia é dado confidencial. Quem
+  /// já tinha acesso à empresa antes deste campo existir foi marcado como
+  /// true na migração (ninguém perde acesso de surpresa); só logins novos
+  /// daqui pra frente nascem sem a marcação.
+  responsavelEtica Boolean @default(false)
   criadoEm  DateTime @default(now())
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -155,8 +353,9 @@ model Totem {
   ativo     Boolean  @default(true)
   criadoEm  DateTime @default(now())
 
-  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  turnos  Turno[]
+  empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  turnos         Turno[]
+  registrosPonto RegistroPonto[]
 }
 
 /// Registro global da pessoa física — a mesma pessoa pode trabalhar p/
@@ -170,37 +369,291 @@ model Pessoa {
   endereco      String
   numero        String?
   complemento   String?
-  chavePix      String
-  tipoChavePix  TipoChavePix        @default(CPF)
+  bairro        String?
+  /// Obrigatória só pro caminho EXTRA (pago por PIX) — funcionário CLT não
+  /// tem valor calculado, então não precisa de chave PIX. Validação de
+  /// obrigatoriedade acontece na camada de aplicação, não no schema.
+  chavePix      String?
+  tipoChavePix  TipoChavePix?
   fotoUrl       String?
+  /// Campos de contato adicionais, opcionais, preenchidos manualmente pelo
+  /// dono em /freelancers/[id] ou /funcionarios/[id] — não fazem parte do
+  /// autocadastro pelo totem.
+  email                     String?
+  rg                        String?
+  /// CTPS (Carteira de Trabalho) — documento único da pessoa, usado
+  /// principalmente na carta de advertência disciplinar do CLT (ver
+  /// src/lib/advertencia-pdf.tsx). Opcional até ser preciso de verdade
+  /// (gerar a carta é que exige os dois preenchidos).
+  ctpsNumero                String?
+  ctpsSerieUf               String?
+  /// PIS/PASEP/NIT — documento único da pessoa (o número é o mesmo,
+  /// independente do nome que a Caixa/INSS usa em cada época). Obrigatório
+  /// pra quem é CLT em qualquer empresa (validado na camada de aplicação,
+  /// não aqui — CTPS acima é o exemplo de opcional, este é exigido de
+  /// verdade em criarFuncionario/atualizarDadosFuncionario).
+  pisPasepNit               String?
+  dataNascimento            DateTime? @db.Date
+  cep                       String?
+  cidade                    String?
+  contatoEmergenciaNome     String?
+  contatoEmergenciaTelefone String?
+  /// Null enquanto a pessoa nunca configurou acesso ao Portal (iFREE
+  /// Conecta, Fase 2) — só existe login pra quem passou pelo fluxo de
+  /// verificação de e-mail em /portal/cadastrar-acesso. Nunca gravado
+  /// direto por um formulário público (ver TokenAutenticacaoPessoa).
+  senhaHash     String?
+  /// Perfil profissional preenchido pela própria pessoa no Portal — usado
+  /// pro checklist de completude (src/lib/perfil-completude.ts) e pro
+  /// currículo em PDF (src/lib/curriculo-pdf.tsx). habilidades/vagasDesejadas
+  /// são texto livre com sugestões na UI (src/lib/habilidades.ts), não um
+  /// vocabulário fechado como Avaliacao.tags.
+  biografia      String?  @db.Text
+  habilidades    String[] @default([])
+  vagasDesejadas String[] @default([])
+  /// Como a pessoa costuma chegar no trabalho — importa pra empresa saber
+  /// se ela consegue cumprir turno de madrugada/fim de linha de ônibus.
+  /// Vocabulário fechado (src/lib/transporte.ts), igual a Avaliacao.tags.
+  meiosTransporte String[] @default([])
+  /// Opt-in explícito pro quadro de vagas (iFREE Conecta) — só quem liga
+  /// isso no Portal vê e se candidata a vagas publicadas por empresas.
+  /// Default false: ninguém fica visível/participando sem pedir.
+  disponivelParaOportunidades Boolean @default(false)
+  /// Null até a pessoa aceitar os Termos de Uso do Portal (uma vez só, sem
+  /// versionamento por enquanto) — gate em requirePessoaComTermosAceitos
+  /// (src/lib/auth-pessoa.ts), tela em /portal/termos.
+  termosAceitosEm DateTime?
+  /// Quem indicou esta pessoa a usar o iFREE Conecta — setado
+  /// automaticamente quando o cadastro veio por um link de indicação
+  /// (?ref=<pessoaId> em /portal/cadastro, ver criarCadastroPortal), nunca
+  /// editável depois. É a fonte confiável de indicação (ver indicados
+  /// abaixo, contado em src/lib/indicacao.ts) — indicadoPorNomeTexto logo
+  /// abaixo é só um texto livre informativo, sem crédito automático (evita
+  /// alguém inflar a própria contagem digitando qualquer nome sem ter
+  /// vindo pelo link de verdade).
+  indicadoPorPessoaId Int?
+  /// Nome de quem indicou, digitado à mão no cadastro — só preenchido
+  /// quando a pessoa respondeu "sim" à pergunta mas NÃO veio por um link
+  /// de indicação (?ref=). Puramente informativo, não gera crédito.
+  indicadoPorNomeTexto String?
   criadoEm      DateTime            @default(now())
 
-  vinculos VinculoPessoaEmpresa[]
-  turnos   Turno[]
+  vinculos                 VinculoPessoaEmpresa[]
+  turnos                   Turno[]
+  registrosPonto           RegistroPonto[]
+  sessoes                  SessaoPessoa[]
+  tokensAutenticacao       TokenAutenticacaoPessoa[]
+  candidaturas             Candidatura[]
+  conversas                Conversa[]
+  denuncias                Denuncia[]
+  gruposPagamento          GrupoPagamento[]
+  indicadoPor              Pessoa?                   @relation("Indicacoes", fields: [indicadoPorPessoaId], references: [id], onDelete: SetNull)
+  indicados                Pessoa[]                  @relation("Indicacoes")
+}
+
+/// Sessão de login da Pessoa no Portal (iFREE Conecta) — deliberadamente
+/// separada de Sessao (login do dono/Usuario): mesmo espírito de manter
+/// Turno/RegistroPonto sempre em tabelas próprias neste projeto. Zero
+/// risco de qualquer mudança aqui afetar o login do dono.
+model SessaoPessoa {
+  id       Int      @id @default(autoincrement())
+  token    String   @unique
+  pessoaId Int
+  expiraEm DateTime
+  criadoEm DateTime @default(now())
+
+  pessoa Pessoa @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+}
+
+/// Token de uso único (verificação de e-mail ou recuperação de senha) pro
+/// login da Pessoa no Portal — espelha TokenAutenticacao (Usuario), mesmo
+/// enum TipoTokenAutenticacao, tabela própria pelo mesmo motivo de
+/// SessaoPessoa acima.
+model TokenAutenticacaoPessoa {
+  id       Int                   @id @default(autoincrement())
+  token    String                @unique
+  pessoaId Int
+  tipo     TipoTokenAutenticacao
+  expiraEm DateTime
+  usadoEm  DateTime?
+  criadoEm DateTime              @default(now())
+
+  pessoa Pessoa @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@index([pessoaId, tipo])
 }
 
 /// Vínculo da pessoa numa empresa específica — criado automaticamente no
-/// primeiro check-in bem-sucedido naquele totem.
+/// primeiro check-in bem-sucedido naquele totem (EXTRA) ou manualmente pelo
+/// dono em /funcionarios (CLT).
 model VinculoPessoaEmpresa {
-  id                  Int                 @id @default(autoincrement())
-  pessoaId            Int
-  empresaId           Int
-  ativo               Boolean             @default(true)
+  id                     Int                 @id @default(autoincrement())
+  pessoaId               Int
+  empresaId              Int
+  ativo                  Boolean             @default(true)
+  /// EXTRA (padrão, comportamento de sempre) ou CLT (controle interno de
+  /// jornada, sem pagamento) — decide o fluxo no totem e nos relatórios.
+  tipoVinculo            TipoVinculo         @default(EXTRA)
   /// Modo de pagamento dessa pessoa NESTA empresa — configurado pelo dono
-  /// em /freelancers/[id], não pela pessoa no totem.
-  modoPagamento       ModoPagamento       @default(HORA)
+  /// em /freelancers/[id], não pela pessoa no totem. Só se aplica a EXTRA.
+  modoPagamento          ModoPagamento       @default(HORA)
   /// Valor fixo da diária combinado com a pessoa — obrigatório quando
   /// modoPagamento é DIARIA, ignorado (deve ficar null) quando é HORA.
-  valorDiaria         Decimal?            @db.Decimal(10, 2)
+  valorDiaria            Decimal?            @db.Decimal(10, 2)
   /// Com que frequência essa pessoa recebe NESTA empresa — configurado
   /// pelo dono, igual ao modoPagamento.
-  frequenciaPagamento FrequenciaPagamento @default(DIARIA)
-  criadoEm            DateTime            @default(now())
+  frequenciaPagamento    FrequenciaPagamento @default(DIARIA)
+  /// Salário mensal combinado — só se aplica a CLT, informativo (não gera
+  /// pagamento nenhum pelo sistema).
+  salarioMensal          Decimal?            @db.Decimal(10, 2)
+  /// Escala de trabalho — só se aplica a CLT, campo de referência exibido
+  /// no cadastro e no relatório de horas, sem comparação automática.
+  escalaTrabalho         EscalaTrabalho?
+  /// Qual dos dois horários-padrão da escala (manhã ou noite, configurados
+  /// em Empresa.horarioEntrada5x2Min e afins) vale pra esta pessoa CLT —
+  /// null/MANHA usa o par da manhã, NOITE usa o par da noite. LIVRE não
+  /// tem sentido aqui (é valor do turnoPredefinido do EXTRA, reaproveitado
+  /// só pelo tipo do enum) — a UI de funcionário só oferece Manhã/Noite.
+  escalaTurno            TurnoPredefinido?
+  /// Carga horária semanal esperada, em minutos — opcional pros dois tipos
+  /// de vínculo (CLT e EXTRA). Não afeta pagamento nem cálculo nenhum do
+  /// turno/ponto em si; é só a meta usada pra comparar contra o que foi
+  /// trabalhado de verdade no resumo semanal/mensal (ver
+  /// src/lib/resumo-horas.ts) e sinalizar hora extra ou hora a menos.
+  cargaHorariaSemanalMin Int?
+  /// Horário específico desta pessoa (minutos desde meia-noite Brasília) —
+  /// só CLT. Null usa o padrão da escala configurado na empresa (ver
+  /// Empresa.horarioEntrada5x2Min e afins); preenchido, sobrescreve o
+  /// padrão só pra esta pessoa (ex.: alguém na mesma escala 6x1 mas que
+  /// entra num horário diferente do resto da equipe).
+  horarioEntradaMin      Int?
+  horarioSaidaMin        Int?
+  /// Data de admissão CLT — base do cálculo de período aquisitivo/concessivo
+  /// de férias (ver src/lib/ferias.ts). Só se aplica a CLT.
+  dataAdmissao           DateTime?           @db.Date
+  /// Cargo registrado no contrato de trabalho — só CLT. Junto com
+  /// Pessoa.ctpsNumero/ctpsSerieUf, é exigido pra gerar a carta de
+  /// advertência disciplinar (ver src/lib/advertencia-pdf.tsx); fora
+  /// disso é só informativo.
+  cargo                  String?
+  /// Matrícula interna do funcionário nesta empresa — obrigatória pra
+  /// quem é CLT (validado em criarFuncionario/atualizarSalarioEscala, não
+  /// aqui). Por empresa, não pela pessoa: a mesma pessoa pode ter
+  /// matrículas diferentes em cada lugar onde trabalha.
+  matriculaInterna       String?
+  /// Data da última vez que a pessoa efetivamente tirou férias — reinicia a
+  /// contagem do período aquisitivo. Null enquanto nunca tirou desde a
+  /// admissão.
+  ultimasFeriasGozadasEm DateTime?           @db.Date
+  /// Quantidade de dias tirados na última vez que registrou férias — junto
+  /// com ultimasFeriasGozadasEm acima, dá a data de retorno esperada (ver
+  /// calcularFeriasEmAndamento em src/lib/ferias.ts). Null enquanto nunca
+  /// registrou, ou quando só a data de admissão/ciclo foi ajustada na mão.
+  feriasQuantidadeDias   Int?
+  /// Adicionais e benefícios CLT — todos valor livre em R$, informativos
+  /// (sem cálculo automático por percentual). Grava null quando o
+  /// respectivo "recebe" está desmarcado.
+  recebeInsalubridade        Boolean  @default(false)
+  valorInsalubridade         Decimal? @db.Decimal(10, 2)
+  recebePericulosidade       Boolean  @default(false)
+  valorPericulosidade        Decimal? @db.Decimal(10, 2)
+  /// Benefício de transporte — a classificação legal depende do desconto:
+  /// se desconta os 6% em folha é vale-transporte, se não desconta é
+  /// ajuda de custo. `transporteComDesconto` só é relevante quando
+  /// `recebeTransporte` é true.
+  recebeTransporte       Boolean  @default(false)
+  valorTransporte        Decimal? @db.Decimal(10, 2)
+  transporteComDesconto  Boolean  @default(false)
+  /// Bonificação — não entra na base de cálculo do salário (futuros
+  /// cálculos de férias/13º/rescisão devem ignorar este valor).
+  recebeBonificacao          Boolean  @default(false)
+  valorBonificacao           Decimal? @db.Decimal(10, 2)
+  /// Contrato de experiência — duração em dias de cada etapa a partir da
+  /// dataAdmissao (ex.: 30+60, 45+45, ou só 90/45 numa etapa só, deixando
+  /// experienciaDias2 null). Máximo legal de 90 dias somados. Ver
+  /// src/lib/experiencia.ts pro cálculo das datas e do status.
+  experienciaDias1       Int?
+  experienciaDias2       Int?
+  /// Data em que a empresa confirmou prorrogar pro 2º período da
+  /// experiência — antes disso, o aviso de vencimento é sempre sobre o
+  /// fim da 1ª etapa (nunca soma as duas automaticamente: são duas
+  /// decisões separadas, ver calcularStatusExperiencia em
+  /// src/lib/experiencia.ts). Só faz sentido quando experienciaDias2 está
+  /// preenchido; null enquanto ainda não confirmou (ou não tem 2ª etapa).
+  experienciaContinuouEm DateTime?           @db.Date
+  /// Data em que o contrato de experiência foi efetivado (virou prazo
+  /// indeterminado) — presença deste campo encerra os avisos de
+  /// vencimento. Null enquanto ainda não decidido.
+  experienciaEfetivadoEm DateTime?           @db.Date
+  /// Data da rescisão (último dia do contrato CLT) — cobre tanto "não
+  /// efetivar" no período de experiência (rescisão numa data igual ou
+  /// anterior ao fim previsto, com experienciaEfetivadoEm ainda null)
+  /// quanto rescisão comum de quem já foi efetivado. Null enquanto a
+  /// pessoa continua empregada. Ver src/lib/rescisao.ts pro cálculo do
+  /// prazo legal de pagamento/assinatura (10 dias corridos, antecipando
+  /// quando cai em sábado, domingo ou feriado nacional — regra do dono,
+  /// não necessariamente a única leitura possível do art. 477 §6º da CLT).
+  dataRescisao               DateTime?        @db.Date
+  rescisaoRegistradaEm       DateTime?
+  rescisaoRegistradaPorEmail String?
+  /// Turno fixo dessa pessoa — só EXTRA. Ver enum TurnoPredefinido.
+  turnoPredefinido       TurnoPredefinido    @default(LIVRE)
+  /// Só CLT: habilita, no totem, a pergunta "bater ponto CLT normal ou
+  /// fazer um extra pago hoje" na hora da entrada. Quando a pessoa opta
+  /// por extra, o turno segue o fluxo normal de EXTRA (função, contrato,
+  /// cálculo de valor, pagamento) usando modoPagamento/valorDiaria/
+  /// frequenciaPagamento deste mesmo vínculo — os mesmos campos que
+  /// converterParaClt zera na conversão passam a ter uso de novo aqui.
+  permiteExtraDiario     Boolean             @default(false)
+  criadoEm               DateTime            @default(now())
 
   pessoa  Pessoa  @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
   empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  historicoSalarial HistoricoSalarial[]
+  restricoesHorario RestricaoHorarioDia[]
 
   @@unique([pessoaId, empresaId])
+}
+
+/// Restrição de horário pra bater ENTRADA no totem, por dia da semana —
+/// ex.: "de segunda a sexta só libera a partir das 14h". Vale tanto pra
+/// EXTRA (iniciarTurno) quanto CLT (baterPontoClt, ação ENTRADA), já que
+/// mora no vínculo (o mesmo modelo que os dois tipos usam); nunca afeta
+/// saída/intervalo — uma vez que a pessoa já está trabalhando, não faz
+/// sentido travar ela lá dentro. Dia sem linha aqui = sem restrição
+/// nenhuma nesse dia (comportamento de sempre). Ver
+/// src/lib/restricao-horario.ts pra verificação/mensagem de bloqueio.
+model RestricaoHorarioDia {
+  id        Int @id @default(autoincrement())
+  vinculoId Int
+  /// 1=segunda...7=domingo — mesmo padrão ISO de diaSemanaISOBrasil
+  /// (src/lib/data.ts) e Empresa.semanaPagamentoInicioDia.
+  diaSemana Int
+  /// Não pode bater entrada antes deste horário (minutos desde meia-noite,
+  /// Brasília). Pelo menos um de horaMinimaMin/horaMaximaMin precisa estar
+  /// preenchido pra linha existir (validado na camada de aplicação).
+  horaMinimaMin Int?
+  /// Não pode bater entrada depois deste horário — null = sem limite de fim.
+  horaMaximaMin Int?
+
+  vinculo VinculoPessoaEmpresa @relation(fields: [vinculoId], references: [id], onDelete: Cascade)
+
+  @@unique([vinculoId, diaSemana])
+}
+
+/// Um registro por reajuste de salário do vínculo CLT — criado
+/// automaticamente sempre que salarioMensal muda (em criarFuncionario ou
+/// atualizarSalarioEscala), nunca editado manualmente nesta versão.
+model HistoricoSalarial {
+  id           Int      @id @default(autoincrement())
+  vinculoId    Int
+  valor        Decimal  @db.Decimal(10, 2)
+  vigenteDesde DateTime @db.Date
+  criadoEm     DateTime @default(now())
+
+  vinculo VinculoPessoaEmpresa @relation(fields: [vinculoId], references: [id], onDelete: Cascade)
+
+  @@index([vinculoId])
 }
 
 model Funcao {
@@ -245,18 +698,138 @@ model Turno {
   /// bateu saída até o corte) — sem foto/assinatura de saída, então a tela
   /// de detalhe e o recibo precisam sinalizar isso de forma diferente.
   fechamentoAutomatico        Boolean             @default(false)
-  fotoEntradaUrl              String
+  /// Ambos nulos quando o turno foi lançado manualmente pelo dono (ver
+  /// criadoManualmente) — sem totem não tem como capturar foto/assinatura
+  /// na hora. Sempre preenchidos quando o turno vem do totem de verdade.
+  fotoEntradaUrl              String?
   fotoSaidaUrl                String?
-  assinaturaContratoUrl       String
+  assinaturaContratoUrl       String?
   assinaturaReciboUrl         String?
+  /// true quando o dono criou este turno direto no painel (funcionário
+  /// CLT fazendo um extra pago no dia, sem passar pelo totem) — sem
+  /// foto/assinatura, só o registro administrativo abaixo. Ver
+  /// src/app/funcionarios/actions.ts::criarTurnoManualClt.
+  criadoManualmente           Boolean             @default(false)
+  criadoManualmentePorEmail   String?
+  /// Auditoria de correção manual de função — preenchidos só na primeira
+  /// correção (preservam o "antes" original mesmo que seja corrigido de
+  /// novo depois). Null enquanto a função nunca foi corrigida.
+  funcaoOriginalNome          String?
+  valorHoraOriginalAplicado   Decimal?            @db.Decimal(10, 2)
+  correcaoFuncaoEm            DateTime?
+  correcaoFuncaoPorEmail      String?
+  /// Auditoria de saída confirmada/corrigida manualmente pelo dono — dois
+  /// casos usam os mesmos campos: (1) a pessoa nunca bateu saída aqui
+  /// porque já apareceu com turno/ponto aberto em outra empresa (ver
+  /// buscarConflitoOutroLocal em src/app/t/[token]/actions.ts), e (2) o
+  /// fechamento automático encerrou com o corte padrão (fechamentoAutomatico)
+  /// e o dono corrige depois pro horário real (ver corrigirSaidaTurno em
+  /// src/app/turnos/actions.ts — problema técnico, esqueceu de bater etc.).
+  /// Sempre a correção MAIS RECENTE; ver horaSaidaOriginal pra saber o
+  /// valor antes da primeira correção.
+  correcaoSaidaEm             DateTime?
+  correcaoSaidaPorEmail       String?
+  /// Valor de horaSaida ANTES da primeira correção manual — só preenchido
+  /// na primeira vez que corrigirSaidaTurno roda num turno fechado
+  /// automaticamente, preservado mesmo que seja corrigido de novo depois.
+  /// Mesmo espírito de funcaoOriginalNome: mostra pro dono (e deixa
+  /// auditável) o que o sistema tinha calculado sozinho vs. o horário real.
+  horaSaidaOriginal           DateTime?
+  /// Marcado manualmente pelo dono quando a pessoa dobrou o turno (fez dia
+  /// e noite seguidos) e também esqueceu de bater saída — muda o corte do
+  /// fechamento automático pro limite da noite e dobra o desconto de
+  /// pausa. Ver src/lib/fechamento-automatico.ts.
+  turnoDobrado                Boolean             @default(false)
   criadoEm                    DateTime            @default(now())
   atualizadoEm                DateTime            @updatedAt
 
-  pessoa    Pessoa     @relation(fields: [pessoaId], references: [id])
-  empresa   Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
-  totem     Totem?     @relation(fields: [totemId], references: [id], onDelete: SetNull)
-  funcao    Funcao     @relation(fields: [funcaoId], references: [id])
-  pagamento Pagamento?
+  pessoa     Pessoa      @relation(fields: [pessoaId], references: [id])
+  empresa    Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  totem      Totem?      @relation(fields: [totemId], references: [id], onDelete: SetNull)
+  funcao     Funcao      @relation(fields: [funcaoId], references: [id])
+  pagamento  Pagamento?
+  avaliacoes Avaliacao[]
+
+  @@index([empresaId, status])
+  @@index([pessoaId, empresaId, status])
+}
+
+/// Quem deu a avaliação — EXTRA é o freelancer avaliando a empresa onde
+/// trabalhou, EMPRESA é o dono avaliando o freelancer. Sempre amarrada a
+/// um Turno específico (não ao vínculo), porque a nota é sobre aquele
+/// turno em particular.
+enum AutorAvaliacao {
+  EXTRA
+  EMPRESA
+}
+
+/// Avaliação mútua ao encerrar um turno — base da "reputação que atravessa
+/// empresas" do iFREE Conecta (ver /conecta). tags é validado em código
+/// contra um vocabulário fixo por direção (src/lib/avaliacao.ts), não um
+/// enum do Postgres — mais fácil de ajustar depois sem migração nova.
+/// Consultada SEM filtrar por empresa quando o objetivo é reputação (ver
+/// /freelancers/[id]) — de propósito, é o ponto central da ideia.
+model Avaliacao {
+  id       Int            @id @default(autoincrement())
+  turnoId  Int
+  autor    AutorAvaliacao
+  nota     Int
+  tags     String[]
+  criadoEm DateTime       @default(now())
+
+  turno Turno @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+
+  @@unique([turnoId, autor])
+}
+
+/// Bater ponto de funcionário CLT — controle interno de jornada, sem
+/// pagamento. Modelo separado de Turno de propósito: Turno tem funcaoId,
+/// valorHoraAplicado e assinaturaContratoUrl como obrigatórios, todos
+/// amarrados ao fluxo de contrato/pagamento do extra, que não existe aqui.
+/// NÃO é registrador eletrônico de ponto oficial (Portaria MTE 671/2021) —
+/// ver disclaimer nas telas que usam este model.
+model RegistroPonto {
+  id                      Int                 @id @default(autoincrement())
+  pessoaId                Int
+  empresaId               Int
+  totemId                 Int?
+  horaEntrada             DateTime
+  /// Só preenchido quando a empresa tem Empresa.funcionariosBaterIntervalo
+  /// ligado — o totem só oferece essa opção nesse caso.
+  entradaIntervalo        DateTime?
+  saidaIntervalo          DateTime?
+  horaSaida               DateTime?
+  /// Calculado no fechamento (manual ou correção): tempo total menos a
+  /// duração do intervalo, se houver. Sem arredondamento em bloco — isso é
+  /// específico do cálculo de pagamento do extra (src/lib/turno.ts), não
+  /// se aplica aqui.
+  minutosTrabalhados      Int?
+  /// Quanto de minutosTrabalhados já é o desconto automático de intervalo
+  /// (Empresa.modoPausaDia/modoPausaNoite) — só entra quando a pessoa NÃO
+  /// bateu um intervalo de verdade (entradaIntervalo/saidaIntervalo), que
+  /// sempre tem prioridade sobre a estimativa automática. Null quando não
+  /// houve desconto nenhum (jornada curta, ou modoPausa NENHUMA). Mesmo
+  /// espírito de Turno.minutosDescontadosPausa, só que aqui é sempre
+  /// informativo — não afeta pagamento, que não existe pro CLT.
+  minutosDescontadosPausa Int?
+  status                  StatusRegistroPonto @default(ABERTO)
+  /// Auditoria de saída confirmada manualmente pelo dono (registro que
+  /// ninguém encerrou no totem) — null quando a própria pessoa bateu a
+  /// saída normalmente. Mesma lógica de Turno.correcaoSaidaEm/PorEmail,
+  /// espelhada aqui pra dar a mesma visibilidade em relatório (ver
+  /// /relatorios/horas): quem encerrou, a pessoa ou a empresa.
+  correcaoSaidaEm         DateTime?
+  correcaoSaidaPorEmail   String?
+  fotoEntradaUrl          String
+  fotoSaidaUrl            String?
+  fotoEntradaIntervaloUrl String?
+  fotoSaidaIntervaloUrl   String?
+  criadoEm                DateTime            @default(now())
+  atualizadoEm            DateTime            @updatedAt
+
+  pessoa  Pessoa  @relation(fields: [pessoaId], references: [id])
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  totem   Totem?  @relation(fields: [totemId], references: [id], onDelete: SetNull)
 
   @@index([empresaId, status])
   @@index([pessoaId, empresaId, status])
@@ -275,8 +848,271 @@ model Pagamento {
   criadoEm            DateTime        @default(now())
   atualizadoEm        DateTime        @updatedAt
   processadoEm        DateTime?
+  /// Não-nulo quando este pagamento foi confirmado junto de outros
+  /// turnos da mesma pessoa numa única transferência PIX (ver
+  /// GrupoPagamento) — usado pra colorir esses pagamentos com a mesma cor
+  /// na tela e liberar o recibo agrupado com o detalhamento de todos.
+  grupoPagamentoId    Int?
 
-  turno Turno @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+  turno          Turno           @relation(fields: [turnoId], references: [id], onDelete: Cascade)
+  grupoPagamento GrupoPagamento? @relation(fields: [grupoPagamentoId], references: [id], onDelete: SetNull)
 
   @@index([status])
+  @@index([grupoPagamentoId])
+}
+
+/// Vários turnos da MESMA pessoa pagos numa única transferência PIX,
+/// confirmados juntos em /pagamentos (ver agruparEMarcarPagos) — pensado
+/// pra quem recebe por semana (FrequenciaPagamento.SEMANAL) e teria que
+/// somar os turnos manualmente antes de fazer um PIX só. Cada Pagamento
+/// individual continua existindo e pode ser impresso separadamente (ver
+/// /turnos/imprimir/recibo/pdf); este grupo só soma o valor pago de uma
+/// vez e habilita o recibo consolidado (/pagamentos/grupo/[id]/recibo/pdf).
+model GrupoPagamento {
+  id             Int      @id @default(autoincrement())
+  empresaId      Int
+  pessoaId       Int
+  valorTotal     Decimal  @db.Decimal(10, 2)
+  criadoPorEmail String
+  criadoEm       DateTime @default(now())
+
+  empresa    Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pessoa     Pessoa      @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  pagamentos Pagamento[]
+
+  @@index([empresaId])
+  @@index([pessoaId])
+}
+
+enum StatusVaga {
+  ABERTA
+  PAUSADA
+  ENCERRADA
+}
+
+/// Vaga publicada por uma empresa no quadro do iFREE Conecta — freelancers
+/// com Pessoa.disponivelParaOportunidades ligado veem e se candidatam
+/// (/portal/vagas). `cargo` é texto livre sugerido pela mesma taxonomia do
+/// perfil do freelancer (CATEGORIAS_CARGOS em src/lib/habilidades.ts), sem
+/// vínculo com Funcao — Funcao é escopada por empresa e só existe depois
+/// que a empresa já configurou o sistema; a vaga não deveria depender disso.
+model Vaga {
+  id             Int        @id @default(autoincrement())
+  empresaId      Int
+  cargo          String
+  descricao      String     @db.Text
+  localizacao    String?
+  /// Nome que a empresa quer mostrar pro candidato nesta vaga específica,
+  /// no lugar da razão social (Empresa.nome) — útil quando a razão social
+  /// não é reconhecível pra quem procura vaga. Null usa a razão social.
+  nomeFantasia   String?
+  /// Habilidades que a empresa procura, mesmo vocabulário do perfil do
+  /// freelancer (src/lib/habilidades.ts) — usado só pro cálculo de match
+  /// (src/lib/match.ts), não filtra nem restringe quem pode se candidatar.
+  habilidadesProcuradas String[]   @default([])
+  status         StatusVaga @default(ABERTA)
+  criadoPorEmail String
+  criadoEm       DateTime   @default(now())
+
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  candidaturas Candidatura[]
+
+  @@index([status])
+}
+
+enum StatusCandidatura {
+  ENVIADA
+  ACEITA
+  RECUSADA
+}
+
+/// Candidatura de uma Pessoa a uma Vaga — quando a empresa aceita, o
+/// VinculoPessoaEmpresa é criado (upsert) automaticamente, mesmo padrão que
+/// o totem já usa no primeiro check-in (ver iniciarTurno em
+/// src/app/t/[token]/actions.ts), fechando o ciclo sem passo manual extra.
+model Candidatura {
+  id       Int               @id @default(autoincrement())
+  vagaId   Int
+  pessoaId Int
+  status   StatusCandidatura @default(ENVIADA)
+  /// Calculado uma vez no momento da candidatura (src/lib/match.ts) e
+  /// congelado — não recalcula se as habilidades mudarem depois. true
+  /// libera o chat entre a empresa e a pessoa (ver Conversa).
+  match    Boolean           @default(false)
+  criadoEm DateTime          @default(now())
+
+  vaga   Vaga   @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  pessoa Pessoa @relation(fields: [pessoaId], references: [id])
+
+  @@unique([vagaId, pessoaId])
+}
+
+/// Conversa entre uma Empresa e uma Pessoa — por par, não por
+/// candidatura: uma vez que deu match, o chat fica valendo pra qualquer
+/// vaga futura entre os dois. Criada via upsert em candidatarSe
+/// (src/app/portal/vagas/actions.ts) na primeira candidatura que dá match.
+model Conversa {
+  id                     Int       @id @default(autoincrement())
+  empresaId              Int
+  pessoaId               Int
+  criadaEm               DateTime  @default(now())
+  /// Timestamps de última leitura de cada lado — base do indicador de
+  /// "não lida" na caixa de entrada, sem precisar de flag por mensagem.
+  ultimaLeituraEmpresaEm DateTime?
+  ultimaLeituraPessoaEm  DateTime?
+
+  empresa   Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pessoa    Pessoa     @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  mensagens Mensagem[]
+
+  @@unique([empresaId, pessoaId])
+}
+
+enum AutorMensagem {
+  EMPRESA
+  PESSOA
+}
+
+model Mensagem {
+  id         Int           @id @default(autoincrement())
+  conversaId Int
+  autor      AutorMensagem
+  /// E-mail do Usuario que mandou, só quando autor=EMPRESA — várias
+  /// pessoas da empresa podem ter acesso ao mesmo login/painel.
+  autorEmail String?
+  texto      String        @db.Text
+  criadoEm   DateTime      @default(now())
+
+  conversa Conversa @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+
+  @@index([conversaId, criadoEm])
+}
+
+enum CategoriaDenuncia {
+  ASSEDIO_MORAL
+  ASSEDIO_SEXUAL
+  DISCRIMINACAO
+  RISCO_PSICOSSOCIAL
+  SEGURANCA_TRABALHO
+  CORRUPCAO_FRAUDE
+  CONFLITO_INTERESSES
+  DESCUMPRIMENTO_NORMAS
+  RETALIACAO
+  OUTROS
+}
+
+enum GravidadeDenuncia {
+  BAIXA
+  MEDIA
+  ALTA
+}
+
+enum StatusDenuncia {
+  RECEBIDO
+  TRIAGEM
+  EM_INVESTIGACAO
+  AGUARDANDO_INFORMACOES
+  PARECER_EMITIDO
+  PROVIDENCIAS
+  FINALIZADO
+}
+
+enum AutorMensagemDenuncia {
+  EMPRESA
+  DENUNCIANTE
+}
+
+/// Canal de Denúncias / Central de Ética (NR-1) — denúncia pode ser
+/// anônima (identificado=false, pessoaId null, acesso por protocolo+senha)
+/// ou identificada via login do Portal (identificado=true, pessoaId
+/// setado, sem senha própria — a autenticação já é a sessão da Pessoa).
+/// Gravidade é preenchida manualmente pela empresa por enquanto (sem IA).
+model Denuncia {
+  id           Int                @id @default(autoincrement())
+  empresaId    Int
+  protocolo    String             @unique
+  /// Hash bcrypt (nunca texto puro) — null quando identificado=true, já
+  /// que nesse caso o acesso é pela sessão do Portal, não por senha.
+  senhaHash    String?
+  identificado Boolean            @default(false)
+  pessoaId     Int?
+  categoria    CategoriaDenuncia
+  descricao    String             @db.Text
+  gravidade    GravidadeDenuncia?
+  status       StatusDenuncia     @default(RECEBIDO)
+  prazoSlaEm   DateTime
+  finalizadoEm DateTime?
+  criadoEm     DateTime           @default(now())
+  atualizadoEm DateTime           @updatedAt
+
+  empresa        Empresa                @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pessoa         Pessoa?                @relation(fields: [pessoaId], references: [id], onDelete: SetNull)
+  mensagens      MensagemDenuncia[]
+  etapas         EtapaDenuncia[]
+  logs           LogAuditoriaDenuncia[]
+  sessoesAnonimas SessaoDenunciaAnonima[]
+
+  @@index([empresaId, status])
+}
+
+model MensagemDenuncia {
+  id         Int                   @id @default(autoincrement())
+  denunciaId Int
+  autor      AutorMensagemDenuncia
+  /// E-mail do Usuario que mandou, só quando autor=EMPRESA.
+  autorEmail String?
+  texto      String                @db.Text
+  criadoEm   DateTime              @default(now())
+
+  denuncia Denuncia @relation(fields: [denunciaId], references: [id], onDelete: Cascade)
+
+  @@index([denunciaId, criadoEm])
+}
+
+/// Histórico de mudança de etapa — a linha do tempo mostrada no caso e no
+/// PDF de comprovação. A primeira linha (RECEBIDO) é criada automaticamente
+/// junto com a denúncia, com autorEmail null.
+model EtapaDenuncia {
+  id         Int            @id @default(autoincrement())
+  denunciaId Int
+  status     StatusDenuncia
+  observacao String?        @db.Text
+  autorEmail String?
+  criadoEm   DateTime       @default(now())
+
+  denuncia Denuncia @relation(fields: [denunciaId], references: [id], onDelete: Cascade)
+
+  @@index([denunciaId])
+}
+
+/// Log de auditoria — toda ação estrutural (criação, mudança de etapa,
+/// definição de gravidade, acesso via protocolo) fica registrada aqui,
+/// separado do histórico de etapas e das mensagens do chat, pra dar um
+/// rastro completo de auditoria/conformidade.
+model LogAuditoriaDenuncia {
+  id         Int      @id @default(autoincrement())
+  denunciaId Int
+  acao       String
+  detalhe    String?  @db.Text
+  autorEmail String?
+  criadoEm   DateTime @default(now())
+
+  denuncia Denuncia @relation(fields: [denunciaId], references: [id], onDelete: Cascade)
+
+  @@index([denunciaId, criadoEm])
+}
+
+/// Sessão leve criada depois de conferir protocolo+senha corretamente —
+/// só pra permitir o polling do chat sem pedir a senha de novo a cada
+/// alguns segundos. Mesmo espírito de Sessao/SessaoPessoa, só que de vida
+/// curta e sem dado nenhum de identidade (a "identidade" aqui é só o
+/// acesso àquela denúncia específica).
+model SessaoDenunciaAnonima {
+  id         Int      @id @default(autoincrement())
+  token      String   @unique
+  denunciaId Int
+  expiraEm   DateTime
+  criadoEm   DateTime @default(now())
+
+  denuncia Denuncia @relation(fields: [denunciaId], references: [id], onDelete: Cascade)
 }

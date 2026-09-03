@@ -56,6 +56,32 @@ export async function atualizarValorHoraFuncao(funcaoId: number, valorHoraPadrao
   revalidatePath("/funcoes");
 }
 
+export type AtualizarNomeState = { erro?: string };
+
+/** Retorna { erro } em vez de lançar exceção — chamada direto pelo campo
+ * de nome (sem <form action>), e o caso mais comum de erro aqui (nome
+ * duplicado) é bem provável de acontecer na prática, diferente do valor
+ * numérico acima (já validado pelo próprio input). */
+export async function atualizarNomeFuncao(
+  funcaoId: number,
+  nome: string
+): Promise<AtualizarNomeState> {
+  const funcao = await funcaoDaEmpresa(funcaoId);
+
+  const nomeLimpo = nome.trim();
+  if (!nomeLimpo) return { erro: "O nome não pode ficar em branco." };
+  if (nomeLimpo === funcao.nome) return {};
+
+  const existente = await prisma.funcao.findUnique({
+    where: { empresaId_nome: { empresaId: funcao.empresaId, nome: nomeLimpo } },
+  });
+  if (existente) return { erro: "Já existe uma função com esse nome." };
+
+  await prisma.funcao.update({ where: { id: funcaoId }, data: { nome: nomeLimpo } });
+  revalidatePath("/funcoes");
+  return {};
+}
+
 export async function excluirFuncao(funcaoId: number) {
   await funcaoDaEmpresa(funcaoId);
   await prisma.funcao.delete({ where: { id: funcaoId } });

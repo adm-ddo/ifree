@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { logout } from "@/lib/auth-actions";
 import { voltarParaMaster } from "@/app/master/actions";
 import { Logo } from "@/components/Logo";
@@ -20,9 +20,13 @@ const navItems = [
   { href: "/dashboard", label: "Painel" },
   { href: "/funcoes", label: "Funções" },
   { href: "/freelancers", label: "Freelancers" },
+  { href: "/vagas", label: "Vagas" },
+  { href: "/conversas", label: "Mensagens" },
+  { href: "/funcionarios", label: "Funcionários" },
   { href: "/turnos", label: "Turnos" },
   { href: "/relatorios", label: "Relatórios" },
   { href: "/pagamentos", label: "Pagamentos" },
+  { href: "/financeiro", label: "Financeiro" },
   { href: "/estimativa-clt", label: "Estimativa CLT" },
   { href: "/totens", label: "Totens" },
   { href: "/configuracoes", label: "Configurações" },
@@ -37,6 +41,8 @@ export default function AppHeader({
   mostrarEmpresasMaster,
   isMasterSemEmpresa,
   empresaEfetivoNome,
+  responsavelEtica,
+  vagasAlertaCount = 0,
 }: {
   logoHref: string;
   logado: boolean;
@@ -46,15 +52,26 @@ export default function AppHeader({
   mostrarEmpresasMaster: boolean;
   isMasterSemEmpresa: boolean;
   empresaEfetivoNome: string | null;
+  responsavelEtica: boolean;
+  /// Candidaturas aguardando resposta + mensagens não lidas do iFREE
+  /// Conecta — mostrado como numerozinho em cima do nav "Vagas" (o dono
+  /// pode pedir pra mudar de lugar depois, por ora é ali de propósito).
+  vagasAlertaCount?: number;
 }) {
   const [menuAberto, setMenuAberto] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const temMenu = logado;
+  const mostrarVoltar = dentroDeTenant && pathname !== logoHref;
+  const naLanding = pathname === "/";
+  const itensNav = responsavelEtica
+    ? [...navItems, { href: "/etica", label: "Central de Ética" }]
+    : navItems;
 
   return (
     <header className="border-b border-stone-200 bg-white sticky top-0 z-10">
-      <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-4">
+      <div className="w-full px-4 py-3 flex items-center gap-3">
         <Link
           href={logoHref}
           onClick={() => setMenuAberto(false)}
@@ -63,32 +80,50 @@ export default function AppHeader({
           <Logo size={34} />
         </Link>
 
+        {mostrarVoltar && (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            aria-label="Voltar"
+            className="flex items-center gap-1 text-sm text-stone-500 hover:text-brand-700 font-medium shrink-0 -ml-2 px-2 py-1.5 rounded-lg hover:bg-stone-50"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19 8 12l7-7" />
+            </svg>
+            <span className="hidden sm:inline">Voltar</span>
+          </button>
+        )}
+
         {dentroDeTenant && (
-          <nav className="hidden xl:flex gap-3 text-sm">
-            {navItems.map((item) => (
+          <nav className="hidden xl:flex gap-2 text-[13px] min-w-0 overflow-x-auto">
+            {itensNav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
-                className="text-stone-500 hover:text-brand-700 font-medium transition-colors whitespace-nowrap"
+                className="flex items-center gap-1 text-stone-500 hover:text-brand-700 font-medium transition-colors whitespace-nowrap"
               >
                 {item.label}
+                {item.href === "/vagas" && vagasAlertaCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+                    {vagasAlertaCount > 99 ? "99+" : vagasAlertaCount}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
         )}
 
         <div
-          className={`ml-auto items-center gap-4 text-sm ${
+          className={`ml-auto items-center gap-3 text-sm ${
             logado ? "hidden xl:flex" : "flex"
           }`}
         >
           <HeaderExtras
-            masterEmEmpresa={masterEmEmpresa}
             mostrarEmpresas={mostrarEmpresas}
             mostrarEmpresasMaster={mostrarEmpresasMaster}
             isMasterSemEmpresa={isMasterSemEmpresa}
-            empresaEfetivoNome={empresaEfetivoNome}
             logado={logado}
+            naLanding={naLanding}
           />
         </div>
 
@@ -113,30 +148,67 @@ export default function AppHeader({
         )}
       </div>
 
+      {dentroDeTenant && (empresaEfetivoNome || masterEmEmpresa) && (
+        // Barra própria, sempre em largura total — não divide espaço com
+        // logo/voltar/hambúrguer/menu, então nunca fica espremida a ponto
+        // de sumir ou estourar a largura da tela. Era isso que acontecia
+        // antes: com 10+ itens de menu crescendo (o sistema foi ganhando
+        // páginas novas o tempo todo) mais o botão "Voltar ao painel
+        // master" (só master vê) espremidos na MESMA linha do logo, o
+        // total passava de 1440px em telas médias — a barra de navegação
+        // ficava cortada/estourada. Mover o botão de master pra cá
+        // resolveu: ele não compete mais por espaço com o menu.
+        <div className="border-t border-stone-100 bg-stone-50 px-4 py-1 flex flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+          {empresaEfetivoNome ? (
+            <p
+              className="text-xs font-medium text-stone-600 overflow-hidden whitespace-nowrap min-w-0 max-w-full"
+              title={empresaEfetivoNome}
+            >
+              🏢 {truncarNome(empresaEfetivoNome, 40)}
+            </p>
+          ) : (
+            <span />
+          )}
+          {masterEmEmpresa && (
+            <form action={voltarParaMaster} className="shrink-0">
+              <button
+                type="submit"
+                className="rounded-full bg-brand-50 text-brand-700 border border-brand-200 px-3 py-0.5 text-xs font-medium hover:bg-brand-100 transition-colors whitespace-nowrap"
+              >
+                🏢 Voltar ao painel master
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
       {temMenu && menuAberto && (
         <div className="xl:hidden border-t border-stone-200 bg-white px-4 py-3 flex flex-col gap-1">
           {dentroDeTenant &&
-            navItems.map((item) => (
+            itensNav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setMenuAberto(false)}
-                className={`rounded-lg px-3 py-3 text-base font-medium ${
+                className={`flex items-center justify-between rounded-lg px-3 py-3 text-base font-medium ${
                   pathname === item.href
                     ? "bg-brand-50 text-brand-700"
                     : "text-stone-700 active:bg-stone-100"
                 }`}
               >
                 {item.label}
+                {item.href === "/vagas" && vagasAlertaCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">
+                    {vagasAlertaCount > 99 ? "99+" : vagasAlertaCount}
+                  </span>
+                )}
               </Link>
             ))}
           <div className="border-t border-stone-200 mt-1 pt-2 flex flex-col gap-1 text-sm">
             <HeaderExtras
-              masterEmEmpresa={masterEmEmpresa}
               mostrarEmpresas={mostrarEmpresas}
               mostrarEmpresasMaster={mostrarEmpresasMaster}
               isMasterSemEmpresa={isMasterSemEmpresa}
-              empresaEfetivoNome={empresaEfetivoNome}
               logado={logado}
               empilhado
               onNavigate={() => setMenuAberto(false)}
@@ -149,21 +221,19 @@ export default function AppHeader({
 }
 
 function HeaderExtras({
-  masterEmEmpresa,
   mostrarEmpresas,
   mostrarEmpresasMaster,
   isMasterSemEmpresa,
-  empresaEfetivoNome,
   logado,
+  naLanding = false,
   empilhado = false,
   onNavigate,
 }: {
-  masterEmEmpresa: boolean;
   mostrarEmpresas: boolean;
   mostrarEmpresasMaster: boolean;
   isMasterSemEmpresa: boolean;
-  empresaEfetivoNome: string | null;
   logado: boolean;
+  naLanding?: boolean;
   empilhado?: boolean;
   onNavigate?: () => void;
 }) {
@@ -171,31 +241,11 @@ function HeaderExtras({
     ? "rounded-lg px-3 py-3 text-base font-medium text-stone-700 active:bg-stone-100"
     : "text-stone-500 hover:text-brand-700 font-medium transition-colors whitespace-nowrap";
 
-  const nomeCurto = empresaEfetivoNome ? truncarNome(empresaEfetivoNome) : null;
-
   return (
     <>
-      {masterEmEmpresa && (
-        // Sem o nome da empresa aqui de propósito — ela já aparece como
-        // título da página logo abaixo do cabeçalho; repetir uma razão
-        // social (que pode ser bem longa) num botão tão estreito é
-        // redundante e foi o que causava o cabeçalho estourar a largura.
-        <form action={voltarParaMaster}>
-          <button
-            type="submit"
-            className={
-              empilhado
-                ? "w-full text-left rounded-lg bg-brand-50 text-brand-700 border border-brand-200 px-3 py-3 font-medium"
-                : "rounded-full bg-brand-50 text-brand-700 border border-brand-200 px-3 py-1 font-medium hover:bg-brand-100 transition-colors whitespace-nowrap"
-            }
-          >
-            🏢 Voltar ao painel master
-          </button>
-        </form>
-      )}
       {mostrarEmpresas && (
         <Link href="/empresas" onClick={onNavigate} className={linkClasses}>
-          🏢 {nomeCurto ?? "Trocar empresa"}
+          🏢 Trocar empresa
         </Link>
       )}
       {isMasterSemEmpresa && (
@@ -227,7 +277,33 @@ function HeaderExtras({
           </button>
         </form>
       )}
-      {!logado && (
+      {!logado && naLanding && (
+        <>
+          <Link
+            href="/portal/entrar"
+            onClick={onNavigate}
+            className={
+              empilhado
+                ? "rounded-lg px-3 py-3 text-base font-medium text-brand-700 bg-brand-50 active:bg-brand-100"
+                : "rounded-full border border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100 text-xs font-semibold px-3 py-1.5 transition-colors whitespace-nowrap"
+            }
+          >
+            🧑‍🍳 Sou freelancer
+          </Link>
+          <Link
+            href="/login"
+            onClick={onNavigate}
+            className={
+              empilhado
+                ? "rounded-lg px-3 py-3 text-base font-medium text-white bg-navy-900 active:bg-navy-800"
+                : "rounded-full bg-navy-900 hover:bg-navy-800 text-white text-xs font-semibold px-3 py-1.5 transition-colors whitespace-nowrap"
+            }
+          >
+            🏢 Sou empresa
+          </Link>
+        </>
+      )}
+      {!logado && !naLanding && (
         <Link href="/login" onClick={onNavigate} className={linkClasses}>
           Entrar
         </Link>

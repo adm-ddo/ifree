@@ -1,10 +1,10 @@
-# Guia — Registro de Marca "iFreela" no INPI
+# Guia — Registro de Marca "iFree" no INPI
 
 ## 1. Classes recomendadas (Classificação de Nice)
 
 O registro de marca no Brasil é feito por classe de produto/serviço —
 cada classe é um pedido (e uma taxa) separado. Pra cobrir o que o
-iFreela realmente faz:
+iFree realmente faz:
 
 | Classe | O que cobre | Prioridade |
 |---|---|---|
@@ -23,8 +23,10 @@ interativo que não dá pra consultar por busca comum), então isso
 precisa ser feito por vocês:
 
 1. Acesse a busca oficial: **https://busca.inpi.gov.br/pePI/**
-2. Pesquise por "iFreela", "eFreela", "Freela" e variações foneticamente
-   parecidas, nas classes 35 e 42.
+2. Pesquise por "iFree", "i-Free", "Free" e variações foneticamente
+   parecidas, nas classes 35 e 42. (A pesquisa antiga deste documento foi
+   feita pro nome anterior, "iFreela", e não serve mais — o nome novo
+   precisa de uma busca própria, do zero.)
 3. Preste atenção não só em resultados idênticos, mas em marcas
    **semelhantes** no mesmo ramo — é isso que o examinador do INPI vai
    considerar (risco de confusão), não só nome idêntico.
@@ -59,12 +61,18 @@ Com 2 classes e desconto, o pedido inicial fica em torno de **R$
 
 ## 5. Recomendação final
 
-Dado o que encontramos sobre a eFreela (mesmo nicho, nome parecido, sem
-registro/pedido no INPI até onde vocês verificaram), eu faria a pesquisa
-de anterioridade detalhada do passo 2 e levaria o resultado a um
-advogado de propriedade intelectual **antes** de protocolar — o custo de
-protocolar (R$ 880+) é bem menor que o risco de indeferimento por
-colidência ou de uma disputa depois que a marca já estiver em uso.
+Este documento foi escrito originalmente pro nome "iFreela" — incluindo
+uma pesquisa que encontrou uma marca parecida no mesmo nicho, "eFreela".
+Com o nome trocado pra **"iFree"**, essa colisão específica deixou de
+valer (os dois nomes não são mais parecidos o suficiente pra preocupar),
+mas isso NÃO significa que o caminho está livre: "iFree" é um nome mais
+comum ("i" + "free"), o que pode significar mais marcas parecidas
+registradas em outros ramos, não menos. A pesquisa de anterioridade do
+passo 2 precisa ser refeita do zero pro nome novo — e o resultado, como
+sempre, deve passar por um advogado de propriedade intelectual **antes**
+de protocolar. O custo de protocolar (R$ 880+) é bem menor que o risco
+de indeferimento por colidência ou de uma disputa depois que a marca já
+estiver em uso.
 
 ---
 

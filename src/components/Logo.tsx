@@ -36,7 +36,7 @@ export function LogoIcon({
       <rect x="56" y="47" width="13" height="6" rx="3" fill="#14171A" />
       {/* ponteiros em forma de check */}
       <path
-        d="M 28 49 L 40 58 L 60 30"
+        d="M 38 48 L 44 55 L 55 35"
         fill="none"
         stroke="#14171A"
         strokeWidth="9"

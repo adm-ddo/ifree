@@ -2,16 +2,23 @@
 
 import { usePathname } from "next/navigation";
 
-/** A landing page (rota "/") é uma página de marketing full-bleed — cada
- * seção define sua própria largura máxima internamente (ver src/app/
- * page.tsx). Todo o resto do site (painel admin) é conteúdo tipo
- * dashboard/formulário, onde uma coluna mais estreita lê melhor — por
- * isso só a landing escapa do max-w-4xl aplicado aqui. */
+/** A landing page (rota "/"), o manual (/manual), as apresentações de
+ * visão/pitch (/conecta, /pitch) e o Portal do freelancer (/portal) são
+ * páginas full-bleed — cada uma define sua própria largura máxima
+ * internamente (ver src/app/page.tsx, src/app/manual/, src/app/conecta/,
+ * src/app/pitch/ e src/app/portal/layout.tsx). Todo o resto do site
+ * (painel admin) é conteúdo tipo dashboard/formulário, onde uma coluna
+ * mais estreita lê melhor — por isso só essas escapam do max-w-4xl
+ * aplicado aqui. */
 export default function MainWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const ehLanding = pathname === "/";
+  const ehManual = pathname?.startsWith("/manual");
+  const ehConecta = pathname?.startsWith("/conecta");
+  const ehPitch = pathname?.startsWith("/pitch");
+  const ehPortal = pathname?.startsWith("/portal");
 
-  if (ehLanding) {
+  if (ehLanding || ehManual || ehConecta || ehPitch || ehPortal) {
     return <main className="flex-1 w-full flex flex-col">{children}</main>;
   }
 

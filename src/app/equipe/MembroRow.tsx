@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { alternarAcessoEquipe } from "./actions";
+import { alternarAcessoEquipe, alternarResponsavelEtica } from "./actions";
 
 type Empresa = { id: number; nome: string };
 
@@ -10,6 +10,7 @@ type Membro = {
   nomeCompleto: string | null;
   email: string;
   empresaIdsComAcesso: number[];
+  empresaIdsResponsavelEtica: number[];
 };
 
 export default function MembroRow({
@@ -21,6 +22,8 @@ export default function MembroRow({
 }) {
   const [pending, startTransition] = useTransition();
   const acessoIds = new Set(membro.empresaIdsComAcesso);
+  const eticaIds = new Set(membro.empresaIdsResponsavelEtica);
+  const empresasComAcesso = empresas.filter((e) => acessoIds.has(e.id));
 
   return (
     <li className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-2">
@@ -53,6 +56,34 @@ export default function MembroRow({
           );
         })}
       </div>
+      {empresasComAcesso.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-stone-100 pt-2 mt-1">
+          <span className="text-xs text-stone-500">⚖️ Central de Ética:</span>
+          {empresasComAcesso.map((empresa) => {
+            const ehResponsavel = eticaIds.has(empresa.id);
+            return (
+              <button
+                key={empresa.id}
+                type="button"
+                disabled={pending}
+                onClick={() => {
+                  startTransition(async () => {
+                    await alternarResponsavelEtica(membro.usuarioId, empresa.id, !ehResponsavel);
+                  });
+                }}
+                className={`rounded-full border px-3 py-1.5 text-xs transition-colors disabled:opacity-50 ${
+                  ehResponsavel
+                    ? "bg-navy-900 border-navy-900 text-white"
+                    : "border-stone-300 text-stone-500 hover:bg-stone-50"
+                }`}
+              >
+                {ehResponsavel ? "✓ " : ""}
+                {empresa.nome}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </li>
   );
 }

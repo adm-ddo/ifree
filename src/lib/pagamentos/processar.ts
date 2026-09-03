@@ -25,6 +25,15 @@ export async function processarPagamentoTurno(turnoId: number): Promise<{ sucess
     return { sucesso: false };
   }
 
+  // Turno só existe pro caminho EXTRA (CLT usa RegistroPonto, sem
+  // pagamento) — chavePix é obrigatória nesse caminho desde o cadastro no
+  // totem, então chegar aqui sem ela indica dado corrompido, não um caso
+  // de negócio válido.
+  const { chavePix, tipoChavePix } = turno.pessoa;
+  if (chavePix === null || tipoChavePix === null) {
+    throw new Error(`Turno ${turno.id}: pessoa sem chave PIX cadastrada.`);
+  }
+
   const pagamentoExistente = await prisma.pagamento.findUnique({ where: { turnoId: turno.id } });
 
   if (!automatizado()) {
@@ -36,8 +45,8 @@ export async function processarPagamentoTurno(turnoId: number): Promise<{ sucess
         data: {
           turnoId: turno.id,
           valor: turno.valorTotal,
-          chavePixDestino: turno.pessoa.chavePix,
-          tipoChavePixDestino: turno.pessoa.tipoChavePix,
+          chavePixDestino: chavePix,
+          tipoChavePixDestino: tipoChavePix,
           status: "PENDENTE",
         },
       });
@@ -51,8 +60,8 @@ export async function processarPagamentoTurno(turnoId: number): Promise<{ sucess
     create: {
       turnoId: turno.id,
       valor: turno.valorTotal,
-      chavePixDestino: turno.pessoa.chavePix,
-      tipoChavePixDestino: turno.pessoa.tipoChavePix,
+      chavePixDestino: chavePix,
+      tipoChavePixDestino: tipoChavePix,
       status: "PROCESSANDO",
       tentativas: 1,
     },

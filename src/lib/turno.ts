@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { ModoPausa, ModoPagamento } from "@/generated/prisma/enums";
+import { minutosDesdeMeiaNoiteBrasil } from "@/lib/data";
+import { LIMIAR_PAUSA_MIN, DESCONTO_POR_MODO } from "@/lib/pausa";
+import type { ModoPausa, ModoPagamento, TurnoPredefinido } from "@/generated/prisma/enums";
 
 const TURNO_COM_RELACOES = {
   include: {
@@ -18,9 +20,17 @@ const TURNO_COM_RELACOES = {
       },
     },
     empresa: {
-      select: { nome: true, cnpj: true, endereco: true, termosContrato: true, modoPausa: true },
+      select: {
+        nome: true,
+        cnpj: true,
+        endereco: true,
+        termosContrato: true,
+        modoPausaDia: true,
+        modoPausaNoite: true,
+      },
     },
-    funcao: { select: { nome: true } },
+    funcao: { select: { id: true, nome: true } },
+    pagamento: { select: { status: true, grupoPagamentoId: true } },
   },
 } as const;
 
@@ -43,17 +53,6 @@ export async function buscarTurnoDaEmpresa(turnoId: number, empresaId: number) {
 
 const BLOCO_ARREDONDAMENTO_MIN = 5;
 
-/** A partir de quantos minutos trabalhados o desconto automático de pausa
- * passa a valer — mesmo gatilho que o CLT usa pra exigir intervalo (jornada
- * acima de 6h), embora não se aplique legalmente a freelancer/autônomo. */
-const LIMIAR_PAUSA_MIN = 360;
-
-const DESCONTO_POR_MODO: Record<ModoPausa, number> = {
-  NENHUMA: 0,
-  AUTOMATICA_30: 30,
-  AUTOMATICA_60: 60,
-};
-
 /** Arredondamento pro bloco de 5min mais próximo, com empate EXATO (2min30s
  * de excesso sobre o bloco anterior) descendo, e qualquer coisa a partir de
  * 2min31s subindo — decisão explícita do usuário, diferente da regra
@@ -64,10 +63,16 @@ const DESCONTO_POR_MODO: Record<ModoPausa, number> = {
  * configurada) de turnos acima de 6h — pensado pra cobrir cigarro/banheiro/
  * refeição espalhados ao longo do turno, sem depender da pessoa registrar
  * nada (o que na prática nunca acontece, já que registrar reduz o próprio
- * pagamento). */
+ * pagamento).
+ *
+ * `multiplicadorPausa` (padrão 1) multiplica o desconto configurado —
+ * usado quando o turno foi marcado como dobrado (turnoDobrado), já que
+ * uma jornada de dia+noite seguidas precisa de mais intervalo do que uma
+ * jornada normal. */
 export function calcularMinutosArredondados(
   elapsedMs: number,
-  modoPausa: ModoPausa = "NENHUMA"
+  modoPausa: ModoPausa = "NENHUMA",
+  multiplicadorPausa: number = 1
 ): {
   minutosTrabalhados: number;
   minutosDescontadosPausa: number;
@@ -75,7 +80,7 @@ export function calcularMinutosArredondados(
 } {
   const minutosTrabalhados = Math.round(elapsedMs / 60_000);
 
-  const descontoMin = DESCONTO_POR_MODO[modoPausa];
+  const descontoMin = DESCONTO_POR_MODO[modoPausa] * multiplicadorPausa;
   const minutosDescontadosPausa =
     descontoMin > 0 && minutosTrabalhados > LIMIAR_PAUSA_MIN ? descontoMin : 0;
   const elapsedPagoMs = elapsedMs - minutosDescontadosPausa * 60_000;
@@ -131,4 +136,26 @@ export function calcularValorTurno(params: {
     return Math.round(params.valorDiariaAplicada * percentual * 100) / 100;
   }
   return calcularValorTotal(params.minutosArredondados, params.valorHoraAplicado);
+}
+
+export type TipoTurno = "DIA" | "NOITE";
+
+/** Classifica um turno como do dia ou da noite — usado pelo fechamento
+ * automático pra escolher o horário de corte certo, e pelas telas de
+ * turno pra rotular cada linha. Turno fixo (MANHA/NOITE) manda sempre;
+ * LIVRE infere pelo horário de entrada comparado ao MEIO DO CAMINHO entre
+ * os dois horários oficiais de início (não ao horário de fim do turno do
+ * dia) — quem chega bem antes do início da noite mas depois desse meio
+ * já veio pro turno da noite, não pertence ao do dia (ex.: dia começa 9h,
+ * noite começa 16h — chegar 14h ou 15h é turno da noite, não do dia). */
+export function classificarTurno(
+  horaEntrada: Date,
+  turnoPredefinido: TurnoPredefinido,
+  horarioInicioDiaMin: number,
+  horarioInicioNoiteMin: number
+): TipoTurno {
+  if (turnoPredefinido === "MANHA") return "DIA";
+  if (turnoPredefinido === "NOITE") return "NOITE";
+  const meioDoCaminho = (horarioInicioDiaMin + horarioInicioNoiteMin) / 2;
+  return minutosDesdeMeiaNoiteBrasil(horaEntrada) < meioDoCaminho ? "DIA" : "NOITE";
 }
