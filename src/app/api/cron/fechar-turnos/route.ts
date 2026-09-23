@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { fecharTurnosAtrasados, sinalizarRegistrosPontoPendentes } from "@/lib/fechamento-automatico";
-import { executarBackup } from "@/lib/backup";
 
 /** Chamada pelo Vercel Cron (ver vercel.json) DUAS vezes por dia — 01:00 e
  * 07:00 de Brasília. A segunda chamada é rede de segurança: se a das 01:00
@@ -10,11 +9,11 @@ import { executarBackup } from "@/lib/backup";
  * mesmo dia não tem efeito colateral quando a primeira já deu conta.
  * Mesma checagem de segredo do cron de backup.
  *
- * Também dispara um backup a cada chamada — além do backup diário de
- * madrugada (/api/cron/backup), assim fica um snapshot batido bem na hora
- * em que os turnos se encerram. Falha no backup não derruba o fechamento
- * dos turnos (já é o resultado principal dessa rota); só fica registrada
- * na resposta. */
+ * Não dispara mais backup próprio (Thiago, 2026-09-23): chegou a gerar 3
+ * snapshots por dia somados ao /api/cron/backup, inflando o Vercel Blob à
+ * toa. Com o backup diário de madrugada (JSON, ver src/lib/backup.ts) +
+ * o pg_dump criptografado diário no GitHub Actions (.github/workflows/
+ * backup-db.yml), a proteção já é dupla sem precisar de um terceiro. */
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -24,12 +23,5 @@ export async function GET(req: Request) {
   const resultado = await fecharTurnosAtrasados();
   const pontoClt = await sinalizarRegistrosPontoPendentes();
 
-  let backup: { caminho: string; tamanhoBytes: number } | { erro: string };
-  try {
-    backup = await executarBackup();
-  } catch (err) {
-    backup = { erro: err instanceof Error ? err.message : "Erro desconhecido no backup." };
-  }
-
-  return NextResponse.json({ ok: true, ...resultado, ...pontoClt, backup });
+  return NextResponse.json({ ok: true, ...resultado, ...pontoClt });
 }
