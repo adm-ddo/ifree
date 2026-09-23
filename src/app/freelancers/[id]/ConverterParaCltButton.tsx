@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { converterParaClt } from "../actions";
 
@@ -17,9 +18,15 @@ import { converterParaClt } from "../actions";
 export default function ConverterParaCltButton({
   pessoaId,
   pessoaNome,
+  responsavelGed,
 }: {
   pessoaId: number;
   pessoaNome: string;
+  /// Mostra o link de gerar a declaração de recusa da oferta CLT (GED)
+  /// só pra quem tem acesso ao módulo — sem essa checagem, quem não é
+  /// responsável pelo GED clicaria e cairia num redirecionamento sem
+  /// explicação (requireResponsavelGed na rota de destino).
+  responsavelGed?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const [modo, setModo] = useState<"hoje" | "retroativo">("hoje");
@@ -54,13 +61,23 @@ export default function ConverterParaCltButton({
 
   if (!aberto) {
     return (
-      <button
-        type="button"
-        onClick={() => setAberto(true)}
-        className="rounded-lg border border-stone-300 text-sm px-4 py-2 hover:bg-stone-50 self-start"
-      >
-        🧑‍💼 Converter para funcionário CLT
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setAberto(true)}
+          className="rounded-lg border border-stone-300 text-sm px-4 py-2 hover:bg-stone-50 self-start"
+        >
+          🧑‍💼 Converter para funcionário CLT
+        </button>
+        {responsavelGed && (
+          <Link
+            href={`/ged/pessoas/${pessoaId}/gerar/TERMO_CIENCIA?termoSlug=opcao-autonomo-apos-oferta-clt`}
+            className="text-sm text-stone-500 hover:text-brand-700 hover:underline"
+          >
+            Ofereceu CLT e {pessoaNome.split(" ")[0]} preferiu continuar como extra? Gerar declaração →
+          </Link>
+        )}
+      </div>
     );
   }
 

@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import VagaRow from "./VagaRow";
 import NovaVagaForm from "./NovaVagaForm";
 
 export default async function VagasPage() {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("vagas");
 
   const [vagas, empresa] = await Promise.all([
     prisma.vaga.findMany({

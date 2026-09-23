@@ -1,8 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { atualizarAssinaturaEmpresa } from "../actions";
+import CampoValorReais from "@/components/CampoValorReais";
+import CampoPercentualBr from "@/components/CampoPercentualBr";
 import type { StatusAssinatura, StatusCobranca } from "@/generated/prisma/enums";
+
+// Mesmo valor de TABLET_PARCELAS_MAXIMO em src/lib/assinatura.ts — não dá
+// pra importar direto aqui porque aquele arquivo é "server-only".
+const TABLET_PARCELAS_MAXIMO = 12;
 
 const STATUS_LABEL: Record<StatusAssinatura, string> = {
   TRIAL: "Trial",
@@ -32,16 +38,24 @@ type Empresa = {
   statusAssinatura: StatusAssinatura;
   assinaturaVenceEm: string;
   valorMensalidade: number | null;
+  splitPercentualAsaas: number | null;
+  tabletFornecido: boolean;
+  tabletValorTotal: number | null;
+  tabletParcelasTotal: number | null;
+  tabletParcelasPagas: number;
 };
 
 export default function AssinaturaEditForm({
   empresa,
   ultimaCobranca,
+  valorMensalidadePadrao,
 }: {
   empresa: Empresa;
   ultimaCobranca: { status: StatusCobranca; valor: number; dataLabel: string } | null;
+  valorMensalidadePadrao: number;
 }) {
   const [state, formAction, pending] = useActionState(atualizarAssinaturaEmpresa, undefined);
+  const [tabletFornecido, setTabletFornecido] = useState(empresa.tabletFornecido);
 
   return (
     <li className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-3">
@@ -64,7 +78,15 @@ export default function AssinaturaEditForm({
         </p>
       )}
 
-      <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <form
+        action={formAction}
+        // Sem isso, o React 19 reseta o form nativamente após toda
+        // submissão bem-sucedida, mesmo em campo controlado — ver
+        // explicação completa em SalarioEscalaForm.tsx (mesmo bug,
+        // corrigido lá primeiro).
+        onReset={(e) => e.preventDefault()}
+        className="flex flex-wrap items-end gap-2"
+      >
         <input type="hidden" name="empresaId" value={empresa.id} />
 
         <label className="flex flex-col gap-1 text-xs text-stone-500">
@@ -92,18 +114,76 @@ export default function AssinaturaEditForm({
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-xs text-stone-500">
-          Mensalidade (R$)
-          <input
-            type="number"
-            name="valorMensalidade"
-            step="0.01"
-            min="0.01"
-            placeholder="padrão"
-            defaultValue={empresa.valorMensalidade ?? ""}
-            className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-brand-500"
+        <CampoValorReais
+          name="valorMensalidade"
+          label="Mensalidade (R$)"
+          placeholder={valorMensalidadePadrao.toFixed(2).replace(".", ",")}
+          valorInicial={empresa.valorMensalidade}
+          compacto
+        />
+
+        <div title="Percentual retido automaticamente pela conta-mãe do iFREE toda vez que essa empresa deposita crédito na subconta Asaas">
+          <CampoPercentualBr
+            name="splitPercentualAsaas"
+            label="Split Pix (%)"
+            valorInicial={empresa.splitPercentualAsaas}
           />
+        </div>
+
+        <label className="flex flex-col gap-1 text-xs text-stone-500">
+          &nbsp;
+          <span className="flex items-center gap-1.5 py-1.5">
+            <input
+              type="checkbox"
+              name="tabletFornecido"
+              checked={tabletFornecido}
+              onChange={(e) => setTabletFornecido(e.target.checked)}
+              className="rounded border-stone-300 focus:ring-brand-500"
+            />
+            📱 Forneceu tablet
+          </span>
         </label>
+
+        {tabletFornecido && (
+          <>
+            <CampoValorReais
+              name="tabletValorTotal"
+              label="Valor do tablet (R$)"
+              valorInicial={empresa.tabletValorTotal}
+              compacto
+            />
+
+            <label className="flex flex-col gap-1 text-xs text-stone-500">
+              Parcelas (sem juros)
+              <select
+                name="tabletParcelasTotal"
+                defaultValue={empresa.tabletParcelasTotal ?? ""}
+                className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                <option value="" disabled>
+                  Escolha
+                </option>
+                {Array.from({ length: TABLET_PARCELAS_MAXIMO }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}x
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs text-stone-500">
+              Parcelas já pagas
+              <input
+                type="number"
+                name="tabletParcelasPagas"
+                min={0}
+                max={TABLET_PARCELAS_MAXIMO}
+                defaultValue={empresa.tabletParcelasPagas}
+                className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm w-20 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </label>
+          </>
+        )}
 
         <button
           type="submit"

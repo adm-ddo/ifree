@@ -38,6 +38,18 @@ const CLAUSULAS_LGPD: readonly string[] = [
   "O(a) Contratado(a) pode, a qualquer momento, solicitar ao Contratante acesso, correção ou exclusão desses dados, nos termos do art. 18 da LGPD, ressalvado o que precisar ser mantido por obrigação legal (ex: comprovantes de pagamento).",
 ];
 
+/// Cláusula de identificação da instituição de pagamento (BaaS), exigida
+/// pela Resolução Conjunta BCB/CMN nº 16/2025 — precisa aparecer em todo
+/// contrato/comprovante independente de a empresa ter personalizado o
+/// próprio texto (mesmo espírito de CLAUSULAS_LGPD acima). Frase
+/// condicional de propósito: nem toda empresa usa o pagamento automático
+/// via PIX integrado (algumas pagam manualmente por fora), então não dá
+/// pra afirmar categoricamente que este pagamento específico passou pela
+/// Asaas.
+const CLAUSULA_INSTITUICAO_PAGAMENTO: readonly string[] = [
+  "Quando o Contratante utiliza o pagamento automático via PIX integrado à plataforma, esse repasse é executado pela Asaas Gestão Financeira S.A., instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil, a partir da conta digital de titularidade do próprio Contratante — o iFREE é a plataforma de tecnologia que intermedeia o serviço, não a instituição que processa o pagamento.",
+];
+
 /** Mesmo limiar de LIMIAR_PAUSA_MIN em src/lib/turno.ts (6h) — só existe
  * aqui como texto por extenso pra compor a frase da cláusula. */
 const LIMIAR_PAUSA_HORAS_EXTENSO = "6 (seis) horas";
@@ -87,7 +99,11 @@ export function resolverTermos(
       : textoParaTermos(termosContratoEmpresa);
 
   const clausulaPausaTexto = clausulaPausa(modoPausaDia, modoPausaNoite);
-  const extras = [...CLAUSULAS_LGPD, ...(clausulaPausaTexto ? [clausulaPausaTexto] : [])];
+  const extras = [
+    ...CLAUSULAS_LGPD,
+    ...CLAUSULA_INSTITUICAO_PAGAMENTO,
+    ...(clausulaPausaTexto ? [clausulaPausaTexto] : []),
+  ];
 
   if (paragrafos.length <= 1) return [...paragrafos, ...extras];
   const comExtras = [...paragrafos];

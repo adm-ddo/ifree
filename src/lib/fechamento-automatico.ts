@@ -5,10 +5,12 @@ import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } fro
 import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
 import type { TurnoPredefinido } from "@/generated/prisma/enums";
 
-/** Encerra turnos que ninguém bateu saída — chamada uma vez por dia (ver
- * vercel.json) às 01:00 de Brasília. Só pega turnos abertos desde antes de
- * hoje: um turno que começou depois da meia-noite de hoje (madrugada)
- * ainda não passou pelo corte de amanhã, então fica de fora dessa rodada.
+/** Encerra turnos que ninguém bateu saída — chamada pelo Vercel Cron (ver
+ * vercel.json) às 03:00 de Brasília, com uma segunda rodada de segurança
+ * às 07:00 (idempotente: só pega quem continuar aberto). Só pega turnos
+ * abertos desde antes de hoje: um turno que começou depois da meia-noite
+ * de hoje (madrugada) ainda não passou pelo corte de amanhã, então fica
+ * de fora dessa rodada.
  *
  * O horaSaida usado depende de qual turno (dia ou noite) a pessoa faz —
  * ver classificarTurno em src/lib/turno.ts — exceto quando o turno está
@@ -16,7 +18,15 @@ import type { TurnoPredefinido } from "@/generated/prisma/enums";
  * o corte da noite e dobra o desconto de pausa. Se o corte calculado cair
  * antes da entrada (alguém bateu entrada depois do horário de fechamento
  * configurado), empurra pro mesmo horário do dia seguinte — não existe
- * turno com duração negativa. */
+ * turno com duração negativa.
+ *
+ * NUNCA fecha com uma saída fabricada no futuro (ver o `if (horaSaida >
+ * agora) continue` abaixo) — turno com corte configurado mais tarde que o
+ * horário em que o robô roda fica em aberto pra próxima rodada, em vez de
+ * congelar um horário que ainda nem aconteceu (bug real encontrado e
+ * corrigido em 2026-09-07 — 3 pessoas na DB25 tiveram o turno fechado
+ * "no futuro" e, ao baterem a saída de verdade minutos depois, o sistema
+ * não achou turno aberto e abriu um novo por engano). */
 export async function fecharTurnosAtrasados(
   agora: Date = new Date()
 ): Promise<{ fechados: number }> {
@@ -83,6 +93,17 @@ export async function fecharTurnosAtrasados(
     if (horaSaida <= turno.horaEntrada) {
       horaSaida = new Date(horaSaida.getTime() + 24 * 60 * 60_000);
     }
+
+    // Nunca fabricar uma saída no FUTURO — se o corte configurado ainda
+    // não chegou de verdade (ex.: corte às 03h mas o robô rodou às 01h),
+    // a pessoa pode muito bem ainda estar trabalhando; fechar agora
+    // congelaria um horário que ainda nem aconteceu, e quando ela
+    // realmente for bater a saída no totem não vai achar turno aberto
+    // pra fechar — vai abrir um novo por engano (foi exatamente isso que
+    // aconteceu com 3 turnos na DB25 em 2026-09-06/07, corrigidos na mão).
+    // Deixa em aberto pra próxima rodada do cron resolver quando o corte
+    // já tiver passado de verdade.
+    if (horaSaida > agora) continue;
 
     const elapsedMs = horaSaida.getTime() - turno.horaEntrada.getTime();
     const { minutosTrabalhados, minutosDescontadosPausa, minutosArredondados } =

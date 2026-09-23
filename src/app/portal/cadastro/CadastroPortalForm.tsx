@@ -25,6 +25,8 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
   const [cpf, setCpf] = useState("");
   const [etapa, setEtapa] = useState<"dados" | "foto">("dados");
   const [foiIndicado, setFoiIndicado] = useState(false);
+  const [sexo, setSexo] = useState<"MASCULINO" | "FEMININO" | "PREFIRO_NAO_DIZER" | "">("");
+  const [tentouAvancar, setTentouAvancar] = useState(false);
 
   if (state?.sucesso) {
     return (
@@ -44,6 +46,10 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
 
   function avancarParaFoto(e: React.FormEvent) {
     e.preventDefault();
+    if (!sexo) {
+      setTentouAvancar(true);
+      return;
+    }
     setEtapa("foto");
   }
 
@@ -51,6 +57,7 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
     if (!formRef.current) return;
     const fd = new FormData(formRef.current);
     fd.set("fotoDataUrl", dataUrl);
+    fd.set("sexo", sexo);
     if (indicador) fd.set("indicadoPorPessoaId", String(indicador.id));
     startTransition(() => formAction(fd));
   }
@@ -142,6 +149,37 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </label>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-stone-700">
+            Gênero <span className="text-stone-400 font-normal">(usado só pra personalizar seu avatar)</span>
+          </span>
+          <div className="flex gap-2 flex-wrap">
+            {(
+              [
+                ["MASCULINO", "Masculino"],
+                ["FEMININO", "Feminino"],
+                ["PREFIRO_NAO_DIZER", "Prefiro não dizer"],
+              ] as const
+            ).map(([valor, label]) => (
+              <button
+                key={valor}
+                type="button"
+                onClick={() => setSexo(valor)}
+                className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                  sexo === valor
+                    ? "bg-brand-600 border-brand-600 text-white"
+                    : "border-stone-300 text-stone-600 hover:bg-stone-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {tentouAvancar && !sexo && (
+            <span className="text-xs text-red-600">Escolha uma opção pra continuar.</span>
+          )}
+        </div>
 
         {indicador ? (
           <p className="text-sm text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">

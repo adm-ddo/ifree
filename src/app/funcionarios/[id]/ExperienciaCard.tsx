@@ -54,7 +54,15 @@ export default function ExperienciaCard({
         </p>
       ) : (
         <>
-          <form action={formAction} className="flex flex-wrap items-end gap-3">
+          <form
+            action={formAction}
+            // Sem isso, o React 19 reseta o form nativamente após toda
+            // submissão bem-sucedida, mesmo em campo controlado — ver
+            // explicação completa em SalarioEscalaForm.tsx (mesmo bug,
+            // corrigido lá primeiro).
+            onReset={(e) => e.preventDefault()}
+            className="flex flex-wrap items-end gap-3"
+          >
             <input type="hidden" name="pessoaId" value={pessoaId} />
             <label className="flex flex-col gap-1 text-sm text-stone-700">
               1ª etapa (dias)

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { atualizarModoPagamentoVinculo } from "../actions";
+import CampoValorReais from "@/components/CampoValorReais";
 import type { ModoPagamento, FrequenciaPagamento } from "@/generated/prisma/enums";
 
 export default function PagamentoForm({
@@ -31,6 +32,10 @@ export default function PagamentoForm({
   return (
     <form
       action={formAction}
+      // Sem isso, o React 19 reseta o form nativamente após toda submissão
+      // bem-sucedida, mesmo em campo controlado — ver explicação completa
+      // em SalarioEscalaForm.tsx (mesmo bug, corrigido lá primeiro).
+      onReset={(e) => e.preventDefault()}
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm max-w-lg"
     >
       <input type="hidden" name="pessoaId" value={pessoaId} />
@@ -79,18 +84,12 @@ export default function PagamentoForm({
       </div>
 
       {modo === "DIARIA" && (
-        <label className="flex flex-col gap-1 text-sm text-stone-700">
-          Valor da diária (R$)
-          <input
-            type="number"
-            name="valorDiaria"
-            step="0.01"
-            min="0.01"
-            defaultValue={valorDiariaAtual ?? ""}
-            placeholder="120.00"
-            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-        </label>
+        <CampoValorReais
+          name="valorDiaria"
+          label="Valor da diária (R$)"
+          placeholder="120,00"
+          valorInicial={valorDiariaAtual}
+        />
       )}
 
       <div className="border-t border-stone-100 pt-3 flex flex-col gap-2">

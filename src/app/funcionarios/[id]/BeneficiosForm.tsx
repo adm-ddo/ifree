@@ -13,12 +13,14 @@ export default function BeneficiosForm({
   periculosidade,
   transporte,
   bonificacao,
+  premioAssiduidade,
 }: {
   pessoaId: number;
   insalubridade: Item;
   periculosidade: Item;
   transporte: Transporte;
   bonificacao: Item;
+  premioAssiduidade: Item;
 }) {
   const [state, formAction, pending] = useActionState(atualizarBeneficios, undefined);
   const [, startTransition] = useTransition();
@@ -66,6 +68,12 @@ export default function BeneficiosForm({
         nomeRecebe="recebeBonificacao"
         nomeValor="valorBonificacao"
         inicial={bonificacao}
+      />
+      <CampoBeneficio
+        label="Prêmio de assiduidade (usado no termo de ciência do GED)"
+        nomeRecebe="recebePremioAssiduidade"
+        nomeValor="valorPremioAssiduidade"
+        inicial={premioAssiduidade}
       />
 
       {state?.erro && (

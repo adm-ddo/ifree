@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import ChatWindow from "@/components/ChatWindow";
 import { buscarMensagensEmpresa, enviarMensagemEmpresa } from "./actions";
 
@@ -10,7 +10,7 @@ export default async function ConversaEmpresaPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("conversas");
   const { id } = await params;
   const conversaId = Number(id);
   if (!Number.isInteger(conversaId)) notFound();

@@ -29,7 +29,7 @@ export async function selecionarEmpresa(empresaId: number) {
     data: { empresaAtivaId: empresaId },
   });
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/v2/dashboard");
 }
 
 export type NovaEmpresaState = DadosEmpresaState;
@@ -43,11 +43,20 @@ export async function cadastrarNovaEmpresa(
   const resultado = lerDadosEmpresa(formData);
   if ("erro" in resultado) return resultado;
 
+  if (formData.get("aceitouTermos") !== "on") {
+    return { erro: "Você precisa aceitar os Termos de Uso e a Política de Privacidade pra continuar." };
+  }
+
   const trialVenceEm = new Date(Date.now() + TRIAL_DIAS * 24 * 60 * 60 * 1000);
 
   const empresa = await prisma.$transaction(async (tx) => {
     const novaEmpresa = await tx.empresa.create({
-      data: { ...resultado.dados, statusAssinatura: "TRIAL", assinaturaVenceEm: trialVenceEm },
+      data: {
+        ...resultado.dados,
+        statusAssinatura: "TRIAL",
+        assinaturaVenceEm: trialVenceEm,
+        termosAceitosEm: new Date(),
+      },
     });
     // responsavelEtica: true — quem cria a empresa é o dono, mantém acesso
     // à Central de Ética por padrão (mesmo espírito do backfill da
@@ -83,7 +92,7 @@ export async function cadastrarNovaEmpresa(
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/v2/dashboard");
 }
 
 export async function removerEmpresa(empresaId: number) {
@@ -105,6 +114,7 @@ export async function removerEmpresa(empresaId: number) {
   }
 
   revalidatePath("/empresas");
+  revalidatePath("/v2/empresas");
   revalidatePath("/", "layout");
 }
 
@@ -125,5 +135,6 @@ export async function excluirEmpresa(empresaId: number) {
   await prisma.empresa.delete({ where: { id: empresaId } });
 
   revalidatePath("/empresas");
+  revalidatePath("/v2/empresas");
   revalidatePath("/", "layout");
 }

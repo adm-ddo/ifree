@@ -159,12 +159,25 @@ function arraysIguais(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((item, i) => item === b[i]);
 }
 
+type SexoValor = "MASCULINO" | "FEMININO" | "PREFIRO_NAO_DIZER";
+
+const OPCOES_SEXO: readonly [SexoValor, string][] = [
+  ["MASCULINO", "Masculino"],
+  ["FEMININO", "Feminino"],
+  ["PREFIRO_NAO_DIZER", "Prefiro não dizer"],
+];
+
 export default function PerfilProfissionalForm({
   dadosIniciais,
   habilidadesSugeridas,
   vagasSugeridas,
 }: {
-  dadosIniciais: { biografia: string; habilidades: string[]; vagasDesejadas: string[] };
+  dadosIniciais: {
+    biografia: string;
+    habilidades: string[];
+    vagasDesejadas: string[];
+    sexo: SexoValor | null;
+  };
   habilidadesSugeridas: readonly CategoriaSugestoes[];
   vagasSugeridas: readonly CategoriaSugestoes[];
 }) {
@@ -172,6 +185,7 @@ export default function PerfilProfissionalForm({
   const [habilidades, setHabilidades] = useState(dadosIniciais.habilidades);
   const [vagasDesejadas, setVagasDesejadas] = useState(dadosIniciais.vagasDesejadas);
   const [biografia, setBiografia] = useState(dadosIniciais.biografia);
+  const [sexo, setSexo] = useState<SexoValor | null>(dadosIniciais.sexo);
 
   // Resincroniza durante a renderização se o dado do banco mudar depois da
   // primeira montagem (ex.: página se atualiza sozinha após salvar outro
@@ -181,17 +195,23 @@ export default function PerfilProfissionalForm({
   if (
     !arraysIguais(dadosIniciais.habilidades, iniciaisAnteriores.habilidades) ||
     !arraysIguais(dadosIniciais.vagasDesejadas, iniciaisAnteriores.vagasDesejadas) ||
-    dadosIniciais.biografia !== iniciaisAnteriores.biografia
+    dadosIniciais.biografia !== iniciaisAnteriores.biografia ||
+    dadosIniciais.sexo !== iniciaisAnteriores.sexo
   ) {
     setIniciaisAnteriores(dadosIniciais);
     setHabilidades(dadosIniciais.habilidades);
     setVagasDesejadas(dadosIniciais.vagasDesejadas);
     setBiografia(dadosIniciais.biografia);
+    setSexo(dadosIniciais.sexo);
   }
 
   return (
     <form
       action={formAction}
+      // Sem isso, o React 19 reseta o form nativamente após toda submissão
+      // bem-sucedida, mesmo em campo controlado — ver explicação completa
+      // em SalarioEscalaForm.tsx (mesmo bug, corrigido lá primeiro).
+      onReset={(e) => e.preventDefault()}
       className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
     >
       <h2 className="font-semibold text-navy-900 text-sm">Perfil profissional</h2>
@@ -214,6 +234,29 @@ export default function PerfilProfissionalForm({
           {biografia.trim().length}/{BIOGRAFIA_MINIMO_CARACTERES} caracteres mínimos
         </span>
       </label>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm text-stone-700">
+          Gênero <span className="text-stone-400 font-normal">(usado só pra personalizar seu avatar)</span>
+        </span>
+        <input type="hidden" name="sexo" value={sexo ?? ""} />
+        <div className="flex gap-2 flex-wrap">
+          {OPCOES_SEXO.map(([valor, label]) => (
+            <button
+              key={valor}
+              type="button"
+              onClick={() => setSexo(valor)}
+              className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                sexo === valor
+                  ? "bg-brand-600 border-brand-600 text-white"
+                  : "border-stone-300 text-stone-600 hover:bg-stone-50"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <SeletorChips
         titulo="🧰 Habilidades"

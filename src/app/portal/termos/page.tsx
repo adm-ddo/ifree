@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requirePessoa } from "@/lib/auth-pessoa";
 import { TERMOS_PORTAL_PARAGRAFOS } from "@/lib/termos-portal";
 import { aceitarTermosPessoa } from "./actions";
@@ -25,6 +26,10 @@ export default async function TermosPessoaPage() {
             </p>
           ))}
         </div>
+
+        <Link href="/termos/freelancer" target="_blank" className="text-xs text-brand-700 hover:underline -mt-2">
+          Ler a versão completa dos Termos de Uso →
+        </Link>
 
         <label className="flex items-start gap-2 text-sm text-stone-700">
           <input type="checkbox" name="aceito" required className="mt-1" />

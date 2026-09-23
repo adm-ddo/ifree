@@ -1,19 +1,19 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { apenasDigitos, cpfValido } from "@/lib/cpf";
 import { detectarTipoChavePix, chavePixValida } from "@/lib/documento";
-import { calcularMinutosPonto, paraMinutosHorario } from "@/lib/ponto";
+import { calcularMinutosPonto, paraMinutosHorario, resolverModoPausaClt } from "@/lib/ponto";
 import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
 import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
 import { dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { STATUS_PENDENTES } from "@/lib/financeiro";
 import { parseRestricoesFormData } from "@/lib/restricao-horario";
 import type { RestricaoHorarioState } from "@/components/RestricaoHorarioForm";
-import type { EscalaTrabalho, TipoChavePix } from "@/generated/prisma/enums";
+import type { EscalaTrabalho, ModoPausa, TipoChavePix } from "@/generated/prisma/enums";
 
 /** "Hoje" como data-calendário (meia-noite UTC), no fuso de Brasília —
  * mesma representação usada pelos campos @db.Date (dataAdmissao,
@@ -28,6 +28,8 @@ const ESCALAS_VALIDAS: EscalaTrabalho[] = [
   "DOZE_X_TRINTA_E_SEIS",
   "OUTRA",
 ];
+
+const MODOS_PAUSA_VALIDOS: ModoPausa[] = ["NENHUMA", "AUTOMATICA_30", "AUTOMATICA_60"];
 
 /** Chave PIX é opcional pra CLT (o sistema não paga salário) — só passa a
  * importar se a pessoa também lançar "turno extra pago no dia" (ver
@@ -47,7 +49,7 @@ function validarChavePixOpcional(
 }
 
 async function vinculoCltDaEmpresa(pessoaId: number) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
   });
@@ -70,7 +72,7 @@ export async function criarFuncionario(
   _prev: NovoFuncionarioState,
   formData: FormData
 ): Promise<NovoFuncionarioState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
 
   const nome = String(formData.get("nome") ?? "").trim();
   const documentoBruto = String(formData.get("documento") ?? "");
@@ -222,7 +224,7 @@ export type ConverterVinculoState = { erro: string } | undefined;
  * em converterParaClt sobre mensagens de erro sendo redacted em produção
  * quando a action é chamada direto (sem <form action>). */
 export async function converterParaExtra(pessoaId: number): Promise<ConverterVinculoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
 
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
@@ -278,6 +280,12 @@ export async function atualizarSalarioEscala(
   const escalaTurnoBruta = String(formData.get("escalaTurno") ?? "");
   const escalaTurno = escalaTurnoBruta === "NOITE" ? "NOITE" : null;
 
+  const modoPausaOverrideBruta = String(formData.get("modoPausaOverride") ?? "");
+  if (modoPausaOverrideBruta && !MODOS_PAUSA_VALIDOS.includes(modoPausaOverrideBruta as ModoPausa)) {
+    return { erro: "Intervalo específico inválido." };
+  }
+  const modoPausaOverride = modoPausaOverrideBruta ? (modoPausaOverrideBruta as ModoPausa) : null;
+
   // Horário específico da pessoa: os dois campos juntos ou nenhum — não
   // faz sentido só entrada ou só saída (ver horarioEsperadoClt, que exige
   // o par completo pra sobrescrever o padrão da escala).
@@ -323,6 +331,7 @@ export async function atualizarSalarioEscala(
         cargaHorariaSemanalMin,
         horarioEntradaMin,
         horarioSaidaMin,
+        modoPausaOverride,
       },
     });
     if (salarioMudou && salarioMensal !== null) {
@@ -427,7 +436,7 @@ export async function corrigirRegistroPonto(
   _prev: CorrigirRegistroState,
   formData: FormData
 ): Promise<CorrigirRegistroState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const registroId = Number(formData.get("registroId"));
   const horaSaidaBruta = String(formData.get("horaSaida") ?? "");
   if (!Number.isInteger(registroId)) return { erro: "Registro inválido." };
@@ -462,13 +471,13 @@ export async function corrigirRegistroPonto(
   const [vinculo, empresa] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findUnique({
       where: { pessoaId_empresaId: { pessoaId: registro.pessoaId, empresaId: registro.empresaId } },
-      select: { turnoPredefinido: true },
+      select: { turnoPredefinido: true, modoPausaOverride: true },
     }),
     prisma.empresa.findUniqueOrThrow({
       where: { id: registro.empresaId },
       select: {
-        modoPausaDia: true,
-        modoPausaNoite: true,
+        modoPausaCltDia: true,
+        modoPausaCltNoite: true,
         horarioInicioDiaMin: true,
         horarioInicioNoiteMin: true,
       },
@@ -480,7 +489,7 @@ export async function corrigirRegistroPonto(
     empresa.horarioInicioDiaMin,
     empresa.horarioInicioNoiteMin
   );
-  const modoPausaAplicavel = tipoTurno === "DIA" ? empresa.modoPausaDia : empresa.modoPausaNoite;
+  const modoPausaAplicavel = resolverModoPausaClt(vinculo?.modoPausaOverride ?? null, tipoTurno, empresa);
   const { minutosTrabalhados, minutosDescontadosPausa } = calcularMinutosPonto({
     horaEntrada: registro.horaEntrada,
     horaSaida,
@@ -503,6 +512,7 @@ export async function corrigirRegistroPonto(
 
   revalidatePath(`/funcionarios/${registro.pessoaId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
   revalidatePath("/relatorios/horas");
   return { sucesso: true };
 }
@@ -548,6 +558,8 @@ export async function atualizarBeneficios(
   if ("erro" in periculosidade) return periculosidade;
   const bonificacao = lerValorSeMarcado(formData, "recebeBonificacao", "valorBonificacao");
   if ("erro" in bonificacao) return bonificacao;
+  const premioAssiduidade = lerValorSeMarcado(formData, "recebePremioAssiduidade", "valorPremioAssiduidade");
+  if ("erro" in premioAssiduidade) return premioAssiduidade;
 
   // Transporte: a classificação legal (vale-transporte vs. ajuda de custo)
   // depende de descontar ou não os 6% em folha — não é uma escolha livre,
@@ -576,6 +588,8 @@ export async function atualizarBeneficios(
       valorPericulosidade: periculosidade.valor,
       recebeBonificacao: bonificacao.recebe,
       valorBonificacao: bonificacao.valor,
+      recebePremioAssiduidade: premioAssiduidade.recebe,
+      valorPremioAssiduidade: premioAssiduidade.valor,
     },
   });
 
@@ -717,7 +731,7 @@ export type MarcarEfetivadoState = { erro: string } | undefined;
  * lançar exceção — ver o mesmo comentário em converterParaClt/Extra sobre
  * mensagens de throw ficarem redacted em produção nesse tipo de chamada. */
 export async function marcarExperienciaEfetivada(pessoaId: number): Promise<MarcarEfetivadoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
   });
@@ -740,7 +754,7 @@ export async function marcarExperienciaEfetivada(pessoaId: number): Promise<Marc
  * Sem isso, o aviso ficaria sempre em cima do prazo somado das duas
  * etapas, sem dar a empresa a chance de decidir de verdade no fim da 1ª. */
 export async function marcarContinuarExperiencia(pessoaId: number): Promise<MarcarEfetivadoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
   });
@@ -777,7 +791,7 @@ export async function registrarRescisao(
   _prev: RescisaoState,
   formData: FormData
 ): Promise<RescisaoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const pessoaId = Number(formData.get("pessoaId"));
   if (!Number.isInteger(pessoaId)) return { erro: "Funcionário inválido." };
   const { vinculo } = await vinculoCltDaEmpresa(pessoaId);
@@ -811,7 +825,7 @@ export type CancelarRescisaoState = { erro: string } | undefined;
  * (foi desativado automaticamente ao registrar). Chamada direto pelo
  * botão, sem <form>, por isso { erro } em vez de exceção. */
 export async function cancelarRescisao(pessoaId: number): Promise<CancelarRescisaoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
   });
@@ -860,6 +874,23 @@ export async function atualizarExtraDiario(
     });
     revalidatePath(`/funcionarios/${pessoaId}`);
     return { sucesso: true };
+  }
+
+  // Chave PIX é obrigatória pra ligar essa opção — sem ela o totem nunca
+  // oferece a pergunta "CLT ou extra" pra essa pessoa (ver condição em
+  // buscarPessoaPorDocumento, src/app/t/[token]/actions.ts), então salvar
+  // permiteExtraDiario=true sem PIX deixava a opção "ligada" no painel mas
+  // invisível pra pessoa no tablet, sem nenhum aviso — confusão real que
+  // já aconteceu.
+  const pessoa = await prisma.pessoa.findUniqueOrThrow({
+    where: { id: pessoaId },
+    select: { chavePix: true, tipoChavePix: true },
+  });
+  if (pessoa.chavePix === null || pessoa.tipoChavePix === null) {
+    return {
+      erro:
+        "Esta pessoa não tem chave PIX cadastrada — cadastre a chave PIX em \"Dados pessoais\" antes de habilitar o turno extra pago no dia.",
+    };
   }
 
   const modoPagamento = String(formData.get("modoPagamento") ?? "");
@@ -1013,6 +1044,7 @@ export async function criarTurnoManualClt(
   revalidatePath("/pagamentos");
   revalidatePath("/relatorios");
   revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
   revalidatePath(`/funcionarios/${pessoaId}`);
 
   return { sucesso: true, valorTotal };
@@ -1035,7 +1067,7 @@ export async function zerarPagamentosExtraPendentes(
   pessoaId: number,
   dataLimite: string
 ): Promise<ZerarPendentesState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
 
   const limite = instanteBrasil(dataLimite, 24 * 60);
   if (Number.isNaN(limite.getTime())) {
@@ -1063,6 +1095,7 @@ export async function zerarPagamentosExtraPendentes(
   revalidatePath("/pagamentos");
   revalidatePath("/financeiro");
   revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
   return { sucesso: true };
 }
 
@@ -1075,7 +1108,7 @@ export async function atualizarRestricaoHorario(
   _prev: RestricaoHorarioState,
   formData: FormData
 ): Promise<RestricaoHorarioState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const pessoaId = Number(formData.get("pessoaId"));
   if (!Number.isInteger(pessoaId)) return { erro: "Pessoa inválida." };
 

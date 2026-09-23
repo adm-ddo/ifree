@@ -12,6 +12,7 @@ import {
   iniciarTurno,
   concluirTurno,
   atualizarDadosPessoa,
+  confirmarIdentidadeConecta,
   baterPontoClt,
   avaliarEmpresaPeloExtra,
   type RegistroAbertoClt,
@@ -53,13 +54,26 @@ const INSTRUCAO_FOTO =
 type Step =
   | { name: "documento" }
   | { name: "cadastro"; documento: string }
-  | ({ name: "foto"; pessoaId: number; pessoaNome: string; ultimaFuncaoId: number | null } & DadosPessoa)
+  | {
+      name: "confirmarIdentidade";
+      pessoaId: number;
+      pessoaNome: string;
+      segundoFator: "DATA_NASCIMENTO" | "EMAIL";
+    }
+  | ({
+      name: "foto";
+      pessoaId: number;
+      pessoaNome: string;
+      ultimaFuncaoId: number | null;
+      perfilIncompleto?: boolean;
+    } & DadosPessoa)
   | ({
       name: "avisoConflito";
       pessoaId: number;
       pessoaNome: string;
       ultimaFuncaoId: number | null;
       desdeQuando: string;
+      perfilIncompleto?: boolean;
     } & DadosPessoa)
   | {
       name: "funcao";
@@ -101,7 +115,13 @@ type Step =
       valorTotal: number;
     }
   | { name: "sucessoSaida"; pessoaNome: string; minutosArredondados: number; valorTotal: number }
-  | ({ name: "editarDados"; pessoaId: number; pessoaNome: string; voltar: Step } & DadosPessoa)
+  | ({
+      name: "editarDados";
+      pessoaId: number;
+      pessoaNome: string;
+      voltar: Step;
+      perfilIncompleto?: boolean;
+    } & DadosPessoa)
   | {
       name: "cltEscolha";
       pessoaId: number;
@@ -264,6 +284,14 @@ export default function TotemFlow({
                 tipoChavePix: res.tipoChavePix,
               });
             }
+            if (res.tipo === "PRECISA_CONFIRMAR_IDENTIDADE") {
+              return setStep({
+                name: "confirmarIdentidade",
+                pessoaId: res.pessoaId,
+                pessoaNome: res.pessoaNome,
+                segundoFator: res.segundoFator,
+              });
+            }
             const dadosPessoa: DadosPessoa = {
               telefone: res.telefone,
               endereco: res.endereco,
@@ -287,6 +315,7 @@ export default function TotemFlow({
                 pessoaNome: res.pessoaNome,
                 ultimaFuncaoId: res.ultimaFuncaoId,
                 desdeQuando: res.conflitoOutroLocal.desde,
+                perfilIncompleto: res.perfilIncompleto,
                 ...dadosPessoa,
               });
             } else {
@@ -294,12 +323,55 @@ export default function TotemFlow({
                 name: "foto",
                 pessoaId: res.pessoaId,
                 pessoaNome: res.pessoaNome,
+                perfilIncompleto: res.perfilIncompleto,
                 ultimaFuncaoId: res.ultimaFuncaoId,
                 ...dadosPessoa,
               });
             }
           }}
           token={token}
+        />
+      )}
+
+      {step.name === "confirmarIdentidade" && (
+        <TelaConfirmarIdentidade
+          token={token}
+          pessoaId={step.pessoaId}
+          pessoaNome={step.pessoaNome}
+          segundoFator={step.segundoFator}
+          onConfirmado={(dados) => {
+            if (dados.conflitoOutroLocal) {
+              setStep({
+                name: "avisoConflito",
+                pessoaId: dados.pessoaId,
+                pessoaNome: dados.pessoaNome,
+                ultimaFuncaoId: dados.ultimaFuncaoId,
+                desdeQuando: dados.conflitoOutroLocal.desde,
+                perfilIncompleto: dados.perfilIncompleto,
+                telefone: dados.telefone,
+                endereco: dados.endereco,
+                numero: dados.numero,
+                complemento: dados.complemento,
+                chavePix: dados.chavePix,
+                tipoChavePix: dados.tipoChavePix,
+              });
+            } else {
+              setStep({
+                name: "foto",
+                pessoaId: dados.pessoaId,
+                pessoaNome: dados.pessoaNome,
+                ultimaFuncaoId: dados.ultimaFuncaoId,
+                perfilIncompleto: dados.perfilIncompleto,
+                telefone: dados.telefone,
+                endereco: dados.endereco,
+                numero: dados.numero,
+                complemento: dados.complemento,
+                chavePix: dados.chavePix,
+                tipoChavePix: dados.tipoChavePix,
+              });
+            }
+          }}
+          onCancelar={() => setStep({ name: "documento" })}
         />
       )}
 
@@ -323,30 +395,10 @@ export default function TotemFlow({
           <p className="text-lg text-stone-600">
             Você ainda está com um turno em aberto desde{" "}
             <strong>{formatarHora(new Date(step.desdeQuando))}</strong> em outro
-            lugar. Bater um novo turno aqui sem ter fechado o outro pode dar
-            problema no seu pagamento.
+            lugar. Não é possível abrir um turno novo aqui antes de fechar esse — fale com o responsável de lá
+            pra encerrar o turno em aberto.
           </p>
-          <button
-            type="button"
-            onClick={() =>
-              setStep({
-                name: "foto",
-                pessoaId: step.pessoaId,
-                pessoaNome: step.pessoaNome,
-                ultimaFuncaoId: step.ultimaFuncaoId,
-                telefone: step.telefone,
-                endereco: step.endereco,
-                numero: step.numero,
-                complemento: step.complemento,
-                chavePix: step.chavePix,
-                tipoChavePix: step.tipoChavePix,
-              })
-            }
-            className="w-full rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xl font-medium py-4 transition-colors"
-          >
-            Continuar mesmo assim
-          </button>
-          <BotaoCancelar onClick={() => setStep({ name: "documento" })} label="Cancelar e avisar o responsável" />
+          <BotaoCancelar onClick={() => setStep({ name: "documento" })} label="Voltar ao início" />
         </div>
       )}
 
@@ -368,11 +420,13 @@ export default function TotemFlow({
             }
           />
           <BotaoEditarDados
+            perfilIncompleto={step.perfilIncompleto}
             onClick={() =>
               setStep({
                 name: "editarDados",
                 pessoaId: step.pessoaId,
                 pessoaNome: step.pessoaNome,
+                perfilIncompleto: step.perfilIncompleto,
                 telefone: step.telefone,
                 endereco: step.endereco,
                 numero: step.numero,
@@ -567,6 +621,7 @@ export default function TotemFlow({
           token={token}
           pessoaId={step.pessoaId}
           pessoaNome={step.pessoaNome}
+          perfilIncompleto={step.perfilIncompleto ?? false}
           dadosIniciais={{
             telefone: step.telefone,
             endereco: step.endereco,
@@ -703,7 +758,18 @@ function BotaoCancelar({ onClick, label = "Cancelar" }: { onClick: () => void; l
   );
 }
 
-function BotaoEditarDados({ onClick }: { onClick: () => void }) {
+function BotaoEditarDados({ onClick, perfilIncompleto }: { onClick: () => void; perfilIncompleto?: boolean }) {
+  if (perfilIncompleto) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="text-base text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 hover:bg-amber-100 transition-colors"
+      >
+        ⚠️ Complete seu cadastro (e-mail ou nascimento)
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -963,6 +1029,8 @@ function TelaCadastro({
   const [complemento, setComplemento] = useState("");
   const [chavePix, setChavePix] = useState("");
   const [tipoChavePix, setTipoChavePix] = useState<TipoChavePix>("CPF");
+  const [email, setEmail] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -979,6 +1047,8 @@ function TelaCadastro({
       complemento,
       chavePix,
       tipoChavePix,
+      email: email.trim() || undefined,
+      dataNascimento: dataNascimento.trim() || undefined,
     });
     setPending(false);
     if ("erro" in res) return setErro(res.erro);
@@ -1058,6 +1128,32 @@ function TelaCadastro({
             </span>
           </p>
         )}
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4">
+        <p className="text-sm text-stone-500 text-left">
+          E-mail ou data de nascimento (opcional, só um dos dois já ajuda) — evita que seu cadastro fique
+          bloqueado se você um dia trabalhar em outra empresa pelo iFREE.
+        </p>
+        <div className="flex flex-col gap-1 text-left">
+          <label className="text-base text-stone-500">E-mail (opcional)</label>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            placeholder="seuemail@exemplo.com"
+            className="border border-stone-300 rounded-lg px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
+        <div className="flex flex-col gap-1 text-left">
+          <label className="text-base text-stone-500">Data de nascimento (opcional)</label>
+          <input
+            value={dataNascimento}
+            onChange={(e) => setDataNascimento(e.target.value)}
+            type="date"
+            className="border border-stone-300 rounded-lg px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </div>
       </div>
 
       {erro && (
@@ -1217,10 +1313,97 @@ function TelaAvaliarEmpresa({
   );
 }
 
+/** Pede confirmação da chave PIX + um segundo fator (data de nascimento,
+ * ou e-mail se a pessoa nunca preencheu data de nascimento) antes de
+ * liberar os dados dela numa empresa onde nunca trabalhou — ver
+ * confirmarIdentidadeConecta e o comentário em ResultadoBusca (actions.ts)
+ * pro motivo. Não mostra nem sugere os valores certos, só recebe o que a
+ * pessoa digitar. Errar 3 vezes bloqueia o acesso nesta empresa (mensagem
+ * de erro final avisa isso). */
+function TelaConfirmarIdentidade({
+  token,
+  pessoaId,
+  pessoaNome,
+  segundoFator,
+  onConfirmado,
+  onCancelar,
+}: {
+  token: string;
+  pessoaId: number;
+  pessoaNome: string;
+  segundoFator: "DATA_NASCIMENTO" | "EMAIL";
+  onConfirmado: (
+    dados: Extract<Awaited<ReturnType<typeof confirmarIdentidadeConecta>>, { sucesso: true }>
+  ) => void;
+  onCancelar: () => void;
+}) {
+  const [chavePix, setChavePix] = useState("");
+  const [segundoFatorValor, setSegundoFatorValor] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function enviar(e: React.FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    setErro(null);
+    const res = await confirmarIdentidadeConecta(token, pessoaId, chavePix, segundoFatorValor);
+    setPending(false);
+    if ("erro" in res) return setErro(res.erro);
+    onConfirmado(res);
+  }
+
+  return (
+    <form onSubmit={enviar} className="flex flex-col gap-4 items-stretch w-full max-w-lg">
+      <h1 className="text-3xl font-semibold text-navy-900">
+        Já conhecemos você, {pessoaNome.split(" ")[0]}!
+      </h1>
+      <p className="text-base text-stone-500 -mt-2">
+        Como é sua primeira vez nesta empresa, confirme 2 dados do seu cadastro no iFREE Conecta pra continuar.
+      </p>
+
+      <div className="flex flex-col gap-1 text-left">
+        <label className="text-base text-stone-500">Sua chave PIX cadastrada</label>
+        <input
+          value={chavePix}
+          onChange={(e) => setChavePix(e.target.value)}
+          autoFocus
+          className="border border-stone-300 rounded-lg px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1 text-left">
+        <label className="text-base text-stone-500">
+          {segundoFator === "DATA_NASCIMENTO" ? "Sua data de nascimento" : "Seu e-mail cadastrado"}
+        </label>
+        <input
+          value={segundoFatorValor}
+          onChange={(e) => setSegundoFatorValor(e.target.value)}
+          type={segundoFator === "DATA_NASCIMENTO" ? "date" : "email"}
+          className="border border-stone-300 rounded-lg px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </div>
+
+      {erro && (
+        <p className="text-lg text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">{erro}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={pending || !chavePix.trim() || !segundoFatorValor.trim()}
+        className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xl font-medium py-4 disabled:opacity-50 transition-colors mt-1"
+      >
+        {pending ? "Confirmando..." : "Confirmar"}
+      </button>
+      <BotaoCancelar onClick={onCancelar} />
+    </form>
+  );
+}
+
 function TelaEditarDados({
   token,
   pessoaId,
   pessoaNome,
+  perfilIncompleto,
   dadosIniciais,
   onSalvo,
   onCancelar,
@@ -1228,6 +1411,7 @@ function TelaEditarDados({
   token: string;
   pessoaId: number;
   pessoaNome: string;
+  perfilIncompleto: boolean;
   dadosIniciais: DadosPessoa;
   onSalvo: (dados: DadosPessoa) => void;
   onCancelar: () => void;
@@ -1236,8 +1420,8 @@ function TelaEditarDados({
   const [endereco, setEndereco] = useState(dadosIniciais.endereco);
   const [numero, setNumero] = useState(dadosIniciais.numero);
   const [complemento, setComplemento] = useState(dadosIniciais.complemento);
-  const [chavePix, setChavePix] = useState(dadosIniciais.chavePix);
-  const [tipoChavePix, setTipoChavePix] = useState<TipoChavePix>(dadosIniciais.tipoChavePix);
+  const [email, setEmail] = useState("");
+  const [dataNascimento, setDataNascimento] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -1251,12 +1435,21 @@ function TelaEditarDados({
       endereco,
       numero,
       complemento,
-      chavePix,
-      tipoChavePix,
+      email: email.trim() || undefined,
+      dataNascimento: dataNascimento.trim() || undefined,
     });
     setPending(false);
     if ("erro" in res) return setErro(res.erro);
-    onSalvo({ telefone, endereco, numero, complemento, chavePix, tipoChavePix });
+    // chavePix/tipoChavePix não são editáveis aqui (só pelo cadastro no
+    // iFREE Conecta) — repassa sem alterar pro step que chamou esta tela.
+    onSalvo({
+      telefone,
+      endereco,
+      numero,
+      complemento,
+      chavePix: dadosIniciais.chavePix,
+      tipoChavePix: dadosIniciais.tipoChavePix,
+    });
   }
 
   return (
@@ -1285,26 +1478,39 @@ function TelaEditarDados({
         setComplemento={setComplemento}
       />
 
-      <div className="flex flex-col gap-1 text-left">
-        <label className="text-base text-stone-500">Chave PIX (pra receber o pagamento)</label>
-        <input
-          value={chavePix}
-          onChange={(e) => {
-            const valor = e.target.value;
-            setChavePix(valor);
-            setTipoChavePix(detectarTipoChavePix(valor));
-          }}
-          className="border border-stone-300 rounded-lg px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        {chavePix.trim() && (
-          <p className="text-sm text-stone-400">
-            Tipo detectado:{" "}
-            <span className="font-medium text-stone-600">
-              {LABEL_TIPO_CHAVE_PIX[tipoChavePix]}
-            </span>
+      {perfilIncompleto && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-left">
+          <p className="text-base text-amber-800">
+            ⚠️ Complete com e-mail ou data de nascimento (só um dos dois já ajuda) — sem isso, se você
+            trabalhar em outra empresa pelo iFREE, seu cadastro pode ficar bloqueado lá até o responsável
+            liberar na mão.
           </p>
-        )}
-      </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-base text-stone-500">E-mail (opcional)</label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              placeholder="seuemail@exemplo.com"
+              className="border border-stone-300 rounded-lg px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-base text-stone-500">Data de nascimento (opcional)</label>
+            <input
+              value={dataNascimento}
+              onChange={(e) => setDataNascimento(e.target.value)}
+              type="date"
+              className="border border-stone-300 rounded-lg px-4 py-4 text-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+        </div>
+      )}
+
+      <p className="text-sm text-stone-400 text-left -mb-1">
+        Pra mudar sua chave PIX ou seu e-mail já cadastrado, acesse seu cadastro no iFREE Conecta (fora do
+        totem).
+      </p>
 
       {erro && (
         <p className="text-lg text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">

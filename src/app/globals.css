@@ -34,11 +34,20 @@
   --color-navy-700: #1b263b;
   --color-navy-800: #14202f;
   --color-navy-900: #0d1b2a;
+
+  /* Fonte da v2 (src/app/v2/**) — aditivo, não sobrescreve --font-sans
+     (Urbanist, usada pelo resto do site). --font-sora só existe de verdade
+     dentro da subárvore /v2 (ver sora.variable em src/app/v2/layout.tsx). */
+  --font-v2-sans: var(--font-sora);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+.font-v2 {
+  font-family: var(--font-v2-sans);
 }
 
 /* Modo kiosk do totem (ativado via TotemKioskGuard, escopado pela classe

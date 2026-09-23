@@ -18,11 +18,19 @@ export type SessaoAtual = {
   empresaAtivaId: number | null;
   empresaEfetivoId: number | null;
   empresaEfetivoNome: string | null;
-  /// Status de assinatura da empresa efetiva — null pra master (nunca é
-  /// bloqueado) ou quando nenhuma empresa está selecionada. Consultado
-  /// direto de minhasEmpresas (já carregado nesta mesma query), sem
-  /// round-trip extra ao banco. Ver requireTenant.
+  /// Status de assinatura da empresa efetiva — null pra master (busca à
+  /// parte, ver requireTenant) ou quando nenhuma empresa está selecionada.
+  /// Consultado direto de minhasEmpresas (já carregado nesta mesma query),
+  /// sem round-trip extra ao banco.
   empresaEfetivoStatusAssinatura: StatusAssinatura | null;
+  /// Fim da janela da liberação de confiança (ver Empresa no schema) — no
+  /// futuro significa painel liberado mesmo com status ATRASADA/CANCELADA.
+  /// Mesma ressalva de null pra master que o campo acima.
+  empresaEfetivoLiberacaoConfiancaAteEm: Date | null;
+  /// Empresa que o MASTER escolheu acessar mesmo bloqueada (botão "Entrar
+  /// mesmo assim" em /assinatura) — ver Sessao no schema. Só tem efeito
+  /// quando isMaster; irrelevante pro dono normal.
+  masterBypassEmpresaId: number | null;
   minhasEmpresas: { id: number; nome: string }[];
 };
 
@@ -76,6 +84,7 @@ export const getSessao = cache(async (): Promise<SessaoAtual | null> => {
     where: { token },
     select: {
       empresaAtivaId: true,
+      masterBypassEmpresaId: true,
       expiraEm: true,
       usuario: {
         select: {
@@ -84,7 +93,14 @@ export const getSessao = cache(async (): Promise<SessaoAtual | null> => {
           isMaster: true,
           empresas: {
             select: {
-              empresa: { select: { id: true, nome: true, statusAssinatura: true } },
+              empresa: {
+                select: {
+                  id: true,
+                  nome: true,
+                  statusAssinatura: true,
+                  liberacaoConfiancaAteEm: true,
+                },
+              },
             },
           },
         },
@@ -94,29 +110,47 @@ export const getSessao = cache(async (): Promise<SessaoAtual | null> => {
   });
   if (!sessao || sessao.expiraEm < new Date()) return null;
 
+  // Sessão deslizante: perto do vencimento (faltando menos que a metade
+  // do TTL), empurra expiraEm mais 30 dias pra frente — só escreve no
+  // banco perto do fim, não em toda request. O cookie em si é renovado à
+  // parte, no middleware (src/middleware.ts), sem tocar banco nenhum;
+  // as duas metades juntas dão o efeito de quem usa todo dia nunca ser
+  // derrubado, e quem some ainda vence 30 dias depois do último uso de
+  // verdade. Decisão do Thiago em 2026-09-22.
+  const diasRestantes = (sessao.expiraEm.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+  if (diasRestantes < SESSAO_TTL_DIAS / 2) {
+    const novaExpiracao = new Date(Date.now() + SESSAO_TTL_DIAS * 24 * 60 * 60 * 1000);
+    await prisma.sessao.update({ where: { token }, data: { expiraEm: novaExpiracao } }).catch(() => {});
+  }
+
   const minhasEmpresas = sessao.usuario.empresas.map((e) => e.empresa);
 
   let empresaEfetivoId: number | null;
   let empresaEfetivoNome: string | null;
   let empresaEfetivoStatusAssinatura: StatusAssinatura | null = null;
+  let empresaEfetivoLiberacaoConfiancaAteEm: Date | null = null;
 
   if (sessao.usuario.isMaster) {
     empresaEfetivoId = sessao.empresaAtivaId;
     empresaEfetivoNome = sessao.empresaAtiva?.nome ?? null;
-    // Master nunca é bloqueado por assinatura — não precisa do status.
+    // Master busca esses dois campos à parte (ver requireTenant) — como
+    // ele pode acessar QUALQUER empresa (não só as de minhasEmpresas), não
+    // dá pra confiar nessa lista aqui.
   } else if (
     sessao.empresaAtivaId !== null &&
     minhasEmpresas.some((e) => e.id === sessao.empresaAtivaId)
   ) {
     empresaEfetivoId = sessao.empresaAtivaId;
     empresaEfetivoNome = sessao.empresaAtiva?.nome ?? null;
-    empresaEfetivoStatusAssinatura =
-      minhasEmpresas.find((e) => e.id === sessao.empresaAtivaId)?.statusAssinatura ?? null;
+    const empresaAtiva = minhasEmpresas.find((e) => e.id === sessao.empresaAtivaId);
+    empresaEfetivoStatusAssinatura = empresaAtiva?.statusAssinatura ?? null;
+    empresaEfetivoLiberacaoConfiancaAteEm = empresaAtiva?.liberacaoConfiancaAteEm ?? null;
   } else if (minhasEmpresas.length === 1) {
     // Só uma empresa: não faz sentido pedir escolha, seleciona direto.
     empresaEfetivoId = minhasEmpresas[0].id;
     empresaEfetivoNome = minhasEmpresas[0].nome;
     empresaEfetivoStatusAssinatura = minhasEmpresas[0].statusAssinatura;
+    empresaEfetivoLiberacaoConfiancaAteEm = minhasEmpresas[0].liberacaoConfiancaAteEm;
   } else {
     // 0 ou 2+ empresas sem seleção válida: precisa escolher em /empresas.
     empresaEfetivoId = null;
@@ -131,6 +165,8 @@ export const getSessao = cache(async (): Promise<SessaoAtual | null> => {
     empresaEfetivoId,
     empresaEfetivoNome,
     empresaEfetivoStatusAssinatura,
+    empresaEfetivoLiberacaoConfiancaAteEm,
+    masterBypassEmpresaId: sessao.masterBypassEmpresaId,
     minhasEmpresas: minhasEmpresas.map((e) => ({ id: e.id, nome: e.nome })),
   };
 });
@@ -144,27 +180,60 @@ export async function requireSessao(): Promise<SessaoAtual> {
 /** Use no topo de toda page/action escopada a uma empresa (funções,
  * freelancers, turnos, pagamentos, totens). Bloqueia o painel (não o
  * totem, que usa resolverTotemAtivo — um gate totalmente separado) quando
- * a empresa efetiva está ATRASADA/CANCELADA — master nunca é bloqueado,
- * precisa poder entrar mesmo numa empresa inadimplente pra ajudar. */
+ * a empresa efetiva está ATRASADA/CANCELADA.
+ *
+ * Desde 2026-09-08 isso vale também pras próprias empresas do master — são
+ * negócios reais dele, pagam mensalidade igual qualquer cliente. Mas
+ * diferente do cliente (que usa a liberação de confiança, 1x por mês),
+ * master tem seu PRÓPRIO jeito de entrar mesmo bloqueado: o botão "Entrar
+ * mesmo assim" em /assinatura (ver entrarMesmoBloqueado em
+ * src/app/assinatura/actions.ts), que grava masterBypassEmpresaId na
+ * própria sessão — continua vendo a tela de bloqueio primeiro (útil pra
+ * saber que aquela empresa está atrasada), só não fica preso nela.
+ * sessao.empresaEfetivoStatusAssinatura é sempre null pra master (ver
+ * getSessao acima), então busca o status de verdade direto no banco só
+ * nesse caso — pro dono normal usa o campo já carregado na sessão, sem
+ * round-trip extra. */
 export async function requireTenant(): Promise<
   SessaoAtual & { empresaEfetivoId: number }
 > {
   const sessao = await requireSessao();
   if (sessao.empresaEfetivoId === null) {
-    redirect(sessao.isMaster ? "/master" : "/empresas");
+    redirect(sessao.isMaster ? "/master" : "/v2/empresas");
   }
+
+  let statusAssinaturaEfetivo = sessao.empresaEfetivoStatusAssinatura;
+  let liberacaoConfiancaAteEm = sessao.empresaEfetivoLiberacaoConfiancaAteEm;
+  if (sessao.isMaster) {
+    const empresaMaster = await prisma.empresa.findUnique({
+      where: { id: sessao.empresaEfetivoId },
+      select: { statusAssinatura: true, liberacaoConfiancaAteEm: true },
+    });
+    statusAssinaturaEfetivo = empresaMaster?.statusAssinatura ?? null;
+    liberacaoConfiancaAteEm = empresaMaster?.liberacaoConfiancaAteEm ?? null;
+  }
+
+  // Liberação de confiança (1x por mês, ver solicitarLiberacaoConfianca em
+  // src/app/assinatura/actions.ts) destrava o painel por cima do status
+  // normal enquanto a janela ainda não passou — sem mexer em
+  // statusAssinatura/assinaturaVenceEm, então volta a bloquear sozinho
+  // assim que a janela expira, sem precisar de cron nenhum pra isso.
+  const liberadoPorConfianca = !!liberacaoConfiancaAteEm && liberacaoConfiancaAteEm > new Date();
+  // Bypass exclusivo de master — ver comentário da função acima.
+  const liberadoPorMaster = sessao.isMaster && sessao.masterBypassEmpresaId === sessao.empresaEfetivoId;
+
   if (
-    !sessao.isMaster &&
-    (sessao.empresaEfetivoStatusAssinatura === "ATRASADA" ||
-      sessao.empresaEfetivoStatusAssinatura === "CANCELADA")
+    !liberadoPorConfianca &&
+    !liberadoPorMaster &&
+    (statusAssinaturaEfetivo === "ATRASADA" || statusAssinaturaEfetivo === "CANCELADA")
   ) {
-    redirect("/assinatura");
+    redirect("/v2/assinatura");
   }
   return sessao as SessaoAtual & { empresaEfetivoId: number };
 }
 
 export async function requireMaster(): Promise<SessaoAtual> {
   const sessao = await requireSessao();
-  if (!sessao.isMaster) redirect("/dashboard");
+  if (!sessao.isMaster) redirect("/v2/dashboard");
   return sessao;
 }

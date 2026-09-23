@@ -1,17 +1,18 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { baixarComoDataUrl } from "@/lib/blob";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
 import FiltroCandidaturas from "./FiltroCandidaturas";
+import EditarVagaForm from "./EditarVagaForm";
 
 export default async function VagaDetalhePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("vagas");
   const { id } = await params;
   const vagaId = Number(id);
   if (!Number.isInteger(vagaId)) notFound();
@@ -23,6 +24,10 @@ export default async function VagaDetalhePage({
       cargo: true,
       descricao: true,
       localizacao: true,
+      nomeFantasia: true,
+      habilidadesProcuradas: true,
+      turnoDia: true,
+      turnoNoite: true,
       status: true,
       criadoEm: true,
       empresaId: true,
@@ -38,7 +43,7 @@ export default async function VagaDetalhePage({
               id: true,
               nome: true,
               telefone: true,
-              fotoUrl: true,
+              fotoPerfilUrl: true,
               biografia: true,
               habilidades: true,
               vagasDesejadas: true,
@@ -63,7 +68,7 @@ export default async function VagaDetalhePage({
   const candidaturasComDados = await Promise.all(
     vaga.candidaturas.map(async (c) => {
       const [fotoDataUrl, avaliacoesRecebidas] = await Promise.all([
-        c.pessoa.fotoUrl ? baixarComoDataUrl(c.pessoa.fotoUrl) : Promise.resolve(null),
+        c.pessoa.fotoPerfilUrl ? baixarComoDataUrl(c.pessoa.fotoPerfilUrl) : Promise.resolve(null),
         prisma.avaliacao.findMany({
           where: { autor: "EMPRESA", turno: { pessoaId: c.pessoa.id } },
           select: {
@@ -85,11 +90,20 @@ export default async function VagaDetalhePage({
         <Link href="/vagas" className="text-sm text-brand-700 hover:underline">
           ← Vagas
         </Link>
-        <h1 className="text-2xl font-semibold text-navy-900 mt-1">{vaga.cargo}</h1>
-        <p className="text-stone-600 mt-1 text-sm whitespace-pre-line">{vaga.descricao}</p>
-        {vaga.localizacao && (
-          <p className="text-stone-500 text-sm mt-1">📍 {vaga.localizacao}</p>
-        )}
+        <div className="mt-1">
+          <EditarVagaForm
+            vaga={{
+              id: vaga.id,
+              cargo: vaga.cargo,
+              descricao: vaga.descricao,
+              localizacao: vaga.localizacao,
+              nomeFantasia: vaga.nomeFantasia,
+              habilidadesProcuradas: vaga.habilidadesProcuradas,
+              turnoDia: vaga.turnoDia,
+              turnoNoite: vaga.turnoNoite,
+            }}
+          />
+        </div>
       </div>
 
       <div>

@@ -6,7 +6,7 @@
 export const BIOGRAFIA_MINIMO_CARACTERES = 50;
 
 export type PessoaParaCompletude = {
-  fotoUrl: string | null;
+  fotoPerfilUrl: string | null;
   biografia: string | null;
   habilidades: string[];
   vagasDesejadas: string[];
@@ -26,7 +26,7 @@ const LIMIAR_CURRICULO = 0.5;
 
 function itensCompletude(pessoa: PessoaParaCompletude): ItemCompletude[] {
   return [
-    { label: "Foto de perfil", preenchido: !!pessoa.fotoUrl },
+    { label: "Foto de perfil", preenchido: !!pessoa.fotoPerfilUrl },
     {
       label: `Biografia (mín. ${BIOGRAFIA_MINIMO_CARACTERES} caracteres)`,
       preenchido: (pessoa.biografia?.trim().length ?? 0) >= BIOGRAFIA_MINIMO_CARACTERES,
@@ -55,11 +55,11 @@ function itensCompletude(pessoa: PessoaParaCompletude): ItemCompletude[] {
 export function pessoaProntaParaCandidatura(
   pessoa: Pick<
     PessoaParaCompletude,
-    "fotoUrl" | "biografia" | "chavePix" | "dataNascimento" | "bairro" | "cep" | "cidade"
+    "fotoPerfilUrl" | "biografia" | "chavePix" | "dataNascimento" | "bairro" | "cep" | "cidade"
   > & { endereco: string; numero: string | null }
 ): { pronta: boolean; faltando: string[] } {
   const faltando: string[] = [];
-  if (!pessoa.fotoUrl) faltando.push("foto de perfil");
+  if (!pessoa.fotoPerfilUrl) faltando.push("foto de perfil");
   if ((pessoa.biografia?.trim().length ?? 0) < BIOGRAFIA_MINIMO_CARACTERES) {
     faltando.push(`biografia (mín. ${BIOGRAFIA_MINIMO_CARACTERES} caracteres)`);
   }

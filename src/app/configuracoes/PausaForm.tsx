@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useTransition } from "react";
 import { atualizarModoPausa } from "./actions";
 import type { ModoPausa } from "@/generated/prisma/enums";
 
@@ -64,19 +64,29 @@ export default function PausaForm({
   modoPausaNoiteAtual: ModoPausa;
 }) {
   const [state, formAction, pending] = useActionState(atualizarModoPausa, undefined);
+  const [, startTransition] = useTransition();
 
   return (
     <form
-      action={formAction}
+      // Nunca `action={formAction}` direto — ver o mesmo comentário em
+      // BeneficiosForm.tsx (src/app/funcionarios/[id]/BeneficiosForm.tsx):
+      // o React 19 reseta o <form> nativamente pro estado do carregamento
+      // da página depois de uma Server Action terminar com sucesso, o que
+      // faz a bolinha do rádio voltar sozinha mesmo com o valor salvo certo.
+      onSubmit={(e) => {
+        e.preventDefault();
+        startTransition(() => formAction(new FormData(e.currentTarget)));
+      }}
       className="flex flex-col gap-4 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm max-w-lg"
     >
       <div>
-        <h2 className="font-semibold text-navy-900">Intervalo / pausa</h2>
+        <h2 className="font-semibold text-navy-900">Intervalo / pausa dos EXTRAS</h2>
         <p className="text-xs text-stone-500 mt-1">
           Como descontar o tempo de pausa (banheiro, cigarro, refeição) do
-          cálculo de turnos longos — configurável separado pro turno do dia
-          e da noite, já que costumam ter durações bem diferentes.
-          Recomendamos avisar isso nos{" "}
+          cálculo de turnos longos dos freelancers avulsos — configurável
+          separado pro turno do dia e da noite, já que costumam ter
+          durações bem diferentes. Funcionários CLT têm configuração
+          própria, mais abaixo. Recomendamos avisar isso nos{" "}
           <span className="font-medium">termos do contrato</span> acima, pra
           não virar surpresa no recibo.
         </p>

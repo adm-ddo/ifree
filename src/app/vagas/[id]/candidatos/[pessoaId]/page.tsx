@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { baixarComoDataUrl } from "@/lib/blob";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO } from "@/lib/documento";
 import { formatarEnderecoCompleto } from "@/lib/endereco";
@@ -12,7 +12,7 @@ export default async function CandidatoPerfilPage({
 }: {
   params: Promise<{ id: string; pessoaId: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("vagas");
   const { id, pessoaId: pessoaIdStr } = await params;
   const vagaId = Number(id);
   const pessoaId = Number(pessoaIdStr);
@@ -36,7 +36,7 @@ export default async function CandidatoPerfilPage({
           bairro: true,
           cidade: true,
           cep: true,
-          fotoUrl: true,
+          fotoPerfilUrl: true,
           biografia: true,
           habilidades: true,
           vagasDesejadas: true,
@@ -50,7 +50,7 @@ export default async function CandidatoPerfilPage({
   const { pessoa } = candidatura;
 
   const [fotoDataUrl, avaliacoesRecebidas, conversa] = await Promise.all([
-    pessoa.fotoUrl ? baixarComoDataUrl(pessoa.fotoUrl) : Promise.resolve(null),
+    pessoa.fotoPerfilUrl ? baixarComoDataUrl(pessoa.fotoPerfilUrl) : Promise.resolve(null),
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: pessoa.id } },
       select: {

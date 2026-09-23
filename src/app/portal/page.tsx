@@ -8,6 +8,7 @@ import { calcularCompletude } from "@/lib/perfil-completude";
 import { HABILIDADES_SUGERIDAS, VAGAS_SUGERIDAS } from "@/lib/habilidades";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
 import MeusDadosForm from "./MeusDadosForm";
+import TrocarEmailForm from "./TrocarEmailForm";
 import FotoPerfilForm from "./FotoPerfilForm";
 import PerfilProfissionalForm from "./PerfilProfissionalForm";
 import DisponibilidadeToggle from "./DisponibilidadeToggle";
@@ -57,7 +58,8 @@ export default async function PortalHomePage() {
       cidade: true,
       chavePix: true,
       tipoChavePix: true,
-      fotoUrl: true,
+      email: true,
+      fotoPerfilUrl: true,
       biografia: true,
       habilidades: true,
       vagasDesejadas: true,
@@ -67,6 +69,7 @@ export default async function PortalHomePage() {
       contatoEmergenciaTelefone: true,
       meiosTransporte: true,
       disponivelParaOportunidades: true,
+      sexo: true,
     },
   });
 
@@ -108,7 +111,7 @@ export default async function PortalHomePage() {
         empresa: { select: { nome: true } },
       },
     }),
-    pessoa.fotoUrl ? baixarComoDataUrl(pessoa.fotoUrl) : Promise.resolve(null),
+    pessoa.fotoPerfilUrl ? baixarComoDataUrl(pessoa.fotoPerfilUrl) : Promise.resolve(null),
   ]);
 
   const conversas = await prisma.conversa.findMany({
@@ -244,6 +247,8 @@ export default async function PortalHomePage() {
         )}
       </div>
 
+      <TrocarEmailForm emailAtual={pessoa.email} />
+
       <MeusDadosForm
         dadosIniciais={{
           telefone: pessoa.telefone,
@@ -267,6 +272,7 @@ export default async function PortalHomePage() {
           biografia: pessoa.biografia ?? "",
           habilidades: pessoa.habilidades,
           vagasDesejadas: pessoa.vagasDesejadas,
+          sexo: pessoa.sexo,
         }}
         habilidadesSugeridas={HABILIDADES_SUGERIDAS}
         vagasSugeridas={VAGAS_SUGERIDAS}

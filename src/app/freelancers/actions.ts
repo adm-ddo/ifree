@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { detectarTipoChavePix, chavePixValida } from "@/lib/documento";
@@ -42,7 +42,7 @@ export async function converterParaClt(
   pessoaId: number,
   dataAdmissao?: string | null
 ): Promise<ConverterVinculoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("freelancers");
 
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
@@ -81,7 +81,7 @@ export async function converterParaClt(
 }
 
 export async function alternarAtivoVinculo(pessoaId: number, ativo: boolean) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("freelancers");
 
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
@@ -108,7 +108,7 @@ export async function atualizarTurnoPredefinido(
   pessoaId: number,
   turnoPredefinido: "MANHA" | "NOITE" | "LIVRE"
 ): Promise<ConverterVinculoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("freelancers");
 
   const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
     where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
@@ -134,7 +134,7 @@ export async function atualizarModoPagamentoVinculo(
   _prev: PagamentoState,
   formData: FormData
 ): Promise<PagamentoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("freelancers");
 
   const pessoaId = Number(formData.get("pessoaId"));
   const modoPagamento = String(formData.get("modoPagamento") ?? "");
@@ -185,7 +185,7 @@ export async function atualizarMetaHorasVinculo(
   _prev: MetaHorasState,
   formData: FormData
 ): Promise<MetaHorasState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("freelancers");
 
   const pessoaId = Number(formData.get("pessoaId"));
   if (!Number.isInteger(pessoaId)) return { erro: "Freelancer inválido." };
@@ -228,7 +228,7 @@ export async function atualizarDadosPessoaAdmin(
   _prev: DadosPessoaState,
   formData: FormData
 ): Promise<DadosPessoaState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("freelancers");
 
   const pessoaId = Number(formData.get("pessoaId"));
   if (!Number.isInteger(pessoaId)) return { erro: "Freelancer inválido." };

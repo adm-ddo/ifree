@@ -5,6 +5,7 @@ import { requireTenant } from "@/lib/auth";
 import { formatarCpf } from "@/lib/cpf";
 import { instanteBrasil, dataISOBrasil } from "@/lib/data";
 import { calcularMinutosNoturnos } from "@/lib/ponto";
+import { calcularMetaMinutos } from "@/lib/resumo-horas";
 import { sanitizarNomeArquivo } from "@/lib/texto";
 import { gerarPdfEspelhoPonto, type LinhaEspelhoPonto } from "@/lib/espelho-ponto-pdf";
 
@@ -39,6 +40,7 @@ export async function GET(
       tipoVinculo: true,
       cargo: true,
       matriculaInterna: true,
+      cargaHorariaSemanalMin: true,
       pessoa: { select: { nome: true, documento: true, pisPasepNit: true, ctpsNumero: true, ctpsSerieUf: true } },
     },
   });
@@ -93,6 +95,12 @@ export async function GET(
     timeZone: "America/Sao_Paulo",
   }).format(inicioMes);
 
+  // Meta proporcional ao mês pedido (?mes=), a partir da carga semanal
+  // configurada pra essa pessoa — mesma conta de /relatorios/resumo (ver
+  // calcularMetaMinutos em src/lib/resumo-horas.ts), null quando a pessoa
+  // não tem carga configurada (nesse caso o PDF não mostra comparação).
+  const metaMinutos = calcularMetaMinutos(vinculo.cargaHorariaSemanalMin, ultimoDiaMes);
+
   const pdfBytes = await gerarPdfEspelhoPonto({
     empresaNome: empresa.nome,
     empresaCnpj: empresa.cnpj,
@@ -104,6 +112,7 @@ export async function GET(
     matriculaInterna: vinculo.matriculaInterna,
     cargo: vinculo.cargo,
     mesReferenciaLabel,
+    metaMinutos,
     diasDoMes,
     linhasPorDia,
   });

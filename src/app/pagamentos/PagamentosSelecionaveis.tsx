@@ -21,6 +21,7 @@ export type PagamentoItem = {
   /// dia da semana por extenso, então não dá pra ordenar por ele direto.
   quandoOrdenacao: number;
   grupoPagamentoId: number | null;
+  pagoAutomaticamente: boolean;
 };
 
 /** Lista de pagamentos com seleção em lote — quando `agruparPorPessoa` é

@@ -136,7 +136,7 @@ export async function requireResponsavelEtica() {
     sessao.empresaEfetivoId,
     sessao.isMaster
   );
-  if (!podeAcessar) redirect("/dashboard");
+  if (!podeAcessar) redirect("/v2/dashboard");
   return sessao;
 }
 

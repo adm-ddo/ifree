@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { usuarioEhResponsavelEtica } from "@/lib/etica";
 import { TERMOS_CONTRATO_PADRAO_TEXTO } from "@/lib/termos";
 import ConfiguracoesForm from "./ConfiguracoesForm";
@@ -13,16 +13,26 @@ import HorarioFechamentoForm from "./HorarioFechamentoForm";
 import SemanaPagamentoForm from "./SemanaPagamentoForm";
 import SlaEticaForm from "./SlaEticaForm";
 import LimparTurnosTesteForm from "./LimparTurnosTesteForm";
+import ContaAsaasForm from "./ContaAsaasForm";
+import AssinaturaConfigForm from "./AssinaturaConfigForm";
+import { verificarStatusAsaas } from "@/lib/pagamentos/asaas-conta-status";
+import { diasParaVencer } from "@/lib/assinatura";
 
 export default async function ConfiguracoesPage() {
-  const sessao = await requireTenant();
-  const [empresa, responsavelEtica] = await Promise.all([
+  const sessao = await requireModulo("configuracoes");
+  const [empresa, responsavelEtica, contaAsaas, statusAsaasLive] = await Promise.all([
     prisma.empresa.findUniqueOrThrow({
       where: { id: sessao.empresaEfetivoId },
       select: {
         nome: true,
         cnpj: true,
+        email: true,
         endereco: true,
+        numero: true,
+        complemento: true,
+        bairro: true,
+        cidade: true,
+        cep: true,
         termosContrato: true,
         modoPausaDia: true,
         modoPausaNoite: true,
@@ -35,6 +45,8 @@ export default async function ConfiguracoesPage() {
         semanaPagamentoInicioDia: true,
         semanaPagamentoDia: true,
         funcionariosBaterIntervalo: true,
+        modoPausaCltDia: true,
+        modoPausaCltNoite: true,
         horarioEntrada5x2Min: true,
         horarioSaida5x2Min: true,
         horarioEntrada5x2NoiteMin: true,
@@ -48,11 +60,38 @@ export default async function ConfiguracoesPage() {
         horarioEntrada12x36NoiteMin: true,
         horarioSaida12x36NoiteMin: true,
         slaDenunciaDias: true,
+        statusAssinatura: true,
+        assinaturaVenceEm: true,
+        avisoVencimentoDias: true,
       },
     }),
     usuarioEhResponsavelEtica(sessao.usuarioId, sessao.empresaEfetivoId, sessao.isMaster),
+    prisma.contaAsaasEmpresa.findUnique({
+      where: { empresaId: sessao.empresaEfetivoId },
+      select: { status: true, criadoEm: true, desconectadoEm: true },
+    }),
+    // Consulta ao vivo na Asaas (não o campo status acima, que só reflete
+    // o momento da criação) — é o que decide qual passo do guia mostrar
+    // como atual. null quando não há conta conectada ou a consulta falhou.
+    verificarStatusAsaas(sessao.empresaEfetivoId),
   ]);
   const personalizado = Boolean(empresa.termosContrato?.trim());
+
+  const diaVencimento = empresa.assinaturaVenceEm
+    ? Number(
+        new Intl.DateTimeFormat("en-US", { day: "numeric", timeZone: "America/Sao_Paulo" }).format(
+          empresa.assinaturaVenceEm
+        )
+      )
+    : null;
+  const diasRestantesAssinatura = empresa.assinaturaVenceEm
+    ? diasParaVencer(empresa.assinaturaVenceEm)
+    : null;
+  const vencimentoLabel = empresa.assinaturaVenceEm
+    ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "America/Sao_Paulo" }).format(
+        empresa.assinaturaVenceEm
+      )
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,6 +99,14 @@ export default async function ConfiguracoesPage() {
         <h1 className="text-2xl font-semibold text-navy-900">Configurações</h1>
         <p className="text-stone-600 mt-1 text-sm">Dados cadastrais da empresa.</p>
       </div>
+
+      <AssinaturaConfigForm
+        statusAssinatura={empresa.statusAssinatura}
+        diaVencimento={diaVencimento}
+        diasRestantes={diasRestantesAssinatura}
+        vencimentoLabel={vencimentoLabel}
+        avisoVencimentoDiasAtual={empresa.avisoVencimentoDias}
+      />
 
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -96,8 +143,8 @@ export default async function ConfiguracoesPage() {
         <div>
           <h2 className="font-semibold text-navy-900">Equipe</h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            Crie logins separados (acesso total) pras suas empresas — pro
-            financeiro, por exemplo.
+            Convide gente pra esta empresa com só os módulos que você marcar —
+            pro financeiro, por exemplo.
           </p>
         </div>
         <Link
@@ -125,7 +172,17 @@ export default async function ConfiguracoesPage() {
         </div>
       )}
 
-      <ConfiguracoesForm nome={empresa.nome} cnpj={empresa.cnpj} endereco={empresa.endereco ?? ""} />
+      <ConfiguracoesForm
+        nome={empresa.nome}
+        cnpj={empresa.cnpj}
+        email={empresa.email ?? ""}
+        endereco={empresa.endereco ?? ""}
+        numero={empresa.numero ?? ""}
+        complemento={empresa.complemento ?? ""}
+        bairro={empresa.bairro ?? ""}
+        cidade={empresa.cidade ?? ""}
+        cep={empresa.cep ?? ""}
+      />
 
       <TermosForm
         textoInicial={empresa.termosContrato?.trim() || TERMOS_CONTRATO_PADRAO_TEXTO}
@@ -137,7 +194,11 @@ export default async function ConfiguracoesPage() {
         modoPausaNoiteAtual={empresa.modoPausaNoite}
       />
 
-      <IntervaloCltForm funcionariosBaterIntervaloAtual={empresa.funcionariosBaterIntervalo} />
+      <IntervaloCltForm
+        funcionariosBaterIntervaloAtual={empresa.funcionariosBaterIntervalo}
+        modoPausaCltDiaAtual={empresa.modoPausaCltDia}
+        modoPausaCltNoiteAtual={empresa.modoPausaCltNoite}
+      />
 
       <EscalaHorarioCltForm
         cincoXDois={{ entrada: empresa.horarioEntrada5x2Min, saida: empresa.horarioSaida5x2Min }}
@@ -169,6 +230,20 @@ export default async function ConfiguracoesPage() {
       />
 
       {responsavelEtica && <SlaEticaForm slaDenunciaDiasAtual={empresa.slaDenunciaDias} />}
+
+      <ContaAsaasForm
+        contaAtual={contaAsaas}
+        statusLive={statusAsaasLive}
+        producao={(process.env.ASAAS_API_BASE_URL ?? "").includes("api.asaas.com")}
+        dadosEmpresa={{
+          email: empresa.email,
+          cep: empresa.cep,
+          endereco: empresa.endereco,
+          bairro: empresa.bairro,
+          numero: empresa.numero,
+          complemento: empresa.complemento,
+        }}
+      />
 
       <LimparTurnosTesteForm />
     </div>

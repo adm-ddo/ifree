@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import FuncionarioRow from "./FuncionarioRow";
 import NovoFuncionarioForm from "./NovoFuncionarioForm";
 import { calcularFeriasEmAndamento } from "@/lib/ferias";
@@ -10,7 +10,7 @@ export default async function FuncionariosPage({
 }: {
   searchParams: Promise<{ desativados?: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const { desativados } = await searchParams;
   const mostrarDesativados = desativados === "1";
 

@@ -13,10 +13,11 @@ import {
 } from "@/lib/documento";
 import { uploadDataUrl } from "@/lib/blob";
 import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
-import { calcularMinutosPonto, acoesPossiveisPonto, type AcaoPonto } from "@/lib/ponto";
+import { calcularMinutosPonto, acoesPossiveisPonto, resolverModoPausaClt, type AcaoPonto } from "@/lib/ponto";
 import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
 import { notaValida, tagsValidadas } from "@/lib/avaliacao";
 import { verificarRestricaoEntrada } from "@/lib/restricao-horario";
+import { comRetentativaDePool, comRetentativaDePoolOuErro } from "@/lib/retry";
 import type { TipoChavePix } from "@/generated/prisma/enums";
 
 /** QR code de validade curta pro Canal de Ética, exibido no menu de
@@ -47,6 +48,12 @@ export type DadosPessoa = {
   tipoChavePix: TipoChavePix;
 };
 
+/** Subconjunto editável no totem (ver atualizarDadosPessoa) — chave PIX
+ * fica de fora de propósito: só dá pra mudar pelo próprio cadastro da
+ * pessoa no iFREE Conecta (atualizarMeusDados em src/app/portal/actions.ts),
+ * autenticado pela sessão dela, nunca digitando o CPF num totem. */
+export type DadosContatoEditaveis = Omit<DadosPessoa, "chavePix" | "tipoChavePix">;
+
 export type RegistroAbertoClt = {
   registroId: number;
   horaEntrada: string;
@@ -69,6 +76,13 @@ export type ResultadoBusca =
        * empresa (privacidade entre clientes que não têm nada a ver um com
        * o outro) — só o horário, pra avisar a própria pessoa. */
       conflitoOutroLocal: { desde: string } | null;
+      /** true quando a Pessoa não tem nem e-mail nem data de nascimento —
+       * sem nenhum dos dois, ela fica sem segundo fator possível se um dia
+       * digitar o CPF no totem de OUTRA empresa (ver
+       * PRECISA_CONFIRMAR_IDENTIDADE/confirmarIdentidadeConecta), e cai
+       * direto no vínculo bloqueado. Usado só pra destacar o botão
+       * "editar dados" na tela de foto, convidando a completar agora. */
+      perfilIncompleto: boolean;
     } & DadosPessoa)
   | ({
       encontrada: true;
@@ -101,6 +115,35 @@ export type ResultadoBusca =
       registroAberto: RegistroAbertoClt | null;
       intervaloHabilitado: boolean;
       ultimaFuncaoId: number | null;
+    } & DadosPessoa)
+  | {
+      encontrada: true;
+      /** Pessoa já existe globalmente (cadastro do iFREE Conecta, feito em
+       * outra empresa) mas NUNCA teve vínculo com ESTA empresa — em vez de
+       * já devolver telefone/endereço/chave PIX dela (o que bastava saber
+       * o CPF pra vazar esses dados, ver confirmarIdentidadeConecta), o
+       * totem precisa pedir pra ela confirmar a própria chave PIX + um
+       * segundo fator antes de liberar qualquer coisa. */
+      tipo: "PRECISA_CONFIRMAR_IDENTIDADE";
+      pessoaId: number;
+      pessoaNome: string;
+      segundoFator: "DATA_NASCIMENTO" | "EMAIL";
+    };
+
+/** Resultado de tentar confirmar identidade (chave PIX + segundo fator)
+ * pra liberar o check-in de alguém que já tem cadastro global mas nunca
+ * trabalhou nesta empresa — ver confirmarIdentidadeConecta. */
+export type ResultadoConfirmacaoIdentidade =
+  | ResultadoErro
+  | ({
+      sucesso: true;
+      pessoaId: number;
+      pessoaNome: string;
+      ultimaFuncaoId: number | null;
+      conflitoOutroLocal: { desde: string } | null;
+      /** Ver comentário equivalente em ResultadoBusca["EXTRA" sem turno
+       * aberto] — mesmo cálculo (email e dataNascimento ambos nulos). */
+      perfilIncompleto: boolean;
     } & DadosPessoa);
 
 /** Detecta se a pessoa já está com um turno de extra OU um ponto de CLT
@@ -215,11 +258,25 @@ export async function buscarPessoaPorDocumento(
         }
       : null;
 
-    // Só oferece a opção de extra se já tiver PIX cadastrado (necessário
-    // pra pagar o turno) — sem inventar uma tela de erro nova no totem
-    // pra esse caso raro, a pessoa simplesmente cai no fluxo CLT normal
-    // até o dono completar o cadastro dela em /funcionarios/[id].
-    if (vinculo.permiteExtraDiario && pessoa.chavePix !== null && pessoa.tipoChavePix !== null) {
+    // Só oferece a opção de extra se: (1) já tiver PIX cadastrado
+    // (necessário pra pagar o turno — sem PIX cai no fluxo CLT normal até
+    // o dono completar o cadastro em /funcionarios/[id]), (2) NÃO tiver
+    // ponto CLT aberto agora nesta empresa, e (3) NÃO tiver turno/ponto
+    // aberto em outra empresa — nesses dois últimos casos a única ação
+    // possível é fechar o que já está aberto, nunca abrir um segundo.
+    // Antes disso, oferecer a escolha mesmo com o ponto já aberto foi
+    // exatamente o que causou o problema relatado pelo Thiago em
+    // 2026-09-22 (duas funcionárias da DAM foram bater saída, apareceu a
+    // pergunta "CLT normal ou extra?", e ao cair em "extra" o ponto CLT
+    // ficou aberto pra sempre enquanto um turno extra novo era criado).
+    const conflitoOutroLocalClt = await buscarConflitoOutroLocal(pessoa.id, totem.empresaId);
+    if (
+      vinculo.permiteExtraDiario &&
+      pessoa.chavePix !== null &&
+      pessoa.tipoChavePix !== null &&
+      registroAberto === null &&
+      conflitoOutroLocalClt === null
+    ) {
       const ultimoTurno = await prisma.turno.findFirst({
         where: { pessoaId: pessoa.id, empresaId: totem.empresaId },
         orderBy: { horaEntrada: "desc" },
@@ -266,6 +323,36 @@ export async function buscarPessoaPorDocumento(
     };
   }
 
+  if (!vinculo) {
+    // Pessoa existe globalmente (cadastro feito em OUTRA empresa via
+    // iFREE Conecta) mas nunca teve vínculo com ESTA empresa — não dá pra
+    // simplesmente devolver telefone/endereço/chave PIX dela aqui: bastaria
+    // saber o CPF de alguém, em qualquer totem (self-service em /totens),
+    // pra vazar esses dados. Em vez disso pede confirmação de identidade
+    // (ver confirmarIdentidadeConecta) antes de liberar qualquer coisa.
+    if (pessoa.dataNascimento === null && pessoa.email === null) {
+      // Sem data de nascimento NEM e-mail cadastrados, não tem segundo
+      // fator nenhum pra confirmar com segurança — cria o vínculo já
+      // bloqueado (mesmo estado final de 3 tentativas erradas, ver
+      // confirmarIdentidadeConecta) em vez de deixar a pessoa presa num
+      // fluxo sem saída possível.
+      await prisma.vinculoPessoaEmpresa.create({
+        data: { pessoaId: pessoa.id, empresaId: totem.empresaId, tipoVinculo: "EXTRA", ativo: false },
+      });
+      return {
+        erro:
+          "Seu cadastro está incompleto (falta data de nascimento ou e-mail). Fale com o responsável desta empresa pra liberar seu acesso.",
+      };
+    }
+    return {
+      encontrada: true,
+      tipo: "PRECISA_CONFIRMAR_IDENTIDADE",
+      pessoaId: pessoa.id,
+      pessoaNome: pessoa.nome,
+      segundoFator: pessoa.dataNascimento !== null ? "DATA_NASCIMENTO" : "EMAIL",
+    };
+  }
+
   const dadosPessoa: DadosPessoa = {
     telefone: pessoa.telefone,
     endereco: pessoa.endereco,
@@ -275,12 +362,12 @@ export async function buscarPessoaPorDocumento(
     tipoChavePix: pessoa.tipoChavePix,
   };
 
-  // Chegou até aqui: não é CLT (ou é CLT sem oferta de extra), sem turno
-  // aberto — check-in normal de extra. Última função que essa pessoa
-  // exerceu nesta empresa só serve pra pré-sugerir na tela de escolha
-  // (ver funcao step), nunca decide nada sozinha; se a função não existir
-  // mais ou estiver desativada, a tela simplesmente ignora a sugestão e
-  // mostra a lista normal.
+  // Chegou até aqui: EXTRA que já tem vínculo com esta empresa (voltando
+  // pra um novo turno), sem turno aberto agora — check-in normal. Última
+  // função que essa pessoa exerceu nesta empresa só serve pra pré-sugerir
+  // na tela de escolha (ver funcao step), nunca decide nada sozinha; se a
+  // função não existir mais ou estiver desativada, a tela simplesmente
+  // ignora a sugestão e mostra a lista normal.
   const ultimoTurno = await prisma.turno.findFirst({
     where: { pessoaId: pessoa.id, empresaId: totem.empresaId },
     orderBy: { horaEntrada: "desc" },
@@ -297,7 +384,99 @@ export async function buscarPessoaPorDocumento(
     turnoAberto: null,
     ultimaFuncaoId: ultimoTurno?.funcaoId ?? null,
     conflitoOutroLocal,
+    perfilIncompleto: pessoa.email === null && pessoa.dataNascimento === null,
     ...dadosPessoa,
+  };
+}
+
+/** Confirma identidade (chave PIX + segundo fator) de alguém que já tem
+ * cadastro global no iFREE Conecta mas nunca teve vínculo com esta
+ * empresa — ver ResultadoBusca["PRECISA_CONFIRMAR_IDENTIDADE"] e o
+ * comentário em TentativaConfirmacaoIdentidade (schema.prisma). Errar 3x
+ * bloqueia o vínculo (`ativo: false`) — só o responsável da empresa
+ * reativa depois (botão em /freelancers). */
+export async function confirmarIdentidadeConecta(
+  token: string,
+  pessoaId: number,
+  chavePixDigitada: string,
+  segundoFatorDigitado: string
+): Promise<ResultadoConfirmacaoIdentidade> {
+  const totem = await resolverTotemAtivo(token);
+  if (!totem) return { erro: "Totem inválido ou desativado." };
+
+  const pessoa = await prisma.pessoa.findUnique({ where: { id: pessoaId } });
+  if (!pessoa) return { erro: "Pessoa não encontrada." };
+
+  // Esse fluxo só existe pra quem ainda não tem vínculo com esta empresa
+  // — se já existe (ex.: outra aba já confirmou, ou tentativa de reuso
+  // fora do fluxo normal), não há nada a confirmar aqui.
+  const vinculoExistente = await prisma.vinculoPessoaEmpresa.findUnique({
+    where: { pessoaId_empresaId: { pessoaId, empresaId: totem.empresaId } },
+  });
+  if (vinculoExistente) {
+    return { erro: "Pessoa não encontrada." };
+  }
+
+  const pixConfere =
+    pessoa.chavePix !== null && chavePixDigitada.trim().toLowerCase() === pessoa.chavePix.trim().toLowerCase();
+
+  let segundoFatorConfere: boolean;
+  if (pessoa.dataNascimento !== null) {
+    segundoFatorConfere = segundoFatorDigitado.trim() === pessoa.dataNascimento.toISOString().slice(0, 10);
+  } else if (pessoa.email !== null) {
+    segundoFatorConfere = segundoFatorDigitado.trim().toLowerCase() === pessoa.email.trim().toLowerCase();
+  } else {
+    segundoFatorConfere = false;
+  }
+
+  if (pixConfere && segundoFatorConfere) {
+    await prisma.tentativaConfirmacaoIdentidade.deleteMany({ where: { pessoaId, empresaId: totem.empresaId } });
+
+    const ultimoTurno = await prisma.turno.findFirst({
+      where: { pessoaId, empresaId: totem.empresaId },
+      orderBy: { horaEntrada: "desc" },
+      select: { funcaoId: true },
+    });
+    const conflitoOutroLocal = await buscarConflitoOutroLocal(pessoaId, totem.empresaId);
+
+    return {
+      sucesso: true,
+      pessoaId,
+      pessoaNome: pessoa.nome,
+      ultimaFuncaoId: ultimoTurno?.funcaoId ?? null,
+      conflitoOutroLocal,
+      perfilIncompleto: pessoa.email === null && pessoa.dataNascimento === null,
+      telefone: pessoa.telefone,
+      endereco: pessoa.endereco,
+      numero: pessoa.numero ?? "",
+      complemento: pessoa.complemento ?? "",
+      chavePix: pessoa.chavePix!,
+      tipoChavePix: pessoa.tipoChavePix!,
+    };
+  }
+
+  const tentativa = await prisma.tentativaConfirmacaoIdentidade.upsert({
+    where: { pessoaId_empresaId: { pessoaId, empresaId: totem.empresaId } },
+    create: { pessoaId, empresaId: totem.empresaId, tentativas: 1 },
+    update: { tentativas: { increment: 1 } },
+  });
+
+  if (tentativa.tentativas >= 3) {
+    await comRetentativaDePool(() =>
+      prisma.$transaction([
+        prisma.vinculoPessoaEmpresa.create({
+          data: { pessoaId, empresaId: totem.empresaId, tipoVinculo: "EXTRA", ativo: false },
+        }),
+        prisma.tentativaConfirmacaoIdentidade.delete({ where: { id: tentativa.id } }),
+      ])
+    );
+    return {
+      erro: "Dados não conferem — cadastro bloqueado nesta empresa após muitas tentativas. Fale com o responsável.",
+    };
+  }
+
+  return {
+    erro: `Dados não conferem. Restam ${3 - tentativa.tentativas} tentativa(s).`,
   };
 }
 
@@ -331,8 +510,8 @@ export async function baterPontoClt(
     where: { id: totem.empresaId },
     select: {
       funcionariosBaterIntervalo: true,
-      modoPausaDia: true,
-      modoPausaNoite: true,
+      modoPausaCltDia: true,
+      modoPausaCltNoite: true,
       horarioInicioDiaMin: true,
       horarioInicioNoiteMin: true,
     },
@@ -350,15 +529,18 @@ export async function baterPontoClt(
 
   if (dados.acao === "ENTRADA") {
     const fotoEntradaUrl = await uploadDataUrl(`pontos/foto-entrada-${Date.now()}.jpg`, dados.fotoDataUrl);
-    await prisma.registroPonto.create({
-      data: {
-        pessoaId: dados.pessoaId,
-        empresaId: totem.empresaId,
-        totemId: totem.id,
-        horaEntrada: agora,
-        fotoEntradaUrl,
-      },
-    });
+    const resultado = await comRetentativaDePoolOuErro(() =>
+      prisma.registroPonto.create({
+        data: {
+          pessoaId: dados.pessoaId,
+          empresaId: totem.empresaId,
+          totemId: totem.id,
+          horaEntrada: agora,
+          fotoEntradaUrl,
+        },
+      })
+    );
+    if ("erro" in resultado) return resultado;
     return { sucesso: true, acao: "ENTRADA" };
   }
 
@@ -373,10 +555,13 @@ export async function baterPontoClt(
       `pontos/foto-intervalo-inicio-${Date.now()}.jpg`,
       dados.fotoDataUrl
     );
-    await prisma.registroPonto.update({
-      where: { id: registro.id },
-      data: { entradaIntervalo: agora, fotoEntradaIntervaloUrl },
-    });
+    const resultado = await comRetentativaDePoolOuErro(() =>
+      prisma.registroPonto.update({
+        where: { id: registro.id },
+        data: { entradaIntervalo: agora, fotoEntradaIntervaloUrl },
+      })
+    );
+    if ("erro" in resultado) return resultado;
     return { sucesso: true, acao: "SAIDA_INTERVALO" };
   }
 
@@ -385,10 +570,13 @@ export async function baterPontoClt(
       `pontos/foto-intervalo-fim-${Date.now()}.jpg`,
       dados.fotoDataUrl
     );
-    await prisma.registroPonto.update({
-      where: { id: registro.id },
-      data: { saidaIntervalo: agora, fotoSaidaIntervaloUrl },
-    });
+    const resultado = await comRetentativaDePoolOuErro(() =>
+      prisma.registroPonto.update({
+        where: { id: registro.id },
+        data: { saidaIntervalo: agora, fotoSaidaIntervaloUrl },
+      })
+    );
+    if ("erro" in resultado) return resultado;
     return { sucesso: true, acao: "VOLTA_INTERVALO" };
   }
 
@@ -400,7 +588,7 @@ export async function baterPontoClt(
     empresa.horarioInicioDiaMin,
     empresa.horarioInicioNoiteMin
   );
-  const modoPausaAplicavel = tipoTurno === "DIA" ? empresa.modoPausaDia : empresa.modoPausaNoite;
+  const modoPausaAplicavel = resolverModoPausaClt(vinculo.modoPausaOverride, tipoTurno, empresa);
   const { minutosTrabalhados, minutosDescontadosPausa } = calcularMinutosPonto({
     horaEntrada: registro.horaEntrada,
     horaSaida: agora,
@@ -408,28 +596,45 @@ export async function baterPontoClt(
     saidaIntervalo: registro.saidaIntervalo,
     modoPausa: modoPausaAplicavel,
   });
-  await prisma.registroPonto.update({
-    where: { id: registro.id },
-    data: {
-      horaSaida: agora,
-      minutosTrabalhados,
-      minutosDescontadosPausa,
-      fotoSaidaUrl,
-      status: "CONCLUIDO",
-    },
-  });
+  const resultado = await comRetentativaDePoolOuErro(() =>
+    prisma.registroPonto.update({
+      where: { id: registro.id },
+      data: {
+        horaSaida: agora,
+        minutosTrabalhados,
+        minutosDescontadosPausa,
+        fotoSaidaUrl,
+        status: "CONCLUIDO",
+      },
+    })
+  );
+  if ("erro" in resultado) return resultado;
   return { sucesso: true, acao: "SAIDA_FINAL" };
 }
 
 export type ResultadoAtualizacao = ResultadoErro | { sucesso: true };
 
-/** Deixa a própria pessoa corrigir telefone, endereço ou chave PIX no
- * totem — mesmo nível de confiança do resto do fluxo (quem digita o
- * documento já consegue bater entrada/saída por ela, então editar esses
- * campos não é um novo risco). Nome e documento não são editáveis por aqui. */
+/** Deixa a própria pessoa corrigir telefone e endereço no totem — chave
+ * PIX fica de fora de propósito (ver DadosContatoEditaveis). IMPORTANTE:
+ * exige vínculo ativo da pessoa com a empresa DESTE totem antes de aceitar
+ * qualquer alteração — Pessoa é uma entidade global (compartilhada entre
+ * todas as empresas via iFREE Conecta), então sem essa checagem qualquer
+ * um com totem próprio (self-service em /totens) e o CPF de outra pessoa
+ * conseguiria sobrescrever os dados dela — mesmo padrão de checagem já
+ * usado em baterPontoClt/iniciarTurno acima (`vinculoPessoaEmpresa.findUnique`
+ * por pessoaId+empresaId do totem). Nome e documento não são editáveis por
+ * aqui.
+ *
+ * `email`/`dataNascimento` são um caso à parte: só entram aqui pra
+ * PREENCHER pela primeira vez (perfilIncompleto, ver ResultadoBusca) —
+ * nunca pra SOBRESCREVER um valor que já existe. Isso evita reabrir, pelo
+ * totem, o mesmo risco de sequestro de conta que já motivou excluir chave
+ * PIX daqui: se a pessoa já tem e-mail cadastrado, mudá-lo só é permitido
+ * autenticado no Portal (ver solicitarTrocaEmail em src/app/portal/actions.ts),
+ * nunca digitando um CPF num totem. */
 export async function atualizarDadosPessoa(
   token: string,
-  dados: { pessoaId: number } & DadosPessoa
+  dados: { pessoaId: number; email?: string; dataNascimento?: string } & DadosContatoEditaveis
 ): Promise<ResultadoAtualizacao> {
   const totem = await resolverTotemAtivo(token);
   if (!totem) return { erro: "Totem inválido ou desativado." };
@@ -438,17 +643,32 @@ export async function atualizarDadosPessoa(
   const endereco = dados.endereco.trim();
   const numero = dados.numero.trim();
   const complemento = dados.complemento.trim();
-  const chavePix = dados.chavePix.trim();
   if (!telefone) return { erro: "Informe um telefone de contato." };
   if (!endereco) return { erro: "Informe o endereço." };
   if (!numero) return { erro: "Informe o número." };
-  if (!chavePix) return { erro: "Informe a chave PIX." };
-  if (!chavePixValida(dados.tipoChavePix, chavePix)) {
-    return { erro: "A chave PIX não parece válida pro tipo selecionado." };
-  }
 
   const pessoa = await prisma.pessoa.findUnique({ where: { id: dados.pessoaId } });
   if (!pessoa) return { erro: "Pessoa não encontrada." };
+
+  const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
+    where: { pessoaId_empresaId: { pessoaId: pessoa.id, empresaId: totem.empresaId } },
+  });
+  if (!vinculo) return { erro: "Pessoa não encontrada." };
+  if (!vinculo.ativo) return { erro: "Você está bloqueado(a) nesta empresa. Fale com o responsável." };
+
+  // Só preenche o que ainda está vazio — nunca sobrescreve (ver docblock).
+  let email: string | undefined;
+  if (pessoa.email === null && dados.email?.trim()) {
+    const emailNovo = dados.email.trim().toLowerCase();
+    if (!EMAIL_REGEX.test(emailNovo)) return { erro: "O e-mail informado não parece válido." };
+    email = emailNovo;
+  }
+  let dataNascimento: Date | undefined;
+  if (pessoa.dataNascimento === null && dados.dataNascimento?.trim()) {
+    const data = new Date(`${dados.dataNascimento.trim()}T00:00:00Z`);
+    if (Number.isNaN(data.getTime())) return { erro: "A data de nascimento informada não parece válida." };
+    dataNascimento = data;
+  }
 
   await prisma.pessoa.update({
     where: { id: pessoa.id },
@@ -457,8 +677,8 @@ export async function atualizarDadosPessoa(
       endereco,
       numero,
       complemento: complemento || null,
-      chavePix,
-      tipoChavePix: dados.tipoChavePix,
+      ...(email !== undefined ? { email } : {}),
+      ...(dataNascimento !== undefined ? { dataNascimento } : {}),
     },
   });
 
@@ -469,9 +689,11 @@ export type ResultadoCadastro =
   | ResultadoErro
   | { pessoaId: number; pessoaNome: string };
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function criarPessoa(
   token: string,
-  dados: { nome: string; documento: string } & DadosPessoa
+  dados: { nome: string; documento: string; email?: string; dataNascimento?: string } & DadosPessoa
 ): Promise<ResultadoCadastro> {
   const totem = await resolverTotemAtivo(token);
   if (!totem) return { erro: "Totem inválido ou desativado." };
@@ -496,6 +718,21 @@ export async function criarPessoa(
     return { erro: "A chave PIX não parece válida pro tipo selecionado." };
   }
 
+  // E-mail e data de nascimento são opcionais aqui (não travar o cadastro
+  // no totem por causa deles), mas pelo menos um dos dois evita que essa
+  // pessoa fique sem segundo fator se um dia digitar o CPF no totem de
+  // OUTRA empresa (ver PRECISA_CONFIRMAR_IDENTIDADE) — por isso o form já
+  // incentiva preencher, mesmo sem obrigar.
+  const email = dados.email?.trim().toLowerCase() || null;
+  if (email && !EMAIL_REGEX.test(email)) {
+    return { erro: "O e-mail informado não parece válido." };
+  }
+  const dataNascimentoBruta = dados.dataNascimento?.trim() || null;
+  const dataNascimento = dataNascimentoBruta ? new Date(`${dataNascimentoBruta}T00:00:00Z`) : null;
+  if (dataNascimentoBruta && Number.isNaN(dataNascimento?.getTime())) {
+    return { erro: "A data de nascimento informada não parece válida." };
+  }
+
   const documento = apenasDigitos(dados.documento);
 
   const existente = await prisma.pessoa.findUnique({ where: { documento } });
@@ -516,6 +753,8 @@ export async function criarPessoa(
       complemento: complemento || null,
       chavePix,
       tipoChavePix: dados.tipoChavePix,
+      email,
+      dataNascimento,
     },
   });
   return { pessoaId: pessoa.id, pessoaNome: pessoa.nome };
@@ -575,35 +814,39 @@ export async function iniciarTurno(
     uploadDataUrl(`turnos/assinatura-contrato-${Date.now()}.png`, dados.assinaturaDataUrl),
   ]);
 
-  const turno = await prisma.$transaction(async (tx) => {
-    await tx.vinculoPessoaEmpresa.upsert({
-      where: {
-        pessoaId_empresaId: { pessoaId: pessoa.id, empresaId: totem.empresaId },
-      },
-      update: {},
-      create: { pessoaId: pessoa.id, empresaId: totem.empresaId },
-    });
+  const resultado = await comRetentativaDePoolOuErro(() =>
+    prisma.$transaction(async (tx) => {
+      await tx.vinculoPessoaEmpresa.upsert({
+        where: {
+          pessoaId_empresaId: { pessoaId: pessoa.id, empresaId: totem.empresaId },
+        },
+        update: {},
+        create: { pessoaId: pessoa.id, empresaId: totem.empresaId },
+      });
 
-    return tx.turno.create({
-      data: {
-        pessoaId: pessoa.id,
-        empresaId: totem.empresaId,
-        totemId: totem.id,
-        funcaoId: funcao.id,
-        valorHoraAplicado: funcao.valorHoraPadrao,
-        // snapshot do modo/frequência de pagamento do vínculo — não muda
-        // retroativamente se o dono alterar depois desse check-in
-        modoPagamentoAplicado: vinculo?.modoPagamento ?? "HORA",
-        valorDiariaAplicada:
-          vinculo?.modoPagamento === "DIARIA" ? vinculo.valorDiaria : null,
-        frequenciaPagamentoAplicada: vinculo?.frequenciaPagamento ?? "DIARIA",
-        horaEntrada: new Date(),
-        fotoEntradaUrl: fotoUrl,
-        assinaturaContratoUrl: assinaturaUrl,
-        status: "ABERTO",
-      },
-    });
-  });
+      return tx.turno.create({
+        data: {
+          pessoaId: pessoa.id,
+          empresaId: totem.empresaId,
+          totemId: totem.id,
+          funcaoId: funcao.id,
+          valorHoraAplicado: funcao.valorHoraPadrao,
+          // snapshot do modo/frequência de pagamento do vínculo — não muda
+          // retroativamente se o dono alterar depois desse check-in
+          modoPagamentoAplicado: vinculo?.modoPagamento ?? "HORA",
+          valorDiariaAplicada:
+            vinculo?.modoPagamento === "DIARIA" ? vinculo.valorDiaria : null,
+          frequenciaPagamentoAplicada: vinculo?.frequenciaPagamento ?? "DIARIA",
+          horaEntrada: new Date(),
+          fotoEntradaUrl: fotoUrl,
+          assinaturaContratoUrl: assinaturaUrl,
+          status: "ABERTO",
+        },
+      });
+    })
+  );
+  if ("erro" in resultado) return resultado;
+  const turno = resultado;
 
   // Também guarda a foto mais recente no cadastro global, pra conferência
   // rápida na hora do CPF em visitas futuras.
@@ -678,19 +921,22 @@ export async function concluirTurno(
     uploadDataUrl(`turnos/assinatura-recibo-${Date.now()}.png`, dados.assinaturaDataUrl),
   ]);
 
-  await prisma.turno.update({
-    where: { id: turno.id },
-    data: {
-      horaSaida,
-      minutosTrabalhados,
-      minutosDescontadosPausa,
-      minutosArredondados,
-      valorTotal,
-      fotoSaidaUrl: fotoUrl,
-      assinaturaReciboUrl: assinaturaUrl,
-      status: "CONCLUIDO",
-    },
-  });
+  const resultado = await comRetentativaDePoolOuErro(() =>
+    prisma.turno.update({
+      where: { id: turno.id },
+      data: {
+        horaSaida,
+        minutosTrabalhados,
+        minutosDescontadosPausa,
+        minutosArredondados,
+        valorTotal,
+        fotoSaidaUrl: fotoUrl,
+        assinaturaReciboUrl: assinaturaUrl,
+        status: "CONCLUIDO",
+      },
+    })
+  );
+  if ("erro" in resultado) return resultado;
 
   // Tenta o PIX na hora. Se falhar, o turno fica ERRO_PAGAMENTO e o admin
   // resolve depois em /pagamentos — a pessoa já assinou e pode ir embora,

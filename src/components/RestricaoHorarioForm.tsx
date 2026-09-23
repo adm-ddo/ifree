@@ -38,6 +38,10 @@ export default function RestricaoHorarioForm({
   return (
     <form
       action={formAction}
+      // Sem isso, o React 19 reseta o form nativamente após toda submissão
+      // bem-sucedida, mesmo em campo controlado — ver explicação completa
+      // em SalarioEscalaForm.tsx (mesmo bug, corrigido lá primeiro).
+      onReset={(e) => e.preventDefault()}
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm max-w-lg"
     >
       <input type="hidden" name="pessoaId" value={pessoaId} />
@@ -50,30 +54,35 @@ export default function RestricaoHorarioForm({
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3 sm:gap-2">
         {DIAS.map((dia) => {
           const atual = porDia.get(dia.valor);
           return (
-            <div key={dia.valor} className="grid grid-cols-[5.5rem_1fr_1fr] items-end gap-2">
-              <span className="text-sm text-stone-700 pb-2">{dia.label}</span>
-              <label className="flex flex-col gap-1 text-xs text-stone-600">
-                A partir de
-                <input
-                  type="time"
-                  name={`horaMinima_${dia.valor}`}
-                  defaultValue={atual?.horaMinimaMin != null ? minutosParaHorario(atual.horaMinimaMin) : ""}
-                  className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs text-stone-600">
-                Até
-                <input
-                  type="time"
-                  name={`horaMaxima_${dia.valor}`}
-                  defaultValue={atual?.horaMaximaMin != null ? minutosParaHorario(atual.horaMaximaMin) : ""}
-                  className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </label>
+            <div
+              key={dia.valor}
+              className="flex flex-col gap-1.5 border-b border-stone-100 pb-3 sm:grid sm:grid-cols-[5.5rem_1fr_1fr] sm:items-end sm:gap-2 sm:border-0 sm:pb-0"
+            >
+              <span className="text-sm font-medium text-stone-700 sm:font-normal sm:pb-2">{dia.label}</span>
+              <div className="grid grid-cols-2 gap-2 sm:contents">
+                <label className="flex flex-col gap-1 text-xs text-stone-600 min-w-0">
+                  A partir de
+                  <input
+                    type="time"
+                    name={`horaMinima_${dia.valor}`}
+                    defaultValue={atual?.horaMinimaMin != null ? minutosParaHorario(atual.horaMinimaMin) : ""}
+                    className="w-full min-w-0 border border-stone-300 rounded-lg px-2 sm:px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs text-stone-600 min-w-0">
+                  Até
+                  <input
+                    type="time"
+                    name={`horaMaxima_${dia.valor}`}
+                    defaultValue={atual?.horaMaximaMin != null ? minutosParaHorario(atual.horaMaximaMin) : ""}
+                    className="w-full min-w-0 border border-stone-300 rounded-lg px-2 sm:px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </label>
+              </div>
             </div>
           );
         })}

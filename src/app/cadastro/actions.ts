@@ -70,7 +70,7 @@ export async function cadastrarConta(
       data: { emailVerificadoEm: new Date() },
     });
     await criarSessao(usuario.id);
-    redirect("/empresas");
+    redirect("/v2/empresas");
   }
 
   return { sucesso: true };

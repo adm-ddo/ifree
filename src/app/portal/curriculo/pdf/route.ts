@@ -23,7 +23,7 @@ export async function GET() {
       bairro: true,
       cep: true,
       cidade: true,
-      fotoUrl: true,
+      fotoPerfilUrl: true,
       biografia: true,
       habilidades: true,
       vagasDesejadas: true,
@@ -119,7 +119,7 @@ export async function GET() {
     (a, b) => b.ultimaData.getTime() - a.ultimaData.getTime()
   );
 
-  const fotoDataUrl = pessoa.fotoUrl ? await baixarComoDataUrl(pessoa.fotoUrl) : null;
+  const fotoDataUrl = pessoa.fotoPerfilUrl ? await baixarComoDataUrl(pessoa.fotoPerfilUrl) : null;
 
   const pdfBytes = await gerarPdfCurriculo({
     nome: pessoa.nome,

@@ -3,12 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
 import { formatarHora, inicioDoDiaBrasil, dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { classificarTurno, type TipoTurno } from "@/lib/turno";
-import DashboardAutoRefresh from "./DashboardAutoRefresh";
+import { horarioEsperadoClt, saidaEsperadaClt } from "@/lib/ponto";
+import AutoRefresh from "@/components/AutoRefresh";
+import AvatarPessoa from "@/components/AvatarPessoa";
 import SeletorEmpresa from "./SeletorEmpresa";
 import ConfirmarSaidaConflitoButton from "./ConfirmarSaidaConflitoButton";
 import AlertaHorarioNormalButton from "./AlertaHorarioNormalButton";
 import AlertaHorarioNormalCltButton from "./AlertaHorarioNormalCltButton";
-import type { ModoPagamento, FrequenciaPagamento, StatusTurno } from "@/generated/prisma/enums";
+import type { ModoPagamento, FrequenciaPagamento, StatusTurno, Sexo } from "@/generated/prisma/enums";
 
 /// Resumo do status de pagamento do BLOCO (pode juntar mais de um turno da
 /// mesma pessoa/tipoTurno) — "PAGO" só quando todos os turnos do bloco já
@@ -28,6 +30,10 @@ type ResumoPessoaTurno =
       modoPagamento: ModoPagamento;
       frequencia: FrequenciaPagamento;
       statusPagamento: StatusPagamentoResumo;
+      /// Só relevante quando statusPagamento é "PAGO" — se o bloco junta
+      /// mais de um turno pagos por vias diferentes (raro, mas possível),
+      /// vira "MISTO" em vez de escolher um dos dois arbitrariamente.
+      origemPagamento: "AUTOMATICO" | "MANUAL" | "MISTO";
       tipoTurno: TipoTurno | "DOBRADO";
     }
   | {
@@ -77,7 +83,7 @@ export default async function DashboardPage() {
         modoPagamentoAplicado: true,
         frequenciaPagamentoAplicada: true,
         turnoDobrado: true,
-        pessoa: { select: { id: true, nome: true } },
+        pessoa: { select: { id: true, nome: true, fotoPerfilUrl: true, sexo: true } },
         funcao: { select: { nome: true } },
       },
     }),
@@ -92,7 +98,7 @@ export default async function DashboardPage() {
         horaEntrada: true,
         entradaIntervalo: true,
         saidaIntervalo: true,
-        pessoa: { select: { id: true, nome: true } },
+        pessoa: { select: { id: true, nome: true, fotoPerfilUrl: true, sexo: true } },
       },
     }),
     // Cobre hoje E ontem numa só busca — antes só buscava a janela de
@@ -113,6 +119,7 @@ export default async function DashboardPage() {
         turnoDobrado: true,
         status: true,
         pessoa: { select: { id: true, nome: true } },
+        pagamento: { select: { pagoAutomaticamente: true } },
       },
     }),
     // Ponto de CLT já encerrado, mesma janela — antes "Hoje"/"Ontem" só
@@ -139,6 +146,18 @@ export default async function DashboardPage() {
         horarioInicioNoiteMin: true,
         horarioFechamentoDiaMin: true,
         horarioFechamentoNoiteMin: true,
+        horarioEntrada5x2Min: true,
+        horarioSaida5x2Min: true,
+        horarioEntrada5x2NoiteMin: true,
+        horarioSaida5x2NoiteMin: true,
+        horarioEntrada6x1Min: true,
+        horarioSaida6x1Min: true,
+        horarioEntrada6x1NoiteMin: true,
+        horarioSaida6x1NoiteMin: true,
+        horarioEntrada12x36Min: true,
+        horarioSaida12x36Min: true,
+        horarioEntrada12x36NoiteMin: true,
+        horarioSaida12x36NoiteMin: true,
       },
     }),
   ]);
@@ -157,7 +176,14 @@ export default async function DashboardPage() {
   const [vinculos, outrosTurnos, outrosRegistros] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findMany({
       where: { empresaId: sessao.empresaEfetivoId, pessoaId: { in: pessoaIds } },
-      select: { pessoaId: true, turnoPredefinido: true },
+      select: {
+        pessoaId: true,
+        turnoPredefinido: true,
+        escalaTrabalho: true,
+        escalaTurno: true,
+        horarioEntradaMin: true,
+        horarioSaidaMin: true,
+      },
     }),
     pessoaIdsEmTurno.length
       ? prisma.turno.findMany({
@@ -173,6 +199,7 @@ export default async function DashboardPage() {
       : Promise.resolve([]),
   ]);
   const turnoPredefinidoPorPessoa = new Map(vinculos.map((v) => [v.pessoaId, v.turnoPredefinido]));
+  const vinculoCltPorPessoa = new Map(vinculos.map((v) => [v.pessoaId, v]));
   function tipoDoTurno(pessoaId: number, horaEntrada: Date, dobrado: boolean): TipoTurno | "DOBRADO" {
     if (dobrado) return "DOBRADO";
     return classificarTurno(
@@ -192,6 +219,8 @@ export default async function DashboardPage() {
         id: number;
         pessoaId: number;
         nome: string;
+        temFoto: boolean;
+        sexo: Sexo | null;
         horaEntrada: Date;
         funcaoNome: string;
         modoPagamentoAplicado: ModoPagamento;
@@ -205,6 +234,8 @@ export default async function DashboardPage() {
         id: number;
         pessoaId: number;
         nome: string;
+        temFoto: boolean;
+        sexo: Sexo | null;
         horaEntrada: Date;
         emIntervalo: boolean;
         conflitoDesde: Date | null;
@@ -229,6 +260,29 @@ export default async function DashboardPage() {
     if (cutoff <= horaEntrada) cutoff = new Date(cutoff.getTime() + 24 * 60 * 60_000);
     if (cutoff > new Date()) return null;
     return { cutoff, podeDobrar: tipo === "DIA" };
+  }
+
+  // Mesmo aviso acima, só que pro ponto de CLT: o corte certo é o HORÁRIO
+  // DE SAÍDA DA PRÓPRIA PESSOA (VinculoPessoaEmpresa.horarioSaidaMin, ou o
+  // padrão da escala dela — ver horarioEsperadoClt em src/lib/ponto.ts),
+  // NUNCA o horário de fechamento genérico do turno EXTRA (dia/noite) da
+  // empresa usado acima — são conceitos diferentes que hoje moram nos
+  // mesmos nomes de campo por coincidência. Sem escala/horário configurado
+  // pra essa pessoa, não há o que comparar (retorna null, mesmo espírito
+  // informativo de sempre).
+  function alertaHorarioNormalClt(pessoaId: number, horaEntrada: Date): { cutoff: Date; podeDobrar: boolean } | null {
+    const vinculo = vinculoCltPorPessoa.get(pessoaId);
+    if (!vinculo) return null;
+    const esperado = horarioEsperadoClt(
+      vinculo.escalaTrabalho,
+      vinculo.escalaTurno,
+      vinculo.horarioEntradaMin,
+      vinculo.horarioSaidaMin,
+      empresaConfig
+    );
+    const cutoff = saidaEsperadaClt(horaEntrada, esperado);
+    if (!cutoff || cutoff > new Date()) return null;
+    return { cutoff, podeDobrar: false };
   }
 
   // Pessoa apareceu com turno/ponto aberto em OUTRA empresa depois de ter
@@ -257,6 +311,8 @@ export default async function DashboardPage() {
         id: t.id,
         pessoaId: t.pessoa.id,
         nome: t.pessoa.nome,
+        temFoto: Boolean(t.pessoa.fotoPerfilUrl),
+        sexo: t.pessoa.sexo,
         horaEntrada: t.horaEntrada,
         funcaoNome: t.funcao.nome,
         modoPagamentoAplicado: t.modoPagamentoAplicado,
@@ -267,16 +323,17 @@ export default async function DashboardPage() {
       };
     }),
     ...emPontoAgoraClt.map((r): ItemEmTurno => {
-      const tipo = tipoDoTurno(r.pessoa.id, r.horaEntrada, false);
       return {
         origem: "CLT",
         id: r.id,
         pessoaId: r.pessoa.id,
         nome: r.pessoa.nome,
+        temFoto: Boolean(r.pessoa.fotoPerfilUrl),
+        sexo: r.pessoa.sexo,
         horaEntrada: r.horaEntrada,
         emIntervalo: r.entradaIntervalo !== null && r.saidaIntervalo === null,
         conflitoDesde: conflitoDesde(r.pessoa.id, r.horaEntrada),
-        alertaHorario: alertaHorarioNormal(r.horaEntrada, false, tipo),
+        alertaHorario: alertaHorarioNormalClt(r.pessoa.id, r.horaEntrada),
       };
     }),
   ].sort((a, b) => a.horaEntrada.getTime() - b.horaEntrada.getTime());
@@ -314,6 +371,7 @@ export default async function DashboardPage() {
       if (!turno.horaSaida) continue;
       const tipoTurno = tipoDoTurno(turno.pessoa.id, turno.horaEntrada, turno.turnoDobrado);
       const chave = `EXTRA-${turno.pessoa.id}-${tipoTurno}`;
+      const origemTurno: "AUTOMATICO" | "MANUAL" = turno.pagamento?.pagoAutomaticamente ? "AUTOMATICO" : "MANUAL";
       const atual = mapa.get(chave);
       if (atual && atual.origem === "EXTRA") {
         atual.turnos += 1;
@@ -326,6 +384,7 @@ export default async function DashboardPage() {
         if (turno.modoPagamentoAplicado === "DIARIA") atual.modoPagamento = "DIARIA";
         if (turno.frequenciaPagamentoAplicada === "SEMANAL") atual.frequencia = "SEMANAL";
         atual.statusPagamento = combinarStatusPagamento(atual.statusPagamento, turno.status);
+        if (atual.origemPagamento !== origemTurno) atual.origemPagamento = "MISTO";
       } else {
         mapa.set(chave, {
           origem: "EXTRA",
@@ -337,6 +396,7 @@ export default async function DashboardPage() {
           ultimaSaida: turno.horaSaida,
           modoPagamento: turno.modoPagamentoAplicado,
           statusPagamento: statusPagamentoDoTurno(turno.status),
+          origemPagamento: origemTurno,
           frequencia: turno.frequenciaPagamentoAplicada,
           tipoTurno,
         });
@@ -387,7 +447,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <DashboardAutoRefresh />
+      <AutoRefresh intervaloMs={5000} />
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -396,7 +456,20 @@ export default async function DashboardPage() {
           </h1>
           <p className="text-stone-600 mt-1 text-sm">Painel da empresa.</p>
         </div>
-        <SeletorEmpresa empresas={sessao.minhasEmpresas} empresaAtivaId={sessao.empresaEfetivoId} />
+        <SeletorEmpresa
+          // Só faz sentido oferecer a troca rápida quando a empresa atual é
+          // uma DAS SUAS (sessao.minhasEmpresas) — quando o master está
+          // dentro de uma empresa de cliente (via /master → Acessar, ex.:
+          // BAR CABRAL), o <select> ficava com um value que não bate com
+          // nenhuma <option> da lista, e o navegador cai no comportamento
+          // padrão de mostrar a primeira opção selecionada mesmo sem ser —
+          // dava a falsa impressão de estar numa das próprias empresas do
+          // master. Reportado pelo Thiago em 2026-09-22.
+          empresas={
+            sessao.minhasEmpresas.some((e) => e.id === sessao.empresaEfetivoId) ? sessao.minhasEmpresas : []
+          }
+          empresaAtivaId={sessao.empresaEfetivoId}
+        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -425,7 +498,9 @@ export default async function DashboardPage() {
           <ul className="divide-y divide-stone-100">
             {itensEmTurno.map((item) => (
               <li key={`${item.origem}-${item.id}`} className="p-4 flex flex-wrap items-center justify-between gap-3">
-                <div>
+                <div className="flex items-center gap-3 min-w-0">
+                  <AvatarPessoa pessoaId={item.pessoaId} nome={item.nome} temFoto={item.temFoto} sexo={item.sexo} tamanho="sm" />
+                  <div className="min-w-0">
                   <Link
                     href={item.origem === "CLT" ? `/funcionarios/${item.pessoaId}` : `/freelancers/${item.pessoaId}`}
                     className="font-medium text-navy-900 hover:text-brand-700 hover:underline"
@@ -451,6 +526,7 @@ export default async function DashboardPage() {
                       </>
                     )}
                   </p>
+                  </div>
                 </div>
                 <span className="text-sm text-stone-600 shrink-0 flex items-center gap-1.5">
                   <span className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
@@ -655,6 +731,7 @@ function GrupoTurno({
               {r.origem === "EXTRA" && (
                 <span className="flex items-center gap-2 shrink-0">
                   <BadgeStatusPagamento status={r.statusPagamento} />
+                  {r.statusPagamento === "PAGO" && <BadgeOrigemPagamento origem={r.origemPagamento} />}
                   <span className="text-sm font-medium text-stone-700">
                     R$ {r.valorTotal.toFixed(2)}
                   </span>
@@ -703,6 +780,32 @@ function BadgeStatusPagamento({ status }: { status: "PAGO" | "PENDENTE" | "ERRO"
   return (
     <span className="text-[10px] font-medium uppercase tracking-wide rounded-full border border-amber-200 bg-amber-50 text-amber-700 px-1.5 py-0.5 shrink-0">
       Pendente
+    </span>
+  );
+}
+
+/** Só aparece ao lado de "✓ Pago" — distingue quem foi pago pela conta de
+ * pagamento conectada (Asaas) de quem foi pago na mão pelo admin (ver
+ * pagoAutomaticamente em src/lib/pagamentos/processar.ts e o mesmo selo em
+ * /pagamentos e no detalhe do turno). */
+function BadgeOrigemPagamento({ origem }: { origem: "AUTOMATICO" | "MANUAL" | "MISTO" }) {
+  if (origem === "AUTOMATICO") {
+    return (
+      <span className="text-[10px] font-medium uppercase tracking-wide rounded-full border border-sky-200 bg-sky-50 text-sky-700 px-1.5 py-0.5 shrink-0">
+        🌐 Online
+      </span>
+    );
+  }
+  if (origem === "MISTO") {
+    return (
+      <span className="text-[10px] font-medium uppercase tracking-wide rounded-full border border-violet-200 bg-violet-50 text-violet-700 px-1.5 py-0.5 shrink-0">
+        🌐✋ Misto
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-medium uppercase tracking-wide rounded-full border border-stone-200 bg-stone-50 text-stone-500 px-1.5 py-0.5 shrink-0">
+      ✋ Manual
     </span>
   );
 }

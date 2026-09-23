@@ -7,10 +7,19 @@ import { LogoIcon } from "@/components/Logo";
 /** Boundary de erro pra toda rota abaixo do layout raiz. Sem isso, qualquer
  * exceção não tratada numa página cai na tela genérica do Next — feia,
  * sem marca, sem explicação. Aqui a pessoa vê algo com cara do sistema e
- * um jeito claro de tentar de novo, sem precisar recarregar a aba na mão. */
+ * um jeito claro de tentar de novo, sem precisar recarregar a aba na mão.
+ *
+ * "Tentar de novo" dá reload de verdade (window.location.reload), não o
+ * reset() que o Next passa pra cá — reset() só manda re-renderizar o MESMO
+ * componente com o MESMO estado do processo/conexão que já falhou, então
+ * numa falha que persiste (não um erro de digitação de dado, e sim algo
+ * tipo conexão momentânea) ele reproduz o erro de novo sem visivelmente
+ * mudar nada na tela — parece que o botão "não faz nada". Reportado pelo
+ * Thiago em 2026-09-22: só um F5 de verdade resolvia. reload() força uma
+ * request nova do zero (mesmo efeito do F5 que ele já confirmou que
+ * funciona), então usa isso direto em vez de reset(). */
 export default function ErrorBoundary({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
@@ -32,7 +41,7 @@ export default function ErrorBoundary({
       <div className="flex items-center gap-3 mt-2">
         <button
           type="button"
-          onClick={() => reset()}
+          onClick={() => window.location.reload()}
           className="rounded-lg bg-brand-600 text-white px-4 py-2 text-sm font-medium hover:bg-brand-700 transition-colors"
         >
           Tentar de novo

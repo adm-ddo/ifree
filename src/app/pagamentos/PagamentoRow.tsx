@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import Link from "next/link";
-import { marcarPagamentoPagoManualmente } from "./actions";
+import { marcarPagamentoPagoManualmente, tentarPagamentoNovamente } from "./actions";
 import { LABEL_TIPO_CHAVE_PIX } from "@/lib/documento";
 import { corGrupoPagamento } from "@/lib/grupo-pagamento";
 import type { TipoChavePix } from "@/generated/prisma/enums";
@@ -18,6 +18,7 @@ type Pagamento = {
   tipoChavePixDestino: TipoChavePix;
   quando: string;
   grupoPagamentoId: number | null;
+  pagoAutomaticamente: boolean;
 };
 
 const STATUS_CLASSE: Record<Pagamento["status"], string> = {
@@ -80,6 +81,22 @@ export default function PagamentoRow({
         <span className={`text-xs rounded-full border px-2 py-1 ${STATUS_CLASSE[pagamento.status]}`}>
           {STATUS_LABEL[pagamento.status]}
         </span>
+        {pagamento.status === "CONCLUIDO" && (
+          <span
+            className={`text-xs rounded-full border px-2 py-1 ${
+              pagamento.pagoAutomaticamente
+                ? "bg-sky-50 text-sky-700 border-sky-200"
+                : "bg-stone-100 text-stone-600 border-stone-200"
+            }`}
+            title={
+              pagamento.pagoAutomaticamente
+                ? "PIX enviado automaticamente pela conta de pagamento conectada"
+                : "Marcado como pago manualmente pelo admin"
+            }
+          >
+            {pagamento.pagoAutomaticamente ? "🌐 Online" : "✋ Manual"}
+          </span>
+        )}
         {pagamento.grupoPagamentoId !== null && (
           <>
             <span
@@ -96,6 +113,19 @@ export default function PagamentoRow({
               Recibo agrupado
             </Link>
           </>
+        )}
+        {pagamento.status === "FALHOU" && (
+          <button
+            disabled={pending}
+            onClick={() => {
+              startTransition(async () => {
+                await tentarPagamentoNovamente(pagamento.turnoId);
+              });
+            }}
+            className="rounded-lg border border-brand-600 text-brand-700 hover:bg-brand-50 text-sm font-medium px-3 py-1.5 disabled:opacity-50"
+          >
+            {pending ? "Tentando..." : "🔁 Tentar de novo"}
+          </button>
         )}
         {pagamento.status !== "CONCLUIDO" && pagamento.status !== "CANCELADO" && (
           <button

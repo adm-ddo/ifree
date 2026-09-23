@@ -85,6 +85,15 @@ enum TipoChavePix {
   ALEATORIA
 }
 
+/// Gênero informado no cadastro do Portal (iFREE Conecta) — ver
+/// Pessoa.sexo. PREFIRO_NAO_DIZER é uma resposta explícita (diferente de
+/// nunca ter respondido, que fica null).
+enum Sexo {
+  MASCULINO
+  FEMININO
+  PREFIRO_NAO_DIZER
+}
+
 /// Como a empresa trata o intervalo/pausa dentro de turnos longos —
 /// NENHUMA mantém o comportamento de sempre (paga o turno inteiro).
 /// AUTOMATICA_* desconta um intervalo fixo do cálculo em turnos acima de
@@ -123,15 +132,42 @@ model Empresa {
   id                         Int       @id @default(autoincrement())
   nome                       String
   cnpj                       String
+  /// E-mail de contato da empresa (diferente do e-mail de login do
+  /// Usuario) — usado pra enviar cobranças e, futuramente, pra
+  /// pré-preencher o e-mail de contato na hora de conectar a conta de
+  /// pagamento (ver ContaAsaasForm).
+  email                      String?
   endereco                   String?
+  numero                     String?
+  complemento                String?
+  bairro                     String?
+  cidade                     String?
+  /// Só o CEP fica guardado (endereco/bairro/cidade já vêm resolvidos do
+  /// autopreenchimento por CEP na hora do cadastro) — mesmo padrão de
+  /// Pessoa.cep.
+  cep                        String?
   /// Texto próprio do termo de aceite/contrato, editado em /configuracoes —
   /// null usa o texto padrão do sistema (src/lib/termos.ts). Mesma fonte
   /// pra tela de aceite do totem e pro PDF do contrato.
   termosContrato             String?
-  /// Desconto automático de intervalo, separado por turno do dia e da
-  /// noite — turnos mais longos (ex.: noite de evento) costumam precisar
-  /// de um intervalo diferente do turno do dia. Ver classificarTurno em
-  /// src/lib/turno.ts pra saber qual dos dois vale pra cada turno.
+  /// Texto do regulamento interno, editado em /ged/regulamento — mesmo
+  /// padrão de termosContrato (null usa o modelo padrão do sistema, ver
+  /// REGULAMENTO_INTERNO_PADRAO em src/lib/ged.ts — modelo real cedido
+  /// pelo Thiago, com nome/CNPJ da empresa substituídos dinamicamente).
+  regulamentoInterno         String?   @db.Text
+  /// Texto do contrato de trabalho CLT, editado em /ged/modelos — mesmo
+  /// padrão de termosContrato (null usa o texto padrão do sistema, ver
+  /// CONTRATO_CLT_TERMOS_PADRAO em src/lib/ged.ts), só que pro vínculo
+  /// CLT em vez do totem EXTRA.
+  contratoCltTermos          String?
+  /// Desconto automático de intervalo pros EXTRAS, separado por turno do
+  /// dia e da noite — turnos mais longos (ex.: noite de evento) costumam
+  /// precisar de um intervalo diferente do turno do dia. Ver
+  /// classificarTurno em src/lib/turno.ts pra saber qual dos dois vale pra
+  /// cada turno. Config própria dos CLT logo abaixo (modoPausaCltDia/
+  /// modoPausaCltNoite) — os dois fluxos não compartilham mais o mesmo
+  /// valor, já que EXTRA e CLT têm lógicas de pagamento/jornada bem
+  /// diferentes.
   modoPausaDia               ModoPausa @default(NENHUMA)
   modoPausaNoite             ModoPausa @default(NENHUMA)
   /// Faixas de horas (em minutos) que definem quanto da diária a pessoa
@@ -164,8 +200,19 @@ model Empresa {
   semanaPagamentoDia         Int       @default(3)
   /// Se funcionários CLT precisam bater o intervalo intrajornada no totem
   /// (entrada e saída do intervalo) — configuração única pra empresa toda,
-  /// não por funcionário. false = só entrada/saída do dia.
+  /// não por funcionário. false = só entrada/saída do dia. Quando ligado,
+  /// o intervalo REAL batido pela pessoa sempre vence a estimativa abaixo
+  /// (ver calcularMinutosPonto em src/lib/ponto.ts).
   funcionariosBaterIntervalo Boolean   @default(false)
+  /// Desconto automático de intervalo pros CLT quando a pessoa não bate
+  /// intervalo real no totem (ver funcionariosBaterIntervalo acima) —
+  /// separado do desconto dos EXTRAS (modoPausaDia/modoPausaNoite) de
+  /// propósito, já que é o mecanismo que cobre a exigência de intervalo
+  /// intrajornada da CLT (art. 71) mesmo quando a empresa não faz a pessoa
+  /// bater ponto disso. Padrão de 60min (1h) pros dois turnos — o mínimo
+  /// mais comum na prática pra jornada acima de 6h.
+  modoPausaCltDia            ModoPausa @default(AUTOMATICA_60)
+  modoPausaCltNoite          ModoPausa @default(AUTOMATICA_60)
   /// Horário padrão (entrada/saída, minutos desde meia-noite Brasília) de
   /// cada escala CLT, um par pro turno da manhã e um pro turno da noite —
   /// null enquanto a empresa não configurou, e nesse caso não há
@@ -190,18 +237,75 @@ model Empresa {
   horarioSaida12x36NoiteMin   Int?
   /// Controle comercial — não afeta o totem, só o painel administrativo
   /// (ver requireTenant em src/lib/auth.ts). TRIAL/ATIVA liberam o painel;
-  /// ATRASADA/CANCELADA bloqueiam (exceto pra sessão master). Vira ATRASADA
-  /// sozinho pelo cron diário quando assinaturaVenceEm passa; volta pra
-  /// ATIVA na hora que o webhook da Pagar.me confirma uma cobrança paga.
+  /// ATRASADA/CANCELADA bloqueiam — desde 2026-09-08 vale também pras
+  /// próprias empresas do master (ele sempre pode se desbloquear na hora
+  /// via /master/assinaturas, então nunca fica preso de verdade). Vira
+  /// ATRASADA sozinho pelo cron diário quando assinaturaVenceEm passa (com
+  /// folga de GRACA_DIAS, ver src/lib/assinatura.ts); volta pra ATIVA na
+  /// hora que o webhook da Asaas confirma uma cobrança paga (ver
+  /// AsaasCobrancaService em src/lib/cobranca/).
   statusAssinatura  StatusAssinatura @default(TRIAL)
   /// Fim do período de teste grátis, ou (depois de pago pela primeira vez)
   /// o próximo vencimento — sempre a mesma coluna, o significado muda
   /// conforme o status.
   assinaturaVenceEm DateTime?
+  /// Com quantos dias de antecedência o aviso de renovação
+  /// (AlertaAssinaturaVencendo, ver src/app/layout.tsx) começa a aparecer
+  /// pro dono da empresa — escolhido por ele mesmo em /configuracoes
+  /// (ver atualizarAvisoVencimentoDias em src/app/configuracoes/actions.ts).
+  /// Só aceita 1, 3 ou 7 (ver AVISO_VENCIMENTO_OPCOES em
+  /// src/lib/assinatura.ts); default 7 (mais folga) pra quem nunca mexeu.
+  avisoVencimentoDias Int    @default(7)
+  /// Data do último uso da "liberação de confiança" (ver
+  /// solicitarLiberacaoConfianca em src/app/assinatura/actions.ts) — 1x por
+  /// mês (não por vida da empresa): só libera de novo quando já passou 1
+  /// mês desde este valor. null = nunca usou.
+  liberacaoConfiancaUsadaEm DateTime?
+  /// Enquanto está no futuro, o painel funciona normalmente mesmo com
+  /// statusAssinatura ATRASADA/CANCELADA — é a janela de 1 dia da liberação
+  /// de confiança (ver requireTenant em src/lib/auth.ts e layout.tsx).
+  /// Deliberadamente separado de assinaturaVenceEm/statusAssinatura: não
+  /// mexe no ciclo de cobrança normal, só destrava o painel por cima
+  /// temporariamente. null ou no passado = sem liberação ativa.
+  liberacaoConfiancaAteEm   DateTime?
   /// Valor da mensalidade combinado com essa empresa — null usa o valor
   /// padrão (ver src/lib/assinatura.ts). Sem preço fixo em código porque
   /// cada negociação pode ser diferente.
   valorMensalidade  Decimal?         @db.Decimal(10, 2)
+  /// Percentual (0 a 100) que a conta-mãe do iFREE retém via Split da Asaas
+  /// toda vez que ESTA empresa deposita crédito na própria subconta (ver
+  /// criarDepositoAsaas em src/lib/pagamentos/asaas-deposito.ts) — é a
+  /// monetização em cima do volume de pagamentos automáticos. null ou 0 =
+  /// sem split. Combinado individualmente por negociação com cada cliente
+  /// (ver atualizarAssinaturaEmpresa em src/app/master/actions.ts), mesmo
+  /// espírito de valorMensalidade acima.
+  splitPercentualAsaas Decimal?       @db.Decimal(5, 2)
+  /// Empresa recebeu um tablet fornecido pelo iFREE (equipamento físico
+  /// pro totem), pago parcelado junto da mensalidade — controla se
+  /// gerarCobrancaMensalidade (src/app/assinatura/actions.ts) deve
+  /// embutir uma parcela extra na próxima cobrança. Ver
+  /// tabletParcelasPagas/tabletParcelasTotal abaixo pro andamento.
+  tabletFornecido      Boolean          @default(false)
+  /// Valor total combinado do tablet — dividido em tabletParcelasTotal
+  /// parcelas iguais (arredondadas pro centavo, sem tratamento especial
+  /// de resto na última parcela, valor baixo não justifica). Varia por
+  /// empresa (negociação individual), mesmo espírito de valorMensalidade.
+  tabletValorTotal     Decimal?         @db.Decimal(10, 2)
+  /// Em quantas parcelas (até 12, sem juros) o tablet está sendo cobrado.
+  tabletParcelasTotal  Int?
+  /// Quantas dessas parcelas já foram de fato PAGAS (incrementado só em
+  /// confirmarCobrancaPaga, src/lib/assinatura.ts, quando o Pix daquele
+  /// mês é confirmado — nunca na geração, pra não contar Pix gerado e
+  /// nunca pago). Quando chega em tabletParcelasTotal, a mensalidade
+  /// volta a cobrar só o valor normal.
+  tabletParcelasPagas  Int              @default(0)
+  /// ID do cliente Asaas (POST /v3/customers) representando ESTA empresa
+  /// dentro da conta-mãe do iFREE — usado só pra cobrar a MENSALIDADE dela
+  /// (ver AsaasCobrancaService em src/lib/cobranca/), sem nenhuma relação
+  /// com ContaAsaasEmpresa.clienteProprioId (aquele é dentro da SUBCONTA da
+  /// empresa, pro depósito de crédito pros extras — conta Asaas totalmente
+  /// diferente). Criado uma vez, reaproveitado nas cobranças seguintes.
+  clienteAsaasMensalidadeId String?
   /// Token do link público do Canal de Denúncias desta empresa
   /// (/denuncia/[token]) — nasce null e é gerado sob demanda na primeira
   /// visita à Central de Ética (mesmo idioma do token do Totem: aleatório,
@@ -212,6 +316,16 @@ model Empresa {
   /// SLA de tratativa de uma denúncia — usado só pro alerta "SLA vencido"
   /// na Central de Ética, ajustável em Configurações.
   slaDenunciaDias   Int              @default(30)
+  /// Token do link público da pesquisa anônima do PGR (/pgr/[token]) —
+  /// mesmo idioma de tokenDenuncia acima: nasce null, gerado sob demanda
+  /// na primeira visita à tela de PGR, aleatório e não sequencial.
+  tokenPgr          String?          @unique
+  /// Quando a empresa aceitou os Termos de Uso e Política de Privacidade
+  /// (/termos) — marcado na hora do cadastro (ver cadastrarNovaEmpresa em
+  /// src/app/empresas/actions.ts), mesmo espírito de Pessoa.termosAceitosEm
+  /// pro freelancer. Null pras empresas que já existiam antes deste campo
+  /// existir (cadastradas antes de o aceite formal existir).
+  termosAceitosEm   DateTime?
   criadoEm                   DateTime  @default(now())
 
   usuarios             UsuarioEmpresa[]
@@ -226,6 +340,16 @@ model Empresa {
   conversas            Conversa[]
   denuncias            Denuncia[]
   gruposPagamento      GrupoPagamento[]
+  contaAsaas           ContaAsaasEmpresa?
+  depositosAsaas       DepositoAsaas[]
+  documentosGed        DocumentoGed[]
+  modelosDocumentoGed  ModeloDocumentoGed[]
+  entradasEpi          EntradaEpi[]
+  modelosPapelGed      ModeloPapelGed[]
+  tentativasConfirmacaoIdentidade TentativaConfirmacaoIdentidade[]
+  ciclosPgr            CicloPgr[]
+  acoesPgr             AcaoPgr[]
+  convitesEquipe       ConviteEquipe[]
 }
 
 enum StatusAssinatura {
@@ -251,6 +375,12 @@ model CobrancaMensalidade {
   id                 Int            @id @default(autoincrement())
   empresaId          Int
   valor              Decimal        @db.Decimal(10, 2)
+  /// Parcela do tablet embutida NESTA cobrança específica (null = essa
+  /// cobrança foi só mensalidade normal, sem tablet) — já está somada
+  /// dentro de `valor` acima, este campo é só pra discriminar na tela
+  /// depois. confirmarCobrancaPaga usa isto pra saber se incrementa
+  /// Empresa.tabletParcelasPagas quando o Pix é confirmado.
+  valorTablet        Decimal?       @db.Decimal(10, 2)
   /// "2026-08" — mês de competência, evita gerar duas cobranças pro mesmo
   /// mês se a pessoa clicar em "gerar PIX" mais de uma vez.
   referenciaMes      String
@@ -287,11 +417,17 @@ model Usuario {
   empresas UsuarioEmpresa[]
   sessoes  Sessao[]
   tokensAutenticacao TokenAutenticacao[]
+  convitesEquipeCriados ConviteEquipe[] @relation("ConvitesEquipeCriados")
+  conviteEquipeUsado    ConviteEquipe[] @relation("ConviteEquipeUsado")
 }
 
 enum TipoTokenAutenticacao {
   VERIFICACAO_EMAIL
   RECUPERACAO_SENHA
+  /// Só usado por TokenAutenticacaoPessoa (troca de e-mail já logado no
+  /// Portal) — ver novoEmailPendente lá embaixo. Usuario não tem esse
+  /// fluxo ainda, mas o enum é compartilhado entre as duas tabelas.
+  TROCA_EMAIL
 }
 
 /// Token de uso único enviado por e-mail — confirmação de cadastro ou
@@ -323,6 +459,45 @@ model UsuarioEmpresa {
   /// true na migração (ninguém perde acesso de surpresa); só logins novos
   /// daqui pra frente nascem sem a marcação.
   responsavelEtica Boolean @default(false)
+  /// Marca quem enxerga o módulo GED (Gestão Eletrônica de Documentos)
+  /// desta empresa — mesmo espírito de responsavelEtica (dado sensível
+  /// de RH). Mesma regra de backfill: quem já tinha acesso à empresa foi
+  /// marcado como true na migração, só logins novos nascem sem.
+  responsavelGed Boolean @default(false)
+  /// Marca quem enxerga o módulo PGR (riscos psicossociais, NR-1) desta
+  /// empresa — mesmo espírito de responsavelEtica/responsavelGed. Mesma
+  /// regra de backfill: quem já tinha acesso à empresa foi marcado como
+  /// true na migração, só logins novos nascem sem.
+  responsavelPgr Boolean @default(false)
+  /// Módulos liberados pra este login nesta empresa (chaves de
+  /// src/lib/modulosEquipe.ts — ex.: "funcionarios", "pagamentos",
+  /// "financeiro") — diferente de responsavelEtica/Ged/Pgr acima (3
+  /// telas sensíveis com flag própria cada), aqui é UM array cobrindo os
+  /// módulos "normais" do menu (12 hoje), porque 12 colunas booleanas
+  /// quase idênticas seria repetição real sem ganho nenhum sobre um
+  /// array, e um módulo novo no futuro não pediria migração. Todo
+  /// UsuarioEmpresa que já existia antes deste campo nascer foi
+  /// preenchido com a lista completa na migração (tinha acesso total,
+  /// ninguém pode perder acesso de surpresa) — só login novo criado
+  /// depois (via convite, ver ConviteEquipe) nasce com a lista que o
+  /// dono escolheu. Checado em requireModulo/usuarioTemModulo
+  /// (src/lib/modulosEquipe.ts), que bloqueia de verdade no servidor
+  /// (página E action), não só esconde do menu.
+  modulosPermitidos String[] @default([])
+  /// Pode gerenciar a equipe desta empresa (convidar gente nova, editar
+  /// módulo de quem já tem acesso) — achado revisando o pedido do Thiago
+  /// em 2026-09-22 (Bar Cabral): sem isso, QUALQUER login secundário,
+  /// mesmo um com um módulo só liberado, conseguia entrar em /equipe e
+  /// se autopromover, porque a página só checava "tem alguma
+  /// UsuarioEmpresa" sem diferenciar dono de convidado. Todo
+  /// UsuarioEmpresa que já existia antes deste campo nascer foi
+  /// preenchido com true na migração (era exatamente o que cada um já
+  /// podia fazer até aqui, ninguém perde acesso de surpresa); só quem
+  /// entra via ConviteEquipe daqui pra frente nasce com false —
+  /// coerente com o pedido de limitar financeiro/RH a só o que foi
+  /// marcado. Checado em requireAdminEquipe/usuarioEhAdminEquipe
+  /// (src/lib/adminEquipe.ts).
+  admin Boolean @default(true)
   criadoEm  DateTime @default(now())
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -331,11 +506,55 @@ model UsuarioEmpresa {
   @@unique([usuarioId, empresaId])
 }
 
+/// Convite de acesso à equipe por link — o dono marca quais módulos
+/// (src/lib/modulosEquipe.ts) a pessoa convidada vai ter e gera um link
+/// pra compartilhar por fora do sistema (WhatsApp, e-mail); quem abre o
+/// link define o próprio nome/e-mail/senha (ver resgatarConviteEquipe em
+/// src/app/equipe/actions.ts), sem o dono precisar cadastrar nada antes.
+/// Token de uso único com validade curta (7 dias) — diferente do padrão
+/// "link de canal" (Empresa.tokenDenuncia/tokenPgr, permanente e
+/// reutilizável à vontade), esse aqui cria uma conta de verdade, então
+/// segue o mesmo padrão de TokenAutenticacao (expira, some depois de
+/// usado uma vez).
+model ConviteEquipe {
+  id                Int       @id @default(autoincrement())
+  empresaId         Int
+  criadoPorId       Int
+  token             String    @unique
+  /// Mesmas chaves de UsuarioEmpresa.modulosPermitidos — copiado pro
+  /// UsuarioEmpresa novo no momento do resgate.
+  modulosPermitidos String[]
+  expiraEm          DateTime
+  usadoEm           DateTime?
+  usadoPorId        Int?
+  /// Dono cancelou um convite ainda não resgatado (link enviado errado,
+  /// por exemplo) — convite revogado nunca mais pode ser resgatado,
+  /// mesma checagem de expiraEm/usadoEm em buscarConviteValido.
+  revogadoEm        DateTime?
+  criadoEm          DateTime  @default(now())
+
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  criadoPor Usuario  @relation("ConvitesEquipeCriados", fields: [criadoPorId], references: [id], onDelete: Cascade)
+  usadoPor  Usuario? @relation("ConviteEquipeUsado", fields: [usadoPorId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId])
+}
+
 model Sessao {
   id             Int      @id @default(autoincrement())
   token          String   @unique
   usuarioId      Int
   empresaAtivaId Int?
+  /// Empresa que o MASTER escolheu acessar mesmo com assinatura
+  /// ATRASADA/CANCELADA (botão "Entrar mesmo assim" em /assinatura, ver
+  /// entrarMesmoBloqueado em src/app/assinatura/actions.ts) — só produz
+  /// efeito quando o usuário desta sessão é master (checado em
+  /// requireTenant, src/lib/auth.ts); pro dono normal da empresa não tem
+  /// nenhum efeito, ele usa a liberação de confiança (mecanismo
+  /// completamente diferente, ver Empresa.liberacaoConfiancaUsadaEm).
+  /// Não precisa expirar sozinho: só é consultado quando bate com a
+  /// empresa efetiva da sessão.
+  masterBypassEmpresaId Int?
   criadoEm       DateTime @default(now())
   expiraEm       DateTime
 
@@ -375,7 +594,23 @@ model Pessoa {
   /// obrigatoriedade acontece na camada de aplicação, não no schema.
   chavePix      String?
   tipoChavePix  TipoChavePix?
+  /// Foto mais recente do CHECK-IN NO TOTEM (ver fotoEntradaUrl em Turno) —
+  /// sobrescrita a cada turno novo, guardada aqui só como referência
+  /// interna pra conferência rápida de identidade (ex.: painel master),
+  /// NUNCA como avatar apresentável pra empresa/dono. Não confundir com
+  /// fotoPerfilUrl abaixo.
   fotoUrl       String?
+  /// Foto de perfil escolhida pela própria pessoa no cadastro/edição do
+  /// Portal (iFREE Conecta) — a ÚNICA foto que deve aparecer como avatar
+  /// pra empresa (freelancers, painel) ou em contexto de Conecta (vagas,
+  /// candidatos, currículo). Null pra quem nunca passou pelo Portal.
+  fotoPerfilUrl String?
+  /// Respondido no cadastro do Portal (iFREE Conecta) — só usado hoje pra
+  /// colorir o avatar padrão (azul/rosa/cinza) quando a pessoa ainda não
+  /// tem fotoPerfilUrl. Null pra quem nunca passou pelo cadastro do
+  /// Conecta (extra que só usa o totem, sem conta no Portal) — nesse caso
+  /// o avatar cai no mesmo cinza neutro de "prefiro não dizer".
+  sexo          Sexo?
   /// Campos de contato adicionais, opcionais, preenchidos manualmente pelo
   /// dono em /freelancers/[id] ou /funcionarios/[id] — não fazem parte do
   /// autocadastro pelo totem.
@@ -449,6 +684,9 @@ model Pessoa {
   gruposPagamento          GrupoPagamento[]
   indicadoPor              Pessoa?                   @relation("Indicacoes", fields: [indicadoPorPessoaId], references: [id], onDelete: SetNull)
   indicados                Pessoa[]                  @relation("Indicacoes")
+  documentosGed            DocumentoGed[]
+  entradasEpi              EntradaEpi[]
+  tentativasConfirmacaoIdentidade TentativaConfirmacaoIdentidade[]
 }
 
 /// Sessão de login da Pessoa no Portal (iFREE Conecta) — deliberadamente
@@ -474,6 +712,11 @@ model TokenAutenticacaoPessoa {
   token    String                @unique
   pessoaId Int
   tipo     TipoTokenAutenticacao
+  /// Só preenchido quando tipo = TROCA_EMAIL — o novo e-mail fica pendente
+  /// aqui, não em Pessoa.email, até a pessoa clicar no link recebido
+  /// justamente NESSE endereço (prova que ela tem acesso à caixa de
+  /// entrada nova antes de a troca valer de verdade).
+  novoEmailPendente String?
   expiraEm DateTime
   usadoEm  DateTime?
   criadoEm DateTime              @default(now())
@@ -528,6 +771,11 @@ model VinculoPessoaEmpresa {
   /// entra num horário diferente do resto da equipe).
   horarioEntradaMin      Int?
   horarioSaidaMin        Int?
+  /// Intervalo específico desta pessoa — só CLT. Null usa o padrão da
+  /// empresa (Empresa.modoPausaCltDia/modoPausaCltNoite, conforme o turno
+  /// do dia); preenchido, sobrescreve o padrão só pra esta pessoa. Mesmo
+  /// espírito de horarioEntradaMin/horarioSaidaMin acima.
+  modoPausaOverride      ModoPausa?
   /// Data de admissão CLT — base do cálculo de período aquisitivo/concessivo
   /// de férias (ver src/lib/ferias.ts). Só se aplica a CLT.
   dataAdmissao           DateTime?           @db.Date
@@ -568,6 +816,14 @@ model VinculoPessoaEmpresa {
   /// cálculos de férias/13º/rescisão devem ignorar este valor).
   recebeBonificacao          Boolean  @default(false)
   valorBonificacao           Decimal? @db.Decimal(10, 2)
+  /// Prêmio de assiduidade e desempenho — mesmo espírito de bonificação
+  /// (liberalidade, não entra no salário), com valor mensal de referência
+  /// configurado aqui pra alimentar automaticamente o Termo de Ciência –
+  /// Prêmio de Assiduidade e Desempenho gerado em /ged, sem precisar
+  /// digitar o valor de novo na hora (ver TERMOS_CIENCIA_PADRAO em
+  /// src/lib/ged.ts).
+  recebePremioAssiduidade    Boolean  @default(false)
+  valorPremioAssiduidade     Decimal? @db.Decimal(10, 2)
   /// Contrato de experiência — duração em dias de cada etapa a partir da
   /// dataAdmissao (ex.: 30+60, 45+45, ou só 90/45 numa etapa só, deixando
   /// experienciaDias2 null). Máximo legal de 90 dias somados. Ver
@@ -611,6 +867,31 @@ model VinculoPessoaEmpresa {
   empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   historicoSalarial HistoricoSalarial[]
   restricoesHorario RestricaoHorarioDia[]
+
+  @@unique([pessoaId, empresaId])
+}
+
+/// Registra tentativas de confirmar identidade (chave PIX + segundo fator)
+/// de alguém que já tem cadastro no iFREE (Pessoa é global, compartilhada
+/// entre empresas) mas NUNCA teve VinculoPessoaEmpresa com esta empresa —
+/// ver confirmarIdentidadeConecta em src/app/t/[token]/actions.ts. Sem
+/// isso, digitar o CPF de qualquer pessoa em qualquer totem (self-service
+/// em /totens) expunha telefone/endereço/chave PIX dela sem nenhuma
+/// verificação. Existe só enquanto a pessoa ainda não confirmou com
+/// sucesso: ao acertar, a linha é apagada e o fluxo segue normal; ao errar
+/// 3x, é apagada e vira um VinculoPessoaEmpresa com `ativo=false` (mesmo
+/// mecanismo de bloqueio já usado em toda a plataforma — só o responsável
+/// da empresa reativa, pelo botão em /freelancers).
+model TentativaConfirmacaoIdentidade {
+  id           Int      @id @default(autoincrement())
+  pessoaId     Int
+  empresaId    Int
+  tentativas   Int      @default(0)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  pessoa  Pessoa  @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@unique([pessoaId, empresaId])
 }
@@ -752,6 +1033,12 @@ model Turno {
 
   @@index([empresaId, status])
   @@index([pessoaId, empresaId, status])
+  /// Sem isso, dashboard e /turnos (que ordenam/filtram por data, não por
+  /// status) usavam (empresaId, status) como prefixo e ainda escaneavam a
+  /// mais em memória pra aplicar o filtro de data — pesa mais à medida que
+  /// o histórico de turnos de uma empresa cresce.
+  @@index([empresaId, criadoEm])
+  @@index([empresaId, horaEntrada])
 }
 
 /// Quem deu a avaliação — EXTRA é o freelancer avaliando a empresa onde
@@ -833,6 +1120,9 @@ model RegistroPonto {
 
   @@index([empresaId, status])
   @@index([pessoaId, empresaId, status])
+  /// Mesmo motivo do índice equivalente em Turno — dashboard filtra ponto
+  /// CLT por horaEntrada, não por status.
+  @@index([empresaId, horaEntrada])
 }
 
 model Pagamento {
@@ -848,6 +1138,13 @@ model Pagamento {
   criadoEm            DateTime        @default(now())
   atualizadoEm        DateTime        @updatedAt
   processadoEm        DateTime?
+  /// true quando este pagamento foi (ou está sendo) processado pelo
+  /// provedor automático (ver automatizado() em
+  /// src/lib/pagamentos/processar.ts) — usado só pra exibir "Online" vs
+  /// "Manual" ao lado do status na tela. Marcar como pago manualmente
+  /// (ver src/app/pagamentos/actions.ts) sempre reseta pra false, mesmo
+  /// que tenha havido uma tentativa automática anterior malsucedida.
+  pagoAutomaticamente Boolean         @default(false)
   /// Não-nulo quando este pagamento foi confirmado junto de outros
   /// turnos da mesma pessoa numa única transferência PIX (ver
   /// GrupoPagamento) — usado pra colorir esses pagamentos com a mesma cor
@@ -859,6 +1156,108 @@ model Pagamento {
 
   @@index([status])
   @@index([grupoPagamentoId])
+}
+
+enum StatusContaAsaas {
+  /// Subconta criada na Asaas (POST /v3/accounts), mas a empresa ainda não
+  /// terminou o onboarding/KYC que a própria Asaas manda por e-mail — não
+  /// dá pra transferir nem receber enquanto está nesse estado.
+  PENDENTE_ATIVACAO
+  /// Onboarding concluído — subconta liberada pra operar.
+  ATIVA
+  /// Asaas suspendeu a subconta (ex.: documentação rejeitada, suspeita de
+  /// fraude) — sinalizado pelo webhook, nunca setado por nós diretamente.
+  BLOQUEADA
+}
+
+/// Subconta Asaas de UMA empresa cliente — ver
+/// src/lib/pagamentos/asaas-payment-service.ts pro desenho completo do
+/// fluxo (ainda não implementado, aguardando conta-mãe do iFREE na Asaas).
+/// Modelo pensado pra isolar o saldo/dinheiro de cada empresa (não é uma
+/// credencial única do iFREE, é uma conta por cliente) — mesmo espírito de
+/// isolamento que motivaria uma ConexaoStoneEmpresa, só que a Asaas usa uma
+/// API key por subconta em vez de token OAuth.
+model ContaAsaasEmpresa {
+  id                 Int               @id @default(autoincrement())
+  empresaId          Int               @unique
+  /// ID da subconta retornado pela Asaas na criação (POST /v3/accounts) —
+  /// não é segredo, só um identificador.
+  accountId          String            @unique
+  /// Carteira da subconta (walletId) — algumas chamadas da API pedem isso
+  /// em vez do accountId; guardado já de cara pra não precisar buscar de
+  /// novo depois.
+  walletId           String?
+  /// Chave de API própria da subconta (retornada uma única vez na criação),
+  /// usada em toda chamada feita EM NOME dessa empresa — nunca a chave da
+  /// conta-mãe. Guardada cifrada (ver src/lib/crypto.ts); nunca logar nem
+  /// devolver essa string pra tela em texto puro.
+  apiKeyCriptografada String
+  status             StatusContaAsaas  @default(PENDENTE_ATIVACAO)
+  /// true só depois que a Asaas aprova a verificação de identidade
+  /// (documento + selfie) exigida separadamente da aprovação geral da
+  /// conta — sem isso a subconta não consegue receber NEM enviar Pix,
+  /// mesmo já com status ATIVA. Atualizado por verificarStatusAsaas (ver
+  /// src/lib/pagamentos/asaas-conta-status.ts), chamada ao vivo sempre que
+  /// a empresa abre /configuracoes ou /pagamentos — não existe webhook da
+  /// Asaas pra isso, por isso o valor pode ficar defasado até a próxima
+  /// visita a uma dessas telas. automatizado() em
+  /// src/lib/pagamentos/processar.ts exige isto true (não só a conta
+  /// existir) antes de tentar qualquer PIX automático — evita transferência
+  /// automática falhando em loop numa subconta ainda não liberada pra Pix.
+  pixLiberado        Boolean           @default(false)
+  /// ID do cliente Asaas (`POST /v3/customers`) que representa "a própria
+  /// empresa depositando pra si mesma" — criado uma vez, na hora do
+  /// primeiro depósito, e reaproveitado nos seguintes (evita acumular um
+  /// cliente novo por depósito na conta da empresa).
+  clienteProprioId   String?
+  /// Preenchido quando o dono da empresa desativa deliberadamente o
+  /// pagamento automático (ver desconectarContaAsaas em
+  /// src/app/configuracoes/actions.ts) — null enquanto a automação está
+  /// ligada. Diferente de pixLiberado (que só reflete o que a Asaas
+  /// aprovou): automatizado() em src/lib/pagamentos/processar.ts exige os
+  /// dois, pixLiberado true E desconectadoEm null. NÃO apaga a conexão —
+  /// accountId/apiKey/walletId continuam guardados, então reconectar (ver
+  /// reconectarContaAsaas) é só limpar este campo, sem precisar criar outra
+  /// subconta na Asaas.
+  desconectadoEm     DateTime?
+  criadoEm           DateTime          @default(now())
+  atualizadoEm       DateTime          @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+}
+
+enum StatusDepositoAsaas {
+  PENDENTE
+  RECEBIDO
+  /// Venceu sem ninguém pagar — o QR code tinha validade (ver expiraEm).
+  EXPIRADO
+}
+
+/// Depósito da empresa pra dentro da PRÓPRIA subconta Asaas dela — o
+/// "crédito" que vai sendo usado pra pagar os extras (ver
+/// src/lib/pagamentos/asaas-payment-service.ts). Mesmo espírito de
+/// CobrancaMensalidade (cobrança PIX avulsa, gerada sob demanda), só que
+/// o destino do dinheiro é a subconta da empresa, não a conta-mãe do
+/// iFREE — e o "cliente" que paga é a própria empresa (clienteProprioId
+/// em ContaAsaasEmpresa), não um terceiro.
+model DepositoAsaas {
+  id                Int                 @id @default(autoincrement())
+  empresaId         Int
+  valor             Decimal             @db.Decimal(10, 2)
+  idCobrancaExterna String              @unique
+  /// Copia-e-cola do PIX.
+  qrCode            String?             @db.Text
+  /// Imagem do QR code em base64 (data URI), já pronta pra `<img src>`.
+  qrCodeImagemUrl   String?             @db.Text
+  status            StatusDepositoAsaas @default(PENDENTE)
+  expiraEm          DateTime
+  recebidoEm        DateTime?
+  criadoEm          DateTime            @default(now())
+  atualizadoEm      DateTime            @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, status])
 }
 
 /// Vários turnos da MESMA pessoa pagos numa única transferência PIX,
@@ -910,6 +1309,11 @@ model Vaga {
   /// freelancer (src/lib/habilidades.ts) — usado só pro cálculo de match
   /// (src/lib/match.ts), não filtra nem restringe quem pode se candidatar.
   habilidadesProcuradas String[]   @default([])
+  /// Turno(s) da vaga — pelo menos um dos dois, os dois juntos indicam que
+  /// aceita qualquer horário. Backfill de vaga antiga marca os dois (não
+  /// tinha essa distinção antes, então não dá pra restringir retroativo).
+  turnoDia       Boolean    @default(true)
+  turnoNoite     Boolean    @default(true)
   status         StatusVaga @default(ABERTA)
   criadoPorEmail String
   criadoEm       DateTime   @default(now())
@@ -918,6 +1322,11 @@ model Vaga {
   candidaturas Candidatura[]
 
   @@index([status])
+  /// Sem isso, toda navegação do painel (layout raiz conta candidaturas
+  /// pendentes via `candidatura.findMany({ where: { vaga: { empresaId } } })`)
+  /// e a própria tela /vagas filtravam sem índice de apoio, escaneando
+  /// mais linhas do que precisava à medida que a tabela global cresce.
+  @@index([empresaId])
 }
 
 enum StatusCandidatura {
@@ -1102,6 +1511,135 @@ model LogAuditoriaDenuncia {
   @@index([denunciaId, criadoEm])
 }
 
+enum TipoDocumentoGed {
+  ADVERTENCIA
+  SUSPENSAO
+  CONTRATO_TRABALHO
+  /// Termo de ciência genérico (campanhas de saúde, monitoramento etc.)
+  /// — texto fixo por lei/norma, catálogo em TERMOS_CIENCIA_PADRAO
+  /// (src/lib/ged.ts), um `tipo` só pra todos, distinguidos pelo
+  /// `termoSlug` guardado em snapshotDados. Cada termo novo é só um
+  /// item a mais nesse array, sem precisar de outro valor de enum.
+  TERMO_CIENCIA
+}
+
+/// Log unificado de documentos "carta" gerados pelo GED — advertência,
+/// suspensão e contrato de trabalho CLT são a mesma forma (modelo de
+/// texto + dados da pessoa/empresa no momento + uma data → PDF pra
+/// imprimir e assinar fisicamente), uma tabela só evita triplicar
+/// schema e renderer. Ficha de EPI (EntradaEpi) e regulamento interno
+/// (Empresa.regulamentoInterno) NÃO entram aqui de propósito — são
+/// formas diferentes (lista contínua a primeira, documento único da
+/// empresa a segunda).
+model DocumentoGed {
+  id            Int              @id @default(autoincrement())
+  empresaId     Int
+  pessoaId      Int
+  tipo          TipoDocumentoGed
+  /// Id do ModeloDocumentoGed usado na geração — null se o modelo foi
+  /// apagado depois (nunca quebra a leitura do histórico: o texto já
+  /// está congelado em corpoTexto).
+  modeloId      Int?
+  /// Nome do modelo no momento da geração (cópia, não FK) — aparece no
+  /// histórico mesmo se o ModeloDocumentoGed for apagado depois.
+  modeloNome    String
+  /// Texto final (modelo já resolvido) que foi de fato impresso —
+  /// congelado na geração, nunca recalculado.
+  corpoTexto    String           @db.Text
+  /// Data escolhida no formulário (data da advertência/suspensão/início
+  /// do contrato) — default hoje, editável pelo admin.
+  dataDocumento DateTime         @db.Date
+  /// Congela nome completo, CPF, dados da CTPS, cargo etc. no momento da
+  /// geração — ver montarSnapshotPessoa em src/lib/ged.ts. Garante que
+  /// reabrir um PDF antigo mostra os dados de QUANDO foi gerado, mesmo
+  /// que a pessoa corrija CTPS/cargo depois.
+  snapshotDados Json
+  geradoPorEmail String
+  geradoEm       DateTime        @default(now())
+  /// Presença = documento já tem o scan da via assinada fisicamente
+  /// anexado — mesmo idioma de Turno.assinaturaContratoUrl (URL nullable
+  /// como sinal, sem enum de status separado).
+  arquivoAssinadoUrl      String?
+  arquivoAssinadoEm       DateTime?
+  arquivoAssinadoPorEmail String?
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pessoa  Pessoa  @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, pessoaId])
+}
+
+/// Modelo nomeado e reutilizável de advertência/suspensão — diferente de
+/// Empresa.termosContrato/contratoCltTermos (um texto só por empresa):
+/// aqui a empresa pode ter VÁRIOS modelos, escolhidos na hora de gerar o
+/// documento. Sem linha padrão pré-criada no banco — o fallback do
+/// sistema (MODELOS_PADRAO_ADVERTENCIA/SUSPENSAO em src/lib/ged.ts) é só
+/// código, mostrado no seletor quando a empresa ainda não criou nenhum
+/// modelo próprio daquele tipo (mesma filosofia de TERMOS_CONTRATO).
+model ModeloDocumentoGed {
+  id         Int              @id @default(autoincrement())
+  empresaId  Int
+  tipo       TipoDocumentoGed
+  nome       String
+  corpoTexto String           @db.Text
+  ativo      Boolean          @default(true)
+  criadoEm   DateTime         @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, tipo])
+}
+
+/// Uma linha da ficha de controle de entrega de EPI — item entregue, em
+/// que quantidade, em que data. Continua acumulando ao longo do tempo
+/// pra uma mesma pessoa (diferente de DocumentoGed, que é "um documento
+/// por evento"); o PDF da ficha lista todas as linhas da pessoa numa
+/// tabela consolidada, gerado sob demanda sem "congelar" nada — sempre
+/// reflete as entregas registradas até o momento da impressão.
+model EntradaEpi {
+  id                 Int      @id @default(autoincrement())
+  empresaId          Int
+  pessoaId           Int
+  item               String
+  quantidade         Int      @default(1)
+  /// Número do Certificado de Aprovação do EPI — impresso na ficha
+  /// (coluna "C.A"), não validado pelo sistema.
+  numeroCA           String?
+  /// Valor unitário do item — impresso na ficha só como referência (pra
+  /// a empresa saber quanto descontar na rescisão se o EPI não for
+  /// devolvido); o iFREE não calcula nem aplica nenhum desconto sozinho.
+  valorUnitario      Decimal? @db.Decimal(10, 2)
+  dataEntrega        DateTime @db.Date
+  observacao         String?
+  registradoPorEmail String
+  criadoEm           DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pessoa  Pessoa  @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, pessoaId])
+}
+
+/// Biblioteca de modelos de papel PRÓPRIOS de uma empresa (upload de um
+/// PDF/imagem que ela já usa) — os modelos padrão do sistema (limpeza de
+/// caixa de gordura, troca de óleo etc.) NÃO ficam aqui: são só um array
+/// TypeScript fixo (MODELOS_PADRAO_PAPEL em src/lib/ged.ts) renderizado
+/// por um gerador de PDF genérico, sem necessidade de linha no banco.
+/// Esta tabela é só pro que a empresa manda pelo upload.
+model ModeloPapelGed {
+  id             Int      @id @default(autoincrement())
+  empresaId      Int
+  nome           String
+  arquivoUrl     String
+  contentType    String
+  criadoPorEmail String
+  criadoEm       DateTime @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
+}
+
 /// Sessão leve criada depois de conferir protocolo+senha corretamente —
 /// só pra permitir o polling do chat sem pedir a senha de novo a cada
 /// alguns segundos. Mesmo espírito de Sessao/SessaoPessoa, só que de vida
@@ -1115,4 +1653,70 @@ model SessaoDenunciaAnonima {
   criadoEm   DateTime @default(now())
 
   denuncia Denuncia @relation(fields: [denunciaId], references: [id], onDelete: Cascade)
+}
+
+// --- PGR (riscos psicossociais, NR-1) ---
+
+enum StatusCicloPgr {
+  ABERTO
+  ENCERRADO
+}
+
+/// Uma rodada da pesquisa anônima de riscos psicossociais — a NR-1 exige
+/// reavaliação completa no mínimo anual, então cada ciclo representa uma
+/// dessas rodadas (abre, coleta respostas pelo link público, encerra e
+/// congela a matriz de risco daquele momento).
+model CicloPgr {
+  id          Int            @id @default(autoincrement())
+  empresaId   Int
+  status      StatusCicloPgr @default(ABERTO)
+  abertoEm    DateTime       @default(now())
+  encerradoEm DateTime?
+
+  empresa   Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  respostas RespostaPgr[]
+
+  @@index([empresaId, status])
+}
+
+/// Uma resposta anônima à pesquisa — sem pessoaId de propósito (não dá
+/// pra reidentificar quem respondeu; ver criarRespostaPgrPublica em
+/// src/lib/pgr.ts). cargo é opcional e congelado aqui como texto livre
+/// no momento da resposta, pra sobreviver a uma renomeação de cargo
+/// depois sem corromper o histórico da rodada.
+model RespostaPgr {
+  id       Int    @id @default(autoincrement())
+  cicloId  Int
+  cargo    String?
+  /// { [idPergunta]: valorLikert (1-5) } — perguntas vêm de
+  /// src/lib/pgr-questionario.ts (fixas no código), não do banco.
+  respostas Json
+  criadoEm DateTime @default(now())
+
+  ciclo CicloPgr @relation(fields: [cicloId], references: [id], onDelete: Cascade)
+}
+
+enum StatusAcaoPgr {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+}
+
+/// Item do plano de ação do PGR — uma medida pra tratar um risco
+/// identificado na matriz. Vinculado à empresa (não a um ciclo
+/// específico), já que uma ação pode continuar em andamento entre
+/// ciclos.
+model AcaoPgr {
+  id             Int           @id @default(autoincrement())
+  empresaId      Int
+  dimensao       String
+  descricaoRisco String        @db.Text
+  medida         String        @db.Text
+  responsavel    String?
+  prazo          DateTime?     @db.Date
+  status         StatusAcaoPgr @default(PENDENTE)
+  concluidoEm    DateTime?
+  criadoEm       DateTime      @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 }

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/fechar-turnos",
-      "schedule": "0 4 * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/fechar-turnos",
@@ -15,6 +15,14 @@
     {
       "path": "/api/cron/verificar-assinaturas",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/verificar-pagamentos-asaas",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/cron/verificar-pagamentos-asaas",
+      "schedule": "0 18 * * *"
     }
   ]
 }

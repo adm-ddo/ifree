@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { revalidatePath } from "next/cache";
 import { dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { calcularValorTotal, calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
@@ -20,7 +20,7 @@ export async function corrigirFuncaoTurno(
   _prev: CorrigirFuncaoState,
   formData: FormData
 ): Promise<CorrigirFuncaoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("turnos");
 
   const turnoId = Number(formData.get("turnoId"));
   const novaFuncaoId = Number(formData.get("funcaoId"));
@@ -83,6 +83,8 @@ export async function corrigirFuncaoTurno(
   revalidatePath("/pagamentos");
   revalidatePath("/financeiro");
   revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
+  revalidatePath(`/freelancers/${turno.pessoaId}`);
   return { sucesso: true };
 }
 
@@ -111,7 +113,7 @@ export async function corrigirSaidaTurno(
   _prev: CorrigirSaidaState,
   formData: FormData
 ): Promise<CorrigirSaidaState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("turnos");
 
   const turnoId = Number(formData.get("turnoId"));
   const horaSaidaBruta = String(formData.get("horaSaida") ?? "");
@@ -214,6 +216,7 @@ export async function corrigirSaidaTurno(
   revalidatePath("/pagamentos");
   revalidatePath("/financeiro");
   revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
   return { sucesso: true };
 }
 
@@ -235,7 +238,7 @@ export type MarcarDobradoState = { erro: string } | undefined;
  * converterParaClt sobre mensagens de throw
  * ficarem redacted em produção nesse tipo de chamada). */
 export async function marcarTurnoDobrado(turnoId: number): Promise<MarcarDobradoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("turnos");
 
   const turno = await prisma.turno.findUnique({
     where: { id: turnoId },
@@ -312,6 +315,7 @@ export async function marcarTurnoDobrado(turnoId: number): Promise<MarcarDobrado
   revalidatePath("/pagamentos");
   revalidatePath("/financeiro");
   revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
   return undefined;
 }
 
@@ -331,7 +335,7 @@ export async function confirmarSaidaConflito(
   turnoId: number,
   horaSaidaBruta: string
 ): Promise<ConfirmarSaidaConflitoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("turnos");
 
   const turno = await prisma.turno.findUnique({
     where: { id: turnoId },
@@ -414,6 +418,7 @@ export async function confirmarSaidaConflito(
   revalidatePath("/pagamentos");
   revalidatePath("/financeiro");
   revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
   return undefined;
 }
 
@@ -427,7 +432,7 @@ export async function avaliarExtraPelaEmpresa(
   notaBruta: number,
   tagsBrutas: string[]
 ): Promise<AvaliarExtraState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("turnos");
 
   if (!notaValida(notaBruta)) return { erro: "Nota inválida." };
 

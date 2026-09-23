@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { inicioDoDiaBrasil, inicioDaSemanaBrasil, inicioDoMesBrasil } from "@/lib/data";
 import {
   pendentePorFrequencia,
@@ -36,7 +36,7 @@ export default async function FinanceiroPage({
 }: {
   searchParams: Promise<{ preset?: string; inicio?: string; fim?: string; agrupar?: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("financeiro");
   const { preset, inicio, fim, agrupar } = await searchParams;
 
   const presetValido = PRESETS.some((p) => p.valor === preset) ? (preset as Preset) : "mes";

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import {
   formatarDataHoraComDiaSemana,
   inicioDoDiaBrasil,
@@ -8,7 +8,11 @@ import {
   inicioDoMesBrasil,
 } from "@/lib/data";
 import { pendentePorFrequencia, pendentesPorPessoa, proximoDiaPagamento } from "@/lib/financeiro";
+import { buscarSaldoAsaas, expirarDepositosVencidos } from "@/lib/pagamentos/asaas-deposito";
+import { verificarStatusAsaas } from "@/lib/pagamentos/asaas-conta-status";
+import AutoRefresh from "@/components/AutoRefresh";
 import PagamentosSelecionaveis from "./PagamentosSelecionaveis";
+import SaldoAsaasCard from "./SaldoAsaasCard";
 import type { StatusPagamento, FrequenciaPagamento } from "@/generated/prisma/enums";
 
 type StatusFiltroValor = "TODOS" | "NAO_PAGOS" | StatusPagamento;
@@ -67,7 +71,7 @@ export default async function PagamentosPage({
     fim?: string;
   }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("pagamentos");
   const { status, frequencia, visao, preset, inicio, fim } = await searchParams;
   const statusFiltro: StatusFiltroValor = FILTROS.some((f) => f.valor === status)
     ? (status as StatusFiltroValor)
@@ -96,7 +100,7 @@ export default async function PagamentosPage({
     pendentesPorPessoa(sessao.empresaEfetivoId),
     prisma.empresa.findUniqueOrThrow({
       where: { id: sessao.empresaEfetivoId },
-      select: { semanaPagamentoDia: true },
+      select: { semanaPagamentoDia: true, splitPercentualAsaas: true },
     }),
   ]);
   const dataProximoPagamento = proximoDiaPagamento(new Date(), empresa.semanaPagamentoDia);
@@ -106,6 +110,30 @@ export default async function PagamentosPage({
     month: "2-digit",
     timeZone: "America/Sao_Paulo",
   }).format(dataProximoPagamento);
+
+  // Card de crédito/depósito só faz sentido pra quem já conectou a conta
+  // de pagamento (ver conectarContaAsaas em src/app/configuracoes/actions.ts,
+  // aberto a qualquer usuário com acesso à empresa desde 2026-09-07).
+  const contaAsaas = await prisma.contaAsaasEmpresa.findUnique({
+    where: { empresaId: sessao.empresaEfetivoId },
+  });
+  // Corrige na hora qualquer depósito PENDENTE cujo PIX já venceu, antes
+  // de buscar a lista abaixo — sem isso ele ficaria "Aguardando
+  // pagamento" pra sempre (ver expirarDepositosVencidos). Precisa
+  // terminar ANTES do findMany, por isso fora do Promise.all de baixo.
+  if (contaAsaas) await expirarDepositosVencidos(sessao.empresaEfetivoId!);
+  const [saldoAsaas, depositosAsaas, statusAsaasLive] = contaAsaas
+    ? await Promise.all([
+        buscarSaldoAsaas(sessao.empresaEfetivoId!),
+        prisma.depositoAsaas.findMany({
+          where: { empresaId: sessao.empresaEfetivoId! },
+          orderBy: { criadoEm: "desc" },
+          take: 5,
+          select: { id: true, valor: true, status: true, criadoEm: true },
+        }),
+        verificarStatusAsaas(sessao.empresaEfetivoId!),
+      ])
+    : [null, [], null];
 
   const pagamentos = await prisma.pagamento.findMany({
     where: {
@@ -131,20 +159,22 @@ export default async function PagamentosPage({
       chavePixDestino: true,
       tipoChavePixDestino: true,
       grupoPagamentoId: true,
+      pagoAutomaticamente: true,
       turno: { select: { pessoa: { select: { id: true, nome: true } }, horaEntrada: true } },
     },
   });
 
   return (
     <div className="flex flex-col gap-6">
+      <AutoRefresh intervaloMs={5000} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-navy-900">Pagamentos</h1>
           <p className="text-stone-600 mt-1 text-sm">
-            Ainda não há envio automático de PIX (falta a integração com a
-            Stone). Cada turno concluído aparece aqui como &ldquo;aguardando
-            PIX manual&rdquo; — faça a transferência pelo seu banco e clique
-            em &ldquo;Marcar como pago&rdquo;.
+            Extras com recebimento diário e conta de pagamento conectada são
+            pagos automaticamente (selo 🌐 Online). Os demais aparecem como
+            &ldquo;aguardando PIX manual&rdquo; — faça a transferência pelo
+            seu banco e clique em &ldquo;Marcar como pago&rdquo; (selo ✋ Manual).
           </p>
         </div>
         <a
@@ -156,6 +186,16 @@ export default async function PagamentosPage({
           🖨️ Relatório semanal
         </a>
       </div>
+
+      {contaAsaas && (
+        <SaldoAsaasCard
+          saldo={saldoAsaas}
+          depositosRecentes={depositosAsaas.map((d) => ({ ...d, valor: Number(d.valor) }))}
+          pixLiberado={statusAsaasLive?.pixLiberado ?? null}
+          splitPercentualAsaas={empresa.splitPercentualAsaas !== null ? Number(empresa.splitPercentualAsaas) : 0}
+          producao={(process.env.ASAAS_API_BASE_URL ?? "").includes("api.asaas.com")}
+        />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
@@ -361,6 +401,7 @@ export default async function PagamentosPage({
             quando: formatarDataHoraComDiaSemana(p.turno.horaEntrada),
             quandoOrdenacao: p.turno.horaEntrada.getTime(),
             grupoPagamentoId: p.grupoPagamentoId,
+            pagoAutomaticamente: p.pagoAutomaticamente,
           }))}
         />
       )}

@@ -9,9 +9,12 @@ type Item = {
   empresaNome: string;
   descricao: string;
   localizacao: string | null;
+  turnoDia: boolean;
+  turnoNoite: boolean;
   jaCandidatou: boolean;
   ehMatch: boolean;
   conversaId: number | null;
+  linkRota: string | null;
 };
 
 /** Por padrão só mostra vagas com match — não faz muito sentido pro
@@ -52,10 +55,13 @@ export default function FiltroVagas({ itens }: { itens: Item[] }) {
                 empresaNome: vaga.empresaNome,
                 descricao: vaga.descricao,
                 localizacao: vaga.localizacao,
+                turnoDia: vaga.turnoDia,
+                turnoNoite: vaga.turnoNoite,
               }}
               jaCandidatou={vaga.jaCandidatou}
               ehMatch={vaga.ehMatch}
               conversaId={vaga.conversaId}
+              linkRota={vaga.linkRota}
             />
           ))}
         </ul>

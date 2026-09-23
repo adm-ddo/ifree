@@ -247,6 +247,49 @@ export async function enviarEmailRecuperacaoSenhaPessoa(
   }
 }
 
+/** Confirma a troca de e-mail de uma Pessoa já logada no Portal — token
+ * tipo TROCA_EMAIL, com o novo endereço pendente em
+ * TokenAutenticacaoPessoa.novoEmailPendente até a pessoa clicar aqui (ver
+ * solicitarTrocaEmail em src/app/portal/actions.ts). Diferente de
+ * enviarEmailVerificacaoPessoa: não define senha nenhuma, só troca o
+ * e-mail — a pessoa já está logada em algum lugar, este link só prova que
+ * ela também controla a caixa de entrada nova. */
+export async function enviarEmailTrocaEmailPessoa(
+  destinatario: string,
+  nome: string,
+  token: string
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — e-mail de troca de e-mail (Portal) não enviado.");
+    return { sucesso: false };
+  }
+
+  const link = `${SITE_URL}/portal/confirmar-email/${token}`;
+  const html = layoutEmail({
+    titulo: `Oi, ${escaparHtml(nome.split(" ")[0])}! Confirme seu novo e-mail`,
+    paragrafos: [
+      "Você pediu pra trocar o e-mail do seu cadastro no iFREE. Clique no botão abaixo pra confirmar este endereço como o novo.",
+      "Se não foi você, é só ignorar esta mensagem — seu e-mail atual continua o mesmo. O link vale por 24 horas.",
+    ],
+    textoBotao: "Confirmar novo e-mail",
+    linkBotao: link,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "Confirme seu novo e-mail — Portal iFREE",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar e-mail de troca de e-mail (Portal):", err);
+    return { sucesso: false };
+  }
+}
+
 /** Avisa o dono do sistema (MASTER_EMAIL) sempre que uma empresa nova se
  * cadastra — teste ou uso real, é o mesmo evento (criação de Empresa).
  * Nunca lança: falha nesse aviso não pode derrubar o cadastro de quem

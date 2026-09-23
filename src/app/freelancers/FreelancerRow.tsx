@@ -4,7 +4,8 @@ import { useTransition } from "react";
 import Link from "next/link";
 import { alternarAtivoVinculo } from "./actions";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO, LABEL_TIPO_CHAVE_PIX } from "@/lib/documento";
-import type { TipoDocumentoPessoa, TipoChavePix } from "@/generated/prisma/enums";
+import AvatarPessoa from "@/components/AvatarPessoa";
+import type { TipoDocumentoPessoa, TipoChavePix, Sexo } from "@/generated/prisma/enums";
 
 type Freelancer = {
   pessoaId: number;
@@ -14,6 +15,8 @@ type Freelancer = {
   telefone: string;
   chavePix: string;
   tipoChavePix: TipoChavePix;
+  temFoto: boolean;
+  sexo: Sexo | null;
   ativo: boolean;
 };
 
@@ -22,19 +25,22 @@ export default function FreelancerRow({ freelancer }: { freelancer: Freelancer }
 
   return (
     <li className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <Link href={`/freelancers/${freelancer.pessoaId}`} className="hover:underline">
-        <p className="font-medium text-navy-900">
-          {freelancer.nome}{" "}
-          {!freelancer.ativo && (
-            <span className="text-xs text-red-600 font-normal">(desativado)</span>
-          )}
-        </p>
-        <p className="text-xs text-stone-500">
-          {LABEL_TIPO_DOCUMENTO[freelancer.tipoDocumento]}{" "}
-          {formatarDocumento(freelancer.tipoDocumento, freelancer.documento)} ·{" "}
-          {freelancer.telefone} · PIX ({LABEL_TIPO_CHAVE_PIX[freelancer.tipoChavePix]}):{" "}
-          {freelancer.chavePix}
-        </p>
+      <Link href={`/freelancers/${freelancer.pessoaId}`} className="flex items-center gap-3 hover:underline min-w-0">
+        <AvatarPessoa pessoaId={freelancer.pessoaId} nome={freelancer.nome} temFoto={freelancer.temFoto} sexo={freelancer.sexo} />
+        <div className="min-w-0">
+          <p className="font-medium text-navy-900">
+            {freelancer.nome}{" "}
+            {!freelancer.ativo && (
+              <span className="text-xs text-red-600 font-normal">(desativado)</span>
+            )}
+          </p>
+          <p className="text-xs text-stone-500">
+            {LABEL_TIPO_DOCUMENTO[freelancer.tipoDocumento]}{" "}
+            {formatarDocumento(freelancer.tipoDocumento, freelancer.documento)} ·{" "}
+            {freelancer.telefone} · PIX ({LABEL_TIPO_CHAVE_PIX[freelancer.tipoChavePix]}):{" "}
+            {freelancer.chavePix}
+          </p>
+        </div>
       </Link>
       <button
         disabled={pending}

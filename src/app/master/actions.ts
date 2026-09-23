@@ -19,7 +19,7 @@ export async function acessarEmpresa(empresaId: number) {
     data: { empresaAtivaId: empresaId },
   });
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect("/v2/dashboard");
 }
 
 /** Vincula o próprio login do master a uma empresa que já existe (criada
@@ -102,23 +102,64 @@ export async function atualizarAssinaturaEmpresa(
     }
   }
 
+  const splitBruto = String(formData.get("splitPercentualAsaas") ?? "").trim().replace(",", ".");
+  let splitPercentualAsaas: number | null = null;
+  if (splitBruto) {
+    splitPercentualAsaas = Number(splitBruto);
+    if (!Number.isFinite(splitPercentualAsaas) || splitPercentualAsaas < 0 || splitPercentualAsaas > 100) {
+      return { erro: "O percentual de split precisa estar entre 0 e 100, ou em branco pra desativar." };
+    }
+  }
+
+  const tabletFornecido = formData.get("tabletFornecido") === "on";
+  let tabletValorTotal: number | null = null;
+  let tabletParcelasTotal: number | null = null;
+  let tabletParcelasPagas = 0;
+  if (tabletFornecido) {
+    const tabletValorBruto = String(formData.get("tabletValorTotal") ?? "").trim().replace(",", ".");
+    tabletValorTotal = Number(tabletValorBruto);
+    if (!tabletValorBruto || !Number.isFinite(tabletValorTotal) || tabletValorTotal <= 0) {
+      return { erro: "Informe o valor total do tablet." };
+    }
+
+    tabletParcelasTotal = Number(formData.get("tabletParcelasTotal"));
+    if (
+      !Number.isInteger(tabletParcelasTotal) ||
+      tabletParcelasTotal < 1 ||
+      tabletParcelasTotal > 12
+    ) {
+      return { erro: "Escolha em quantas parcelas o tablet está sendo pago (1 a 12x)." };
+    }
+
+    tabletParcelasPagas = Number(formData.get("tabletParcelasPagas"));
+    if (!Number.isInteger(tabletParcelasPagas) || tabletParcelasPagas < 0 || tabletParcelasPagas > tabletParcelasTotal) {
+      return { erro: "O número de parcelas já pagas precisa estar entre 0 e o total de parcelas." };
+    }
+  }
+
   await prisma.empresa.update({
     where: { id: empresaId },
     data: {
       statusAssinatura: statusAssinatura as StatusAssinatura,
       assinaturaVenceEm,
       valorMensalidade,
+      splitPercentualAsaas,
+      tabletFornecido,
+      tabletValorTotal,
+      tabletParcelasTotal,
+      tabletParcelasPagas,
     },
   });
 
   revalidatePath("/master");
   revalidatePath("/master/assinaturas");
+  revalidatePath("/pagamentos");
   return { sucesso: true };
 }
 
 export async function voltarParaMaster() {
   const sessao = await requireSessao();
-  if (!sessao.isMaster) redirect("/dashboard");
+  if (!sessao.isMaster) redirect("/v2/dashboard");
 
   const token = (await cookies()).get(SESSAO_COOKIE)?.value;
   if (token) {

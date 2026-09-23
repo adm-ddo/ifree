@@ -55,6 +55,10 @@ export default function DadosPessoaForm({
   return (
     <form
       action={formAction}
+      // Sem isso, o React 19 reseta o form nativamente após toda submissão
+      // bem-sucedida, mesmo em campo controlado — ver explicação completa
+      // em SalarioEscalaForm.tsx (mesmo bug, corrigido lá primeiro).
+      onReset={(e) => e.preventDefault()}
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm max-w-lg"
     >
       <input type="hidden" name="pessoaId" value={pessoaId} />

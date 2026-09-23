@@ -24,6 +24,12 @@ type RegistroResumo = {
   /// tolerância.
   atrasoEntradaMin: number | null;
   saidaAntecipadaMin: number | null;
+  /// Saldo do dia contra a meta esperada (ver
+  /// src/lib/ponto.ts:calcularSaldoDiarioClt) — null quando não há
+  /// horário configurado pra comparar, ou quando o saldo está dentro da
+  /// tolerância.
+  horaExtraMin: number | null;
+  horasDevidasMin: number | null;
   /// Sugestão de horário de saída pra preencher a correção manual (ver
   /// src/lib/ponto.ts:saidaEsperadaClt) — já formatada pro
   /// datetime-local, no horário esperado da escala/pessoa. Null quando
@@ -112,6 +118,20 @@ export default function RegistroPontoHistorico({
                   )}
                   {registro.saidaAntecipadaMin !== null && (
                     <span>🏃 Saiu {registro.saidaAntecipadaMin} min antes da hora</span>
+                  )}
+                </p>
+              )}
+              {(registro.horaExtraMin !== null || registro.horasDevidasMin !== null) && (
+                <p className="text-xs mt-0.5 flex flex-wrap gap-x-3">
+                  {registro.horaExtraMin !== null && (
+                    <span className="text-brand-700">
+                      🕐 {formatarHoras(registro.horaExtraMin)} de hora extra
+                    </span>
+                  )}
+                  {registro.horasDevidasMin !== null && (
+                    <span className="text-amber-700">
+                      ⚠️ {formatarHoras(registro.horasDevidasMin)} de horas devidas
+                    </span>
                   )}
                 </p>
               )}

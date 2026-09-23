@@ -64,6 +64,15 @@ export const getSessaoPessoa = cache(async (): Promise<SessaoPessoaAtual | null>
   });
   if (!sessao || sessao.expiraEm < new Date()) return null;
 
+  // Sessão deslizante — mesmo mecanismo de getSessao em src/lib/auth.ts
+  // (comentário completo lá): só empurra expiraEm perto do vencimento, o
+  // cookie em si é renovado à parte no middleware (src/middleware.ts).
+  const diasRestantes = (sessao.expiraEm.getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+  if (diasRestantes < SESSAO_TTL_DIAS / 2) {
+    const novaExpiracao = new Date(Date.now() + SESSAO_TTL_DIAS * 24 * 60 * 60 * 1000);
+    await prisma.sessaoPessoa.update({ where: { token }, data: { expiraEm: novaExpiracao } }).catch(() => {});
+  }
+
   return { pessoaId: sessao.pessoa.id, nome: sessao.pessoa.nome, documento: sessao.pessoa.documento };
 });
 

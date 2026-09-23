@@ -17,7 +17,20 @@ export async function captchaValido(formData: FormData): Promise<boolean> {
   }
 
   const token = String(formData.get("cf-turnstile-response") ?? "");
-  if (!token) return false;
+  if (!token) {
+    // Sem token: só deixa passar se foi o próprio CaptchaWidget avisando
+    // que o script não carregou a tempo (bloqueador de anúncio, rede ruim,
+    // Cloudflare instável) — ver TIMEOUT_MS em CaptchaWidget.tsx. Nunca
+    // travar um login/cadastro legítimo só porque o widget não apareceu;
+    // já aconteceu de derrubar acesso de gente de verdade por causa disso.
+    const semCarregarATempo = formData.get("cf-turnstile-timeout") === "1";
+    if (semCarregarATempo) {
+      console.warn("Captcha não carregou a tempo — deixando passar sem verificação.");
+      return true;
+    }
+    console.warn("Captcha: envio chegou sem token e sem aviso de timeout — bloqueando.");
+    return false;
+  }
 
   try {
     const resposta = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
@@ -25,7 +38,10 @@ export async function captchaValido(formData: FormData): Promise<boolean> {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ secret: secreta, response: token }),
     });
-    const dados = (await resposta.json()) as { success?: boolean };
+    const dados = (await resposta.json()) as { success?: boolean; ["error-codes"]?: string[] };
+    if (dados.success !== true) {
+      console.warn("Captcha: Cloudflare rejeitou o token —", JSON.stringify(dados));
+    }
     return dados.success === true;
   } catch (err) {
     console.error("Falha ao verificar captcha com o Cloudflare:", err);

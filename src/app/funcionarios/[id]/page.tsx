@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { formatarDataHoraComDiaSemana, formatarDataHora, formatarHora, dataISOBrasil } from "@/lib/data";
 import { formatarCpf } from "@/lib/cpf";
 import SalarioEscalaForm from "./SalarioEscalaForm";
@@ -20,7 +20,13 @@ import { calcularStatusFerias, calcularFeriasEmAndamento } from "@/lib/ferias";
 import { calcularStatusExperiencia } from "@/lib/experiencia";
 import { STATUS_PENDENTES } from "@/lib/financeiro";
 import PagamentosExtraPendentesCard from "./PagamentosExtraPendentesCard";
-import { horarioEsperadoClt, calcularDesvioPontoClt, saidaEsperadaClt } from "@/lib/ponto";
+import {
+  horarioEsperadoClt,
+  calcularDesvioPontoClt,
+  saidaEsperadaClt,
+  calcularSaldoDiarioClt,
+  pausaAplicadaEm,
+} from "@/lib/ponto";
 import { paraDatetimeLocalBrasil } from "@/lib/data";
 
 function formatarDataUTC(data: Date): string {
@@ -32,7 +38,7 @@ export default async function FuncionarioDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcionarios");
   const { id } = await params;
   const pessoaId = Number(id);
   if (!Number.isInteger(pessoaId)) notFound();
@@ -207,9 +213,33 @@ export default async function FuncionarioDetalhePage({
           <Link href="/funcionarios" className="text-sm text-brand-700 hover:underline">
             ← Funcionários
           </Link>
-          <h1 className="text-2xl font-semibold text-navy-900 mt-1">
-            {vinculo.pessoa.nome}
-          </h1>
+          <div className="flex flex-wrap items-center gap-3 mt-1">
+            <h1 className="text-2xl font-semibold text-navy-900">
+              {vinculo.pessoa.nome}
+            </h1>
+            <DadosFuncionarioForm
+              pessoaId={pessoaId}
+              dadosIniciais={{
+                nome: vinculo.pessoa.nome,
+                telefone: vinculo.pessoa.telefone,
+                endereco: vinculo.pessoa.endereco,
+                numero: vinculo.pessoa.numero ?? "",
+                complemento: vinculo.pessoa.complemento ?? "",
+                email: vinculo.pessoa.email ?? "",
+                rg: vinculo.pessoa.rg ?? "",
+                ctpsNumero: vinculo.pessoa.ctpsNumero ?? "",
+                ctpsSerieUf: vinculo.pessoa.ctpsSerieUf ?? "",
+                pisPasepNit: vinculo.pessoa.pisPasepNit ?? "",
+                chavePix: vinculo.pessoa.chavePix ?? "",
+                dataNascimento: vinculo.pessoa.dataNascimento
+                  ? vinculo.pessoa.dataNascimento.toISOString().slice(0, 10)
+                  : "",
+                cep: vinculo.pessoa.cep ?? "",
+                contatoEmergenciaNome: vinculo.pessoa.contatoEmergenciaNome ?? "",
+                contatoEmergenciaTelefone: vinculo.pessoa.contatoEmergenciaTelefone ?? "",
+              }}
+            />
+          </div>
           <p className="text-stone-600 mt-1 text-sm">
             CPF {formatarCpf(vinculo.pessoa.documento)} · {vinculo.pessoa.telefone}
           </p>
@@ -233,7 +263,7 @@ export default async function FuncionarioDetalhePage({
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           ⚠️ Faltam dados obrigatórios pra funcionário CLT:{" "}
           <strong>{dadosObrigatoriosFaltando.join(", ")}</strong>. Preencha em
-          &ldquo;Editar dados&rdquo; ou &ldquo;Salário e escala&rdquo; abaixo.
+          &ldquo;Editar dados&rdquo; (ao lado do nome, acima) ou em &ldquo;Salário e escala&rdquo; abaixo.
         </div>
       )}
 
@@ -265,6 +295,7 @@ export default async function FuncionarioDetalhePage({
         }
         horarioEntradaMinAtual={vinculo.horarioEntradaMin}
         horarioSaidaMinAtual={vinculo.horarioSaidaMin}
+        modoPausaOverrideAtual={vinculo.modoPausaOverride}
         historicoSalarial={historicoSalarial.map((h) => ({
           valor: Number(h.valor),
           vigenteDesdeLabel: formatarDataUTC(h.vigenteDesde),
@@ -295,6 +326,10 @@ export default async function FuncionarioDetalhePage({
         bonificacao={{
           recebe: vinculo.recebeBonificacao,
           valor: vinculo.valorBonificacao !== null ? Number(vinculo.valorBonificacao) : null,
+        }}
+        premioAssiduidade={{
+          recebe: vinculo.recebePremioAssiduidade,
+          valor: vinculo.valorPremioAssiduidade !== null ? Number(vinculo.valorPremioAssiduidade) : null,
         }}
       />
 
@@ -396,29 +431,6 @@ export default async function FuncionarioDetalhePage({
         contratoFimLabel={statusExperiencia?.contratoFimLabel ?? null}
       />
 
-      <DadosFuncionarioForm
-        pessoaId={pessoaId}
-        dadosIniciais={{
-          nome: vinculo.pessoa.nome,
-          telefone: vinculo.pessoa.telefone,
-          endereco: vinculo.pessoa.endereco,
-          numero: vinculo.pessoa.numero ?? "",
-          complemento: vinculo.pessoa.complemento ?? "",
-          email: vinculo.pessoa.email ?? "",
-          rg: vinculo.pessoa.rg ?? "",
-          ctpsNumero: vinculo.pessoa.ctpsNumero ?? "",
-          ctpsSerieUf: vinculo.pessoa.ctpsSerieUf ?? "",
-          pisPasepNit: vinculo.pessoa.pisPasepNit ?? "",
-          chavePix: vinculo.pessoa.chavePix ?? "",
-          dataNascimento: vinculo.pessoa.dataNascimento
-            ? vinculo.pessoa.dataNascimento.toISOString().slice(0, 10)
-            : "",
-          cep: vinculo.pessoa.cep ?? "",
-          contatoEmergenciaNome: vinculo.pessoa.contatoEmergenciaNome ?? "",
-          contatoEmergenciaTelefone: vinculo.pessoa.contatoEmergenciaTelefone ?? "",
-        }}
-      />
-
       {registros.length === 0 ? (
         <p className="text-stone-500 text-sm">
           Nenhum registro de ponto ainda pra essa pessoa nesta empresa.
@@ -439,6 +451,7 @@ export default async function FuncionarioDetalhePage({
             status: r.status,
             encerradoManualmentePorEmail: r.correcaoSaidaEm ? r.correcaoSaidaPorEmail : null,
             ...calcularDesvioPontoClt(r.horaEntrada, r.horaSaida, horarioEsperado),
+            ...calcularSaldoDiarioClt(r.minutosTrabalhados, horarioEsperado, pausaAplicadaEm(r)),
             saidaSugeridaValue: (() => {
               const sugerida = saidaEsperadaClt(r.horaEntrada, horarioEsperado);
               return sugerida ? paraDatetimeLocalBrasil(sugerida) : null;

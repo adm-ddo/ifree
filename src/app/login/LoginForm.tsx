@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { entrar, reenviarVerificacaoEmail } from "./actions";
+import CaptchaWidget from "@/components/CaptchaWidget";
 
 export default function LoginForm() {
   const [state, formAction, pending] = useActionState(entrar, undefined);
@@ -58,6 +59,8 @@ export default function LoginForm() {
             className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
+
+        <CaptchaWidget />
 
         {state?.erro && (
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

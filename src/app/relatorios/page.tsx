@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { inicioDoDiaBrasil, inicioDaSemanaBrasil, inicioDoMesBrasil } from "@/lib/data";
 import { agregarCustoPorFuncao } from "@/lib/relatorio";
 import type { FrequenciaPagamento } from "@/generated/prisma/enums";
@@ -53,7 +53,7 @@ export default async function RelatoriosPage({
     pagina?: string;
   }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("relatorios");
   const { preset, inicio, fim, frequencia, ordenar, busca, pagina } = await searchParams;
 
   const presetValido = PRESETS.some((p) => p.valor === preset) ? (preset as Preset) : "mes";

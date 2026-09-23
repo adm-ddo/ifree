@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { criarSessao, verificarSenha } from "@/lib/auth";
 import { criarTokenAutenticacao, tokenRecenteExiste } from "@/lib/tokenAutenticacao";
 import { enviarEmailVerificacao } from "@/lib/email";
+import { captchaValido } from "@/lib/captcha";
 import { redirect } from "next/navigation";
 
 export type LoginState = { erro?: string; naoVerificado?: boolean } | undefined;
@@ -21,6 +22,10 @@ export async function entrar(
     return { erro: "Preencha e-mail e senha." };
   }
 
+  if (!(await captchaValido(formData))) {
+    return { erro: "Verificação de segurança falhou. Atualize a página e tente de novo." };
+  }
+
   const usuario = await prisma.usuario.findUnique({ where: { email } });
   if (!usuario || !(await verificarSenha(senha, usuario.senhaHash))) {
     return { erro: "E-mail ou senha incorretos." };
@@ -34,7 +39,7 @@ export async function entrar(
   }
 
   await criarSessao(usuario.id);
-  redirect(usuario.isMaster ? "/master" : "/dashboard");
+  redirect(usuario.isMaster ? "/master" : "/v2/dashboard");
 }
 
 export type ReenviarVerificacaoState = { erro?: string; sucesso?: boolean } | undefined;

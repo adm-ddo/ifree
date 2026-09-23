@@ -16,6 +16,7 @@ export class MockPaymentService implements PaymentService {
     return {
       sucesso: true,
       idTransacaoExterna: `mock_${randomBytes(8).toString("hex")}`,
+      final: true,
     };
   }
 }

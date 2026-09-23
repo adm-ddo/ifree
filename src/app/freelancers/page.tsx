@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import FreelancerRow from "./FreelancerRow";
 
 export default async function FreelancersPage({
@@ -8,7 +8,7 @@ export default async function FreelancersPage({
 }: {
   searchParams: Promise<{ desativados?: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("freelancers");
   const { desativados } = await searchParams;
   const mostrarDesativados = desativados === "1";
 
@@ -26,6 +26,8 @@ export default async function FreelancersPage({
           telefone: true,
           chavePix: true,
           tipoChavePix: true,
+          fotoPerfilUrl: true,
+          sexo: true,
         },
       },
     },
@@ -79,6 +81,8 @@ export default async function FreelancersPage({
               telefone: v.pessoa.telefone,
               chavePix: v.pessoa.chavePix ?? "",
               tipoChavePix: v.pessoa.tipoChavePix ?? "CPF",
+              temFoto: Boolean(v.pessoa.fotoPerfilUrl),
+              sexo: v.pessoa.sexo,
               ativo: v.ativo,
             }}
           />

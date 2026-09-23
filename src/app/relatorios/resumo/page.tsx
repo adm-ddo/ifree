@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { inicioDaSemanaBrasil, inicioDoMesBrasil } from "@/lib/data";
-import { calcularResumoHoras, semanaPassadaFechada, mesPassadoFechado, type ResumoPessoa } from "@/lib/resumo-horas";
+import {
+  calcularResumoHoras,
+  semanaPassadaFechada,
+  mesPassadoFechado,
+  TOLERANCIA_MIN,
+  type ResumoPessoa,
+} from "@/lib/resumo-horas";
 
 type Periodo = "semana" | "mes";
-
-/// Diferença dentro desse tanto de minutos não conta como hora extra nem
-/// hora a menos pra fins de agrupamento visual — evita alarme por causa
-/// de um arredondamento pequeno. O número exato continua aparecendo de
-/// qualquer forma em cada linha.
-const TOLERANCIA_MIN = 30;
 
 function formatarHoras(minutos: number): string {
   const sinal = minutos < 0 ? "-" : "";
@@ -26,7 +26,7 @@ export default async function ResumoHorasPage({
 }: {
   searchParams: Promise<{ periodo?: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("relatorios");
   const { periodo } = await searchParams;
   const periodoValido: Periodo = periodo === "mes" ? "mes" : "semana";
 

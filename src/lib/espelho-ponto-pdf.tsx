@@ -1,6 +1,7 @@
 import "server-only";
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import { formatarHora, formatarDataHora } from "@/lib/data";
+import { TOLERANCIA_MIN } from "@/lib/resumo-horas";
 
 const FUSO_BRASIL = "America/Sao_Paulo";
 
@@ -14,7 +15,9 @@ function formatarDiaSemana(data: Date): string {
 }
 
 function formatarHoras(minutos: number): string {
-  return `${Math.floor(minutos / 60)}h${String(minutos % 60).padStart(2, "0")}min`;
+  const sinal = minutos < 0 ? "-" : "";
+  const abs = Math.abs(minutos);
+  return `${sinal}${Math.floor(abs / 60)}h${String(abs % 60).padStart(2, "0")}min`;
 }
 
 const styles = StyleSheet.create({
@@ -59,6 +62,36 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontSize: 10, color: "#166534" },
   totalValor: { fontSize: 13, fontWeight: 700, color: "#166534" },
+  metaBoxExtra: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: "#fffbeb",
+    borderRadius: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  metaBoxFalta: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: "#fef2f2",
+    borderRadius: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  metaBoxNeutro: {
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: "#f5f5f4",
+    borderRadius: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  metaLabelExtra: { fontSize: 10, color: "#92400e" },
+  metaValorExtra: { fontSize: 13, fontWeight: 700, color: "#92400e" },
+  metaLabelFalta: { fontSize: 10, color: "#991b1b" },
+  metaValorFalta: { fontSize: 13, fontWeight: 700, color: "#991b1b" },
+  metaLabelNeutro: { fontSize: 10, color: "#57534e" },
+  metaValorNeutro: { fontSize: 13, fontWeight: 700, color: "#57534e" },
   assinaturas: { flexDirection: "row", justifyContent: "space-between", marginTop: 48 },
   blocoAssinatura: { width: "45%" },
   linhaAssinatura: { borderTop: "1pt solid #292524", paddingTop: 4, textAlign: "center", fontSize: 8 },
@@ -104,6 +137,11 @@ export async function gerarPdfEspelhoPonto(params: {
   matriculaInterna: string | null;
   cargo: string | null;
   mesReferenciaLabel: string;
+  /// Meta de minutos pro mês, proporcional à carga horária semanal
+  /// configurada pra essa pessoa (VinculoPessoaEmpresa.cargaHorariaSemanalMin)
+  /// — null quando não há carga configurada, caso em que nenhuma
+  /// comparação é exibida (mesmo espírito informativo de sempre).
+  metaMinutos: number | null;
   diasDoMes: Date[];
   linhasPorDia: Map<string, LinhaEspelhoPonto[]>;
 }): Promise<Buffer> {
@@ -120,6 +158,8 @@ export async function gerarPdfEspelhoPonto(params: {
       totalMinutosNoturnos += l.minutosNoturnos ?? 0;
     }
   }
+
+  const diferencaMinutos = params.metaMinutos !== null ? totalMinutos - params.metaMinutos : null;
 
   return renderToBuffer(
     <Document>
@@ -229,6 +269,34 @@ export async function gerarPdfEspelhoPonto(params: {
           <Text style={styles.totalLabel}>Das quais, horas noturnas (22h-5h)</Text>
           <Text style={styles.totalValor}>{formatarHoras(totalMinutosNoturnos)}</Text>
         </View>
+
+        {params.metaMinutos === null ? (
+          <View style={styles.metaBoxNeutro}>
+            <Text style={styles.metaLabelNeutro}>
+              Carga horária não configurada pra essa pessoa — sem meta pra comparar
+            </Text>
+          </View>
+        ) : diferencaMinutos !== null && diferencaMinutos > TOLERANCIA_MIN ? (
+          <View style={styles.metaBoxExtra}>
+            <Text style={styles.metaLabelExtra}>
+              Hora extra no mês · meta {formatarHoras(params.metaMinutos)}
+            </Text>
+            <Text style={styles.metaValorExtra}>+{formatarHoras(diferencaMinutos)}</Text>
+          </View>
+        ) : diferencaMinutos !== null && diferencaMinutos < -TOLERANCIA_MIN ? (
+          <View style={styles.metaBoxFalta}>
+            <Text style={styles.metaLabelFalta}>
+              Horas a menos no mês · meta {formatarHoras(params.metaMinutos)}
+            </Text>
+            <Text style={styles.metaValorFalta}>{formatarHoras(diferencaMinutos)}</Text>
+          </View>
+        ) : (
+          <View style={styles.metaBoxNeutro}>
+            <Text style={styles.metaLabelNeutro}>
+              Dentro da carga horária configurada · meta {formatarHoras(params.metaMinutos)}
+            </Text>
+          </View>
+        )}
 
         <Text style={styles.aviso}>
           Horas noturnas: minuto-relógio real trabalhado dentro da janela

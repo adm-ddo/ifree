@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { verificarSenha } from "@/lib/auth";
 import { criarSessaoPessoa } from "@/lib/auth-pessoa";
 import { apenasDigitos, cpfValido } from "@/lib/cpf";
+import { captchaValido } from "@/lib/captcha";
 import { redirect } from "next/navigation";
 
 export type EntrarPessoaState =
@@ -19,6 +20,10 @@ export async function entrarPessoa(
 
   if (!cpfValido(cpfBruto) || !senha) {
     return { erro: "Informe um CPF válido e sua senha." };
+  }
+
+  if (!(await captchaValido(formData))) {
+    return { erro: "Verificação de segurança falhou. Atualize a página e tente de novo." };
   }
 
   const documento = apenasDigitos(cpfBruto);

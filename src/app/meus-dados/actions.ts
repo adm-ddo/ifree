@@ -33,6 +33,7 @@ export async function atualizarMeusDados(
   });
 
   revalidatePath("/meus-dados");
+  revalidatePath("/v2/meus-dados");
   revalidatePath("/", "layout");
   return { sucesso: true };
 }

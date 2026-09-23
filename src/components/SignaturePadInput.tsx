@@ -17,6 +17,20 @@ export default function SignaturePadInput({
   // clicável durante o envio e batia de novo — cada clique extra disparava
   // outro iniciarTurno/concluirTurno, arriscando duplicar o turno no banco.
   const [enviando, setEnviando] = useState(false);
+  // Só acende depois de um tempo "enviando" — servidor agora tenta de novo
+  // sozinho por alguns segundos se o banco estiver ocupado (ver
+  // src/lib/retry.ts), então um envio normal já passa perto de 1-2s às
+  // vezes; sem esse aviso, esse tempo a mais parecia trava.
+  const [demorando, setDemorando] = useState(false);
+
+  useEffect(() => {
+    if (!enviando) return;
+    const id = setTimeout(() => setDemorando(true), 2500);
+    return () => {
+      clearTimeout(id);
+      setDemorando(false);
+    };
+  }, [enviando]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -100,6 +114,9 @@ export default function SignaturePadInput({
           {enviando ? "Enviando..." : confirmLabel}
         </button>
       </div>
+      {demorando && (
+        <p className="text-base text-stone-500">Isso está demorando um pouco mais que o normal, aguarde...</p>
+      )}
     </div>
   );
 }

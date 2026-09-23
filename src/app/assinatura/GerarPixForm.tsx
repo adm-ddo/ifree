@@ -2,18 +2,41 @@
 
 import { useState, useTransition } from "react";
 import { gerarCobrancaMensalidade } from "./actions";
+import AutoRefresh from "@/components/AutoRefresh";
+import SeloAsaas from "@/components/SeloAsaas";
+import type { StatusCobranca } from "@/generated/prisma/enums";
 
 export default function GerarPixForm({
   empresaId,
+  proximoVencimentoLabel,
   cobrancaInicial,
+  ultimaCobranca,
 }: {
   empresaId: number;
-  cobrancaInicial: { qrCode: string; qrCodeImagemUrl: string | null; expiraEm: string } | null;
+  proximoVencimentoLabel: string | null;
+  cobrancaInicial: {
+    idTransacaoExterna: string;
+    qrCode: string;
+    qrCodeImagemUrl: string | null;
+    expiraEm: string;
+  } | null;
+  /// Última cobrança da empresa (QUALQUER status), atualizada a cada
+  /// refresh da página (ver AutoRefresh) — usada só pra detectar se o Pix
+  /// que ESTA tela está mostrando (`cobranca.idTransacaoExterna`) é o mesmo
+  /// que acabou de ser confirmado, comparando por id em vez de "sumiu da
+  /// pendência" (que dispararia até antes de qualquer refresh acontecer,
+  /// já que `cobrancaInicial` só reflete o estado no carregamento).
+  ultimaCobranca: { idTransacaoExterna: string | null; status: StatusCobranca } | null;
 }) {
   const [cobranca, setCobranca] = useState(cobrancaInicial);
   const [erro, setErro] = useState<string | null>(null);
   const [copiado, setCopiado] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  const confirmado =
+    Boolean(cobranca) &&
+    ultimaCobranca?.idTransacaoExterna === cobranca?.idTransacaoExterna &&
+    ultimaCobranca?.status === "PAGA";
 
   function gerar() {
     setErro(null);
@@ -35,9 +58,30 @@ export default function GerarPixForm({
     setTimeout(() => setCopiado(false), 2000);
   }
 
+  if (confirmado) {
+    return (
+      <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-3 text-sm text-brand-700 font-medium text-center">
+        ✅ Pagamento confirmado! Assinatura renovada
+        {proximoVencimentoLabel ? ` até ${proximoVencimentoLabel}` : ""}.
+      </div>
+    );
+  }
+
   if (cobranca) {
     return (
       <div className="flex flex-col gap-3">
+        {/* Precisa estar aqui (não em page.tsx) — "Gerar PIX" é uma ação
+         * client-side que só atualiza este componente via setCobranca,
+         * sem re-renderizar o Server Component pai. Decidir o AutoRefresh
+         * lá em cima olharia pro estado de ANTES do clique (sem cobrança
+         * nenhuma ainda) e nunca chegaria a montar — foi exatamente por
+         * isso que a tela ficava "congelada" depois de gerar o Pix. */}
+        <AutoRefresh intervaloMs={5000} />
+        <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+          ⏳ Aguardando confirmação do Pix — a tela atualiza sozinha assim
+          que cair.
+        </p>
         {cobranca.qrCodeImagemUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -63,9 +107,7 @@ export default function GerarPixForm({
         >
           {copiado ? "Copiado!" : "Copiar código"}
         </button>
-        <p className="text-xs text-stone-500 text-center">
-          Assim que o pagamento cair, esta tela libera sozinha.
-        </p>
+        <SeloAsaas porte="pequeno" className="self-center" />
       </div>
     );
   }

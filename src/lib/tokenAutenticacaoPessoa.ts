@@ -9,16 +9,20 @@ import type { TipoTokenAutenticacao } from "@/generated/prisma/enums";
 export async function criarTokenAutenticacaoPessoa(
   pessoaId: number,
   tipo: TipoTokenAutenticacao,
-  horasValidade: number
+  horasValidade: number,
+  /** Só usado com tipo TROCA_EMAIL — ver TokenAutenticacaoPessoa.novoEmailPendente. */
+  novoEmailPendente?: string
 ): Promise<string> {
   const token = randomBytes(32).toString("hex");
   const expiraEm = new Date(Date.now() + horasValidade * 60 * 60 * 1000);
-  await prisma.tokenAutenticacaoPessoa.create({ data: { token, pessoaId, tipo, expiraEm } });
+  await prisma.tokenAutenticacaoPessoa.create({
+    data: { token, pessoaId, tipo, expiraEm, novoEmailPendente },
+  });
   return token;
 }
 
 export type ResultadoTokenValidoPessoa =
-  | { valido: true; pessoaId: number; tokenId: number }
+  | { valido: true; pessoaId: number; tokenId: number; novoEmailPendente: string | null }
   | { valido: false; motivo: "invalido" | "expirado" | "usado" };
 
 export async function buscarTokenValidoPessoa(
@@ -29,7 +33,12 @@ export async function buscarTokenValidoPessoa(
   if (!registro || registro.tipo !== tipo) return { valido: false, motivo: "invalido" };
   if (registro.usadoEm !== null) return { valido: false, motivo: "usado" };
   if (registro.expiraEm < new Date()) return { valido: false, motivo: "expirado" };
-  return { valido: true, pessoaId: registro.pessoaId, tokenId: registro.id };
+  return {
+    valido: true,
+    pessoaId: registro.pessoaId,
+    tokenId: registro.id,
+    novoEmailPendente: registro.novoEmailPendente,
+  };
 }
 
 export async function tokenRecenteExistePessoa(

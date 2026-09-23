@@ -115,6 +115,24 @@ export function instanteBrasil(dataISO: string, minutosDesdeMeiaNoite = 0): Date
   );
 }
 
+/** Formata uma coluna `@db.Date` (sem hora, ex.: DocumentoGed.dataDocumento,
+ * EntradaEpi.dataEntrega) — o driver do Postgres devolve esses campos como
+ * meia-noite UTC, então formatar com o fuso de Brasília (UTC-3) VOLTA um
+ * dia (meia-noite UTC de 09/09 vira 21h de 08/09 em São Paulo). Por isso
+ * aqui força timeZone UTC, o oposto do resto deste arquivo — mesma técnica
+ * de formatarDataUTC em funcionarios/[id]/page.tsx, só que exportada pra
+ * reaproveitar em outros módulos (GED). NUNCA use isto pra um campo
+ * DateTime de verdade (ex.: geradoEm) — só pra @db.Date. */
+export function formatarDataSemHora(data: Date): string {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" }).format(data);
+}
+
+/** Mesma ideia de formatarDataSemHora, só que por extenso ("9 de setembro
+ * de 2026") — pra documentos formais do GED. */
+export function formatarDataSemHoraExtenso(data: Date): string {
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "UTC" }).format(data);
+}
+
 /** Meia-noite de "hoje" em Brasília, como instante UTC — usado pra
  * consultas tipo "turnos iniciados hoje". */
 export function inicioDoDiaBrasil(instante: Date): Date {

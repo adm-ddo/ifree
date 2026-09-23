@@ -1,0 +1,1 @@
+ALTER TYPE "TipoDocumentoGed" ADD VALUE 'TERMO_CIENCIA';

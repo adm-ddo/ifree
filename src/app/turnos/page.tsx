@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import {
   dataISOBrasil,
   formatarDataHoraComDiaSemana,
@@ -38,7 +38,7 @@ export default async function TurnosPage({
     ate?: string;
   }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("turnos");
   const { status, frequencia, nome, de, ate } = await searchParams;
   const statusFiltro = FILTROS.some((f) => f.valor === status) ? (status as StatusTurno) : null;
   const frequenciaFiltro = FREQUENCIAS.some((f) => f.valor === frequencia)

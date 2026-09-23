@@ -38,12 +38,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     ? { inicio: new Date(`${inicioParam}T00:00:00-03:00`), fim: new Date(`${fimParam}T23:59:59-03:00`) }
     : calcularPeriodo(presetValido, agora);
 
-  const [empresa, pessoa, turnos] = await Promise.all([
+  const [empresa, vinculo, turnos] = await Promise.all([
     prisma.empresa.findUniqueOrThrow({
       where: { id: sessao.empresaEfetivoId },
       select: { nome: true },
     }),
-    prisma.pessoa.findUnique({ where: { id: pessoaId }, select: { nome: true } }),
+    // Busca por vínculo (não por Pessoa direto) — Pessoa é uma entidade
+    // global (compartilhada entre empresas via iFREE Conecta); sem essa
+    // checagem, um pessoaId de outra empresa (nunca vinculado a esta)
+    // ainda vazaria o nome real no PDF, mesmo com a lista de turnos vazia.
+    prisma.vinculoPessoaEmpresa.findUnique({
+      where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
+      select: { pessoa: { select: { nome: true } } },
+    }),
     prisma.turno.findMany({
       where: {
         pessoaId,
@@ -61,9 +68,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }),
   ]);
 
-  if (!pessoa) {
+  if (!vinculo) {
     return new NextResponse("Pessoa não encontrada", { status: 404 });
   }
+  const pessoa = vinculo.pessoa;
 
   const formatarDataLonga = (d: Date) =>
     new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "America/Sao_Paulo" }).format(d);

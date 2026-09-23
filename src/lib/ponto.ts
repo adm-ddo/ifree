@@ -238,6 +238,20 @@ export function saidaEsperadaClt(horaEntrada: Date, esperado: HorarioEsperadoClt
   return saida;
 }
 
+/** Modo de pausa que vale pra este turno CLT — o override da pessoa
+ * (VinculoPessoaEmpresa.modoPausaOverride) tem prioridade; na ausência
+ * dele, cai pro padrão da empresa (Empresa.modoPausaCltDia/Noite,
+ * conforme o tipo do turno) — mesma regra de prioridade override→padrão
+ * já usada em horarioEsperadoClt acima. */
+export function resolverModoPausaClt(
+  overrideModoPausa: ModoPausa | null,
+  tipoTurno: "DIA" | "NOITE",
+  empresa: { modoPausaCltDia: ModoPausa; modoPausaCltNoite: ModoPausa }
+): ModoPausa {
+  if (overrideModoPausa) return overrideModoPausa;
+  return tipoTurno === "NOITE" ? empresa.modoPausaCltNoite : empresa.modoPausaCltDia;
+}
+
 export type DesvioPontoClt = { atrasoEntradaMin: number | null; saidaAntecipadaMin: number | null };
 
 /** Compara entrada/saída reais de um RegistroPonto contra o horário
@@ -263,4 +277,57 @@ export function calcularDesvioPontoClt(
   }
 
   return { atrasoEntradaMin, saidaAntecipadaMin };
+}
+
+export type SaldoDiarioClt = { horaExtraMin: number | null; horasDevidasMin: number | null };
+
+/** Saldo do dia pra um turno CLT: minutos trabalhados vs. a janela
+ * esperada daquele dia (horarioEsperadoClt — horário específico da pessoa
+ * ou padrão da escala/turno dela), descontando `pausaAplicadaMin` — a
+ * MESMA pausa que já foi de fato descontada de `minutosTrabalhados` nesse
+ * registro específico (o real, se a pessoa bateu intervalo, ou
+ * RegistroPonto.minutosDescontadosPausa, o automático que valia na hora
+ * em que o turno foi fechado). Importante usar o valor gravado no próprio
+ * registro, NUNCA reconsultar o modoPausa atual da empresa/pessoa: se a
+ * configuração de pausa mudar depois (ex.: empresa passa de 30 pra 60min
+ * automáticos), recalcular a meta com a regra nova pra um turno antigo
+ * fecharia a conta errado — um dia fechado com 30min de desconto pareceria
+ * ter hora extra só porque a meta de hoje espera 60min de desconto. Meta e
+ * realizado sempre usam a mesma régua: a que valia naquele dia. Mesma
+ * tolerância de calcularDesvioPontoClt (5min, art. 58 §1º CLT) pra não
+ * sinalizar diferença de arredondamento como hora extra/devida. esperado
+ * null (pessoa/escala sem horário configurado) não compara nada. */
+export function calcularSaldoDiarioClt(
+  minutosTrabalhados: number | null,
+  esperado: HorarioEsperadoClt | null,
+  pausaAplicadaMin: number
+): SaldoDiarioClt {
+  if (minutosTrabalhados === null || !esperado) return { horaExtraMin: null, horasDevidasMin: null };
+  let janelaMin = esperado.saidaMin - esperado.entradaMin;
+  if (janelaMin <= 0) janelaMin += 24 * 60;
+  const metaMin = Math.max(0, janelaMin - pausaAplicadaMin);
+  const saldo = minutosTrabalhados - metaMin;
+  if (saldo > TOLERANCIA_PONTO_CLT_MIN) return { horaExtraMin: saldo, horasDevidasMin: null };
+  if (saldo < -TOLERANCIA_PONTO_CLT_MIN) return { horaExtraMin: null, horasDevidasMin: -saldo };
+  return { horaExtraMin: null, horasDevidasMin: null };
+}
+
+/** Pausa que foi de fato descontada num RegistroPonto já fechado — real
+ * (entradaIntervalo/saidaIntervalo batidos) tem prioridade; senão, o
+ * automático já gravado (RegistroPonto.minutosDescontadosPausa). Mesma
+ * prioridade de calcularMinutosPonto, só que lendo o resultado já salvo
+ * em vez de recalcular a partir do modoPausa atual — ver
+ * calcularSaldoDiarioClt acima pro motivo. */
+export function pausaAplicadaEm(registro: {
+  entradaIntervalo: Date | null;
+  saidaIntervalo: Date | null;
+  minutosDescontadosPausa: number | null;
+}): number {
+  if (registro.entradaIntervalo && registro.saidaIntervalo) {
+    return Math.max(
+      0,
+      Math.round((registro.saidaIntervalo.getTime() - registro.entradaIntervalo.getTime()) / 60_000)
+    );
+  }
+  return registro.minutosDescontadosPausa ?? 0;
 }

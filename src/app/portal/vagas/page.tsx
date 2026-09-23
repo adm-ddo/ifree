@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePessoaComTermosAceitos } from "@/lib/auth-pessoa";
 import { formatarDataHora } from "@/lib/data";
 import { calcularMatch } from "@/lib/match";
+import { formatarEnderecoCompleto, linkGoogleMapsTransit } from "@/lib/endereco";
 import FiltroVagas from "./FiltroVagas";
 
 const LABEL_STATUS_CANDIDATURA: Record<string, string> = {
@@ -22,8 +23,18 @@ export default async function VagasPortalPage() {
 
   const pessoa = await prisma.pessoa.findUniqueOrThrow({
     where: { id: sessao.pessoaId },
-    select: { disponivelParaOportunidades: true, habilidades: true },
+    select: {
+      disponivelParaOportunidades: true,
+      habilidades: true,
+      endereco: true,
+      numero: true,
+      complemento: true,
+      bairro: true,
+      cidade: true,
+      cep: true,
+    },
   });
+  const enderecoOrigem = pessoa.endereco?.trim() ? formatarEnderecoCompleto(pessoa) : null;
 
   if (!pessoa.disponivelParaOportunidades) {
     return (
@@ -54,7 +65,9 @@ export default async function VagasPortalPage() {
         localizacao: true,
         nomeFantasia: true,
         habilidadesProcuradas: true,
-        empresa: { select: { nome: true } },
+        turnoDia: true,
+        turnoNoite: true,
+        empresa: { select: { nome: true, endereco: true } },
       },
     }),
     prisma.candidatura.findMany({
@@ -100,16 +113,25 @@ export default async function VagasPortalPage() {
       </div>
 
       <FiltroVagas
-        itens={vagasAbertas.map((vaga) => ({
-          id: vaga.id,
-          cargo: vaga.cargo,
-          empresaNome: vaga.nomeFantasia || vaga.empresa.nome,
-          descricao: vaga.descricao,
-          localizacao: vaga.localizacao,
-          jaCandidatou: vagaIdsComCandidatura.has(vaga.id),
-          ehMatch: calcularMatch(vaga.habilidadesProcuradas, pessoa.habilidades),
-          conversaId: conversaIdPorEmpresa.get(vaga.empresaId) ?? null,
-        }))}
+        itens={vagasAbertas.map((vaga) => {
+          const enderecoDestino = vaga.localizacao?.trim() || vaga.empresa.endereco?.trim() || null;
+          return {
+            id: vaga.id,
+            cargo: vaga.cargo,
+            empresaNome: vaga.nomeFantasia || vaga.empresa.nome,
+            descricao: vaga.descricao,
+            localizacao: vaga.localizacao,
+            turnoDia: vaga.turnoDia,
+            turnoNoite: vaga.turnoNoite,
+            jaCandidatou: vagaIdsComCandidatura.has(vaga.id),
+            ehMatch: calcularMatch(vaga.habilidadesProcuradas, pessoa.habilidades),
+            conversaId: conversaIdPorEmpresa.get(vaga.empresaId) ?? null,
+            linkRota:
+              enderecoOrigem && enderecoDestino
+                ? linkGoogleMapsTransit(enderecoOrigem, enderecoDestino)
+                : null,
+          };
+        })}
       />
 
       {minhasCandidaturas.length > 0 && (

@@ -1,11 +1,11 @@
 import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import TotemRow from "./TotemRow";
 import NovoTotemForm from "./NovoTotemForm";
 
 export default async function TotensPage() {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("totens");
 
   const [totens, hdrs] = await Promise.all([
     prisma.totem.findMany({

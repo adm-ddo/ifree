@@ -8,10 +8,11 @@ import { usePathname } from "next/navigation";
  * /manual, que tem sua própria barra de topo e menu (documento autocontido,
  * pensado pra ser lido isolado), em /conecta e /pitch, apresentações de
  * visão/pitch do produto (documentos full-bleed próprios, sem relação com
- * a navegação do painel), e em /portal, o Portal do freelancer (iFREE
+ * a navegação do painel), em /portal, o Portal do freelancer (iFREE
  * Conecta, Fase 2) — que tem seu próprio header mínimo
  * (src/app/portal/layout.tsx) e não deve misturar com a navegação do
- * dono/empresa. */
+ * dono/empresa — e em /v2, o novo layout em paralelo (src/app/v2/layout.tsx),
+ * que tem sua própria barra lateral/abas fixas. */
 export default function ChromeGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   if (
@@ -19,7 +20,8 @@ export default function ChromeGate({ children }: { children: React.ReactNode }) 
     pathname?.startsWith("/manual") ||
     pathname?.startsWith("/conecta") ||
     pathname?.startsWith("/pitch") ||
-    pathname?.startsWith("/portal")
+    pathname?.startsWith("/portal") ||
+    pathname?.startsWith("/v2")
   ) {
     return null;
   }

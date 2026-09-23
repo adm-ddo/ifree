@@ -26,6 +26,20 @@ export default function CameraCapture({
   // servidor aqui dentro — sem isso a tela ficava parada em "Capturando..."
   // enquanto esperava a rede, parecendo travada.
   const [enviando, setEnviando] = useState(false);
+  // Só acende depois de um tempo "enviando" — servidor agora tenta de novo
+  // sozinho por alguns segundos se o banco estiver ocupado (ver
+  // src/lib/retry.ts), então um envio normal já passa perto de 1-2s às
+  // vezes; sem esse aviso, esse tempo a mais parecia trava.
+  const [demorando, setDemorando] = useState(false);
+
+  useEffect(() => {
+    if (!enviando) return;
+    const id = setTimeout(() => setDemorando(true), 2500);
+    return () => {
+      clearTimeout(id);
+      setDemorando(false);
+    };
+  }, [enviando]);
 
   useEffect(() => {
     let cancelado = false;
@@ -128,16 +142,21 @@ export default function CameraCapture({
           Tirar foto
         </button>
       ) : (
-        <p className="text-4xl font-semibold text-navy-900 flex items-center gap-3">
-          {enviando && (
-            <span className="h-7 w-7 rounded-full border-4 border-navy-900 border-t-transparent animate-spin" />
+        <div className="flex flex-col items-center gap-1">
+          <p className="text-4xl font-semibold text-navy-900 flex items-center gap-3">
+            {enviando && (
+              <span className="h-7 w-7 rounded-full border-4 border-navy-900 border-t-transparent animate-spin" />
+            )}
+            {enviando
+              ? "Enviando..."
+              : contagem > 0
+                ? `Tirando foto em ${contagem}...`
+                : "Capturando..."}
+          </p>
+          {demorando && (
+            <p className="text-lg text-stone-500">Isso está demorando um pouco mais que o normal, aguarde...</p>
           )}
-          {enviando
-            ? "Enviando..."
-            : contagem > 0
-              ? `Tirando foto em ${contagem}...`
-              : "Capturando..."}
-        </p>
+        </div>
       )}
     </div>
   );

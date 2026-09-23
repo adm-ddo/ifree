@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { revalidatePath } from "next/cache";
 
 export type NovaFuncaoState = { erro?: string } | undefined;
@@ -10,7 +10,7 @@ export async function criarFuncao(
   _prev: NovaFuncaoState,
   formData: FormData
 ): Promise<NovaFuncaoState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcoes");
   const nome = String(formData.get("nome") ?? "").trim();
   const valorHoraStr = String(formData.get("valorHoraPadrao") ?? "").replace(",", ".");
   const valorHoraPadrao = Number(valorHoraStr);
@@ -33,7 +33,7 @@ export async function criarFuncao(
 }
 
 async function funcaoDaEmpresa(funcaoId: number) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcoes");
   const funcao = await prisma.funcao.findUnique({ where: { id: funcaoId } });
   if (!funcao || funcao.empresaId !== sessao.empresaEfetivoId) {
     throw new Error("Essa função não pertence a esta empresa.");

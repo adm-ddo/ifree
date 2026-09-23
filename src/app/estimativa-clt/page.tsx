@@ -1,4 +1,4 @@
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { prisma } from "@/lib/prisma";
 
 function mesReferencia(data: Date): string {
@@ -14,7 +14,7 @@ export default async function EstimativaCltPage({
 }: {
   searchParams: Promise<{ pessoaId?: string; inicio?: string; fim?: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("estimativaClt");
   const { pessoaId, inicio, fim } = await searchParams;
 
   const vinculos = await prisma.vinculoPessoaEmpresa.findMany({

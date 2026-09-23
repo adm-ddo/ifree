@@ -34,5 +34,5 @@ export async function confirmarVerificacaoEmail(
   ]);
 
   await criarSessao(resultado.usuarioId);
-  redirect("/empresas");
+  redirect("/v2/empresas");
 }

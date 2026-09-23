@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { confirmarCobrancaPaga } from "@/lib/assinatura";
+import { compararSeguro } from "@/lib/crypto";
 
 /** Recebe a confirmação de pagamento da Pagar.me pra liberar a assinatura
  * na hora. Formato do payload escrito a partir da documentação pública
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
   const esperado = `Basic ${Buffer.from(
     `${usuarioEsperado}:${process.env.PAGARME_WEBHOOK_SENHA ?? ""}`
   ).toString("base64")}`;
-  if (auth !== esperado) {
+  if (!auth || !compararSeguro(auth, esperado)) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 

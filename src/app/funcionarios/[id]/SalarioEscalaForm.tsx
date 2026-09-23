@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { atualizarSalarioEscala } from "../actions";
 import { formatarValorMoeda } from "@/lib/moeda";
 import { minutosParaHorario } from "@/lib/ponto";
-import type { EscalaTrabalho, TurnoPredefinido } from "@/generated/prisma/enums";
+import { useCampoSincronizado } from "@/lib/useCampoSincronizado";
+import type { EscalaTrabalho, ModoPausa, TurnoPredefinido } from "@/generated/prisma/enums";
 
 export default function SalarioEscalaForm({
   pessoaId,
@@ -16,6 +17,7 @@ export default function SalarioEscalaForm({
   cargaHorariaSemanalHorasAtual,
   horarioEntradaMinAtual,
   horarioSaidaMinAtual,
+  modoPausaOverrideAtual,
   historicoSalarial,
 }: {
   pessoaId: number;
@@ -27,16 +29,45 @@ export default function SalarioEscalaForm({
   cargaHorariaSemanalHorasAtual: number | null;
   horarioEntradaMinAtual: number | null;
   horarioSaidaMinAtual: number | null;
+  modoPausaOverrideAtual: ModoPausa | null;
   historicoSalarial: { valor: number; vigenteDesdeLabel: string }[];
 }) {
   const [state, formAction, pending] = useActionState(atualizarSalarioEscala, undefined);
-  const [salario, setSalario] = useState(
+  // Todo campo abaixo usa useCampoSincronizado em vez de defaultValue —
+  // sem isso, depois de salvar (revalidatePath traz o dado novo mas este
+  // componente cliente não desmonta), o campo continuava mostrando o
+  // valor de antes do save, mesmo com "Configuração salva" na tela (bug
+  // relatado pelo Thiago em 2026-09-20). Ver useCampoSincronizado.ts.
+  const [matriculaInterna, setMatriculaInterna] = useCampoSincronizado(matriculaInternaAtual ?? "");
+  const [cargo, setCargo] = useCampoSincronizado(cargoAtual ?? "");
+  const [salario, setSalario] = useCampoSincronizado(
     salarioMensalAtual !== null ? salarioMensalAtual.toFixed(2).replace(".", ",") : ""
   );
+  const [cargaHorariaSemanalHoras, setCargaHorariaSemanalHoras] = useCampoSincronizado(
+    cargaHorariaSemanalHorasAtual !== null ? String(cargaHorariaSemanalHorasAtual) : ""
+  );
+  const [escalaTrabalho, setEscalaTrabalho] = useCampoSincronizado(escalaTrabalhoAtual ?? "");
+  const [escalaTurno, setEscalaTurno] = useCampoSincronizado(escalaTurnoAtual ?? "");
+  const [horarioEntrada, setHorarioEntrada] = useCampoSincronizado(
+    horarioEntradaMinAtual !== null ? minutosParaHorario(horarioEntradaMinAtual) : ""
+  );
+  const [horarioSaida, setHorarioSaida] = useCampoSincronizado(
+    horarioSaidaMinAtual !== null ? minutosParaHorario(horarioSaidaMinAtual) : ""
+  );
+  const [modoPausaOverride, setModoPausaOverride] = useCampoSincronizado(modoPausaOverrideAtual ?? "");
 
   return (
     <form
       action={formAction}
+      // O React 19 reseta o <form> nativamente (form.reset()) depois que
+      // uma action com essa assinatura termina com sucesso — mesmo em
+      // campo controlado, isso zera o valor no DOM sem passar pelo estado
+      // do React, e nada re-renderiza depois pra corrigir. onReset com
+      // preventDefault cancela esse reset automático (o evento nativo
+      // "reset" é cancelável); os campos continuam mostrando exatamente o
+      // que a pessoa preencheu/o que useCampoSincronizado já resolveria
+      // quando o dado do servidor realmente mudar.
+      onReset={(e) => e.preventDefault()}
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm max-w-lg"
     >
       <input type="hidden" name="pessoaId" value={pessoaId} />
@@ -73,7 +104,8 @@ export default function SalarioEscalaForm({
         Matrícula interna
         <input
           name="matriculaInterna"
-          defaultValue={matriculaInternaAtual ?? ""}
+          value={matriculaInterna}
+          onChange={(e) => setMatriculaInterna(e.target.value)}
           required
           className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
@@ -83,7 +115,8 @@ export default function SalarioEscalaForm({
         Cargo (conforme contrato de trabalho)
         <input
           name="cargo"
-          defaultValue={cargoAtual ?? ""}
+          value={cargo}
+          onChange={(e) => setCargo(e.target.value)}
           placeholder="Ex: Auxiliar de cozinha"
           className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
@@ -109,7 +142,8 @@ export default function SalarioEscalaForm({
           Carga horária semanal (horas)
           <input
             name="cargaHorariaSemanalHoras"
-            defaultValue={cargaHorariaSemanalHorasAtual ?? ""}
+            value={cargaHorariaSemanalHoras}
+            onChange={(e) => setCargaHorariaSemanalHoras(e.target.value)}
             inputMode="decimal"
             placeholder="44"
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -122,7 +156,8 @@ export default function SalarioEscalaForm({
           Escala de trabalho
           <select
             name="escalaTrabalho"
-            defaultValue={escalaTrabalhoAtual ?? ""}
+            value={escalaTrabalho}
+            onChange={(e) => setEscalaTrabalho(e.target.value as EscalaTrabalho | "")}
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">Não informar</option>
@@ -136,7 +171,8 @@ export default function SalarioEscalaForm({
           Turno
           <select
             name="escalaTurno"
-            defaultValue={escalaTurnoAtual ?? ""}
+            value={escalaTurno}
+            onChange={(e) => setEscalaTurno(e.target.value as TurnoPredefinido | "")}
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <option value="">☀️ Manhã</option>
@@ -164,7 +200,8 @@ export default function SalarioEscalaForm({
           <input
             type="time"
             name="horarioEntrada"
-            defaultValue={horarioEntradaMinAtual !== null ? minutosParaHorario(horarioEntradaMinAtual) : ""}
+            value={horarioEntrada}
+            onChange={(e) => setHorarioEntrada(e.target.value)}
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </label>
@@ -173,11 +210,31 @@ export default function SalarioEscalaForm({
           <input
             type="time"
             name="horarioSaida"
-            defaultValue={horarioSaidaMinAtual !== null ? minutosParaHorario(horarioSaidaMinAtual) : ""}
+            value={horarioSaida}
+            onChange={(e) => setHorarioSaida(e.target.value)}
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </label>
       </div>
+
+      <label className="flex flex-col gap-1 text-sm text-stone-700">
+        Intervalo desta pessoa
+        <select
+          name="modoPausaOverride"
+          value={modoPausaOverride}
+          onChange={(e) => setModoPausaOverride(e.target.value as ModoPausa | "")}
+          className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          <option value="">Usar o padrão da empresa</option>
+          <option value="NENHUMA">Sem desconto automático</option>
+          <option value="AUTOMATICA_30">30 minutos automáticos</option>
+          <option value="AUTOMATICA_60">1 hora automática</option>
+        </select>
+      </label>
+      <p className="text-xs text-stone-500 -mt-2">
+        Opcional — só preencha se o intervalo dessa pessoa for diferente do
+        configurado em Configurações → Intervalo pra todo mundo.
+      </p>
 
       {state?.erro && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

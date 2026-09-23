@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { gerarTokenTotem } from "@/lib/totem";
 import { revalidatePath } from "next/cache";
 
@@ -11,7 +11,7 @@ export async function criarTotem(
   _prev: NovoTotemState,
   formData: FormData
 ): Promise<NovoTotemState> {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("totens");
   const nome = String(formData.get("nome") ?? "").trim();
   if (!nome) return { erro: "Dê um nome pro totem (ex: Entrada Principal)." };
 
@@ -23,7 +23,7 @@ export async function criarTotem(
 }
 
 async function totemDaEmpresa(totemId: number) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("totens");
   const totem = await prisma.totem.findUnique({ where: { id: totemId } });
   if (!totem || totem.empresaId !== sessao.empresaEfetivoId) {
     throw new Error("Esse totem não pertence a esta empresa.");

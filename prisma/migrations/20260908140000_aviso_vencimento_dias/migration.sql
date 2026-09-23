@@ -1,0 +1,1 @@
+ALTER TABLE "Empresa" ADD COLUMN "avisoVencimentoDias" INTEGER NOT NULL DEFAULT 7;

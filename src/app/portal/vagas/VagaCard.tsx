@@ -10,11 +10,21 @@ export default function VagaCard({
   jaCandidatou,
   ehMatch,
   conversaId,
+  linkRota,
 }: {
-  vaga: { id: number; cargo: string; empresaNome: string; descricao: string; localizacao: string | null };
+  vaga: {
+    id: number;
+    cargo: string;
+    empresaNome: string;
+    descricao: string;
+    localizacao: string | null;
+    turnoDia: boolean;
+    turnoNoite: boolean;
+  };
   jaCandidatou: boolean;
   ehMatch: boolean;
   conversaId: number | null;
+  linkRota: string | null;
 }) {
   const [candidatou, setCandidatou] = useState(jaCandidatou);
   const [erro, setErro] = useState<string | null>(null);
@@ -26,6 +36,16 @@ export default function VagaCard({
       <div className="flex items-center gap-2 flex-wrap">
         <span className="font-medium text-navy-900">{vaga.cargo}</span>
         <span className="text-stone-500 text-sm">· {vaga.empresaNome}</span>
+        {vaga.turnoDia && (
+          <span className="rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] px-2 py-0.5">
+            ☀️ Dia
+          </span>
+        )}
+        {vaga.turnoNoite && (
+          <span className="rounded-full bg-navy-50 border border-navy-200 text-navy-700 text-[11px] px-2 py-0.5">
+            🌙 Noite
+          </span>
+        )}
         {ehMatch && (
           <span className="rounded-full border border-brand-500 bg-brand-50 text-brand-700 text-[11px] font-bold px-2 py-0.5">
             🎯 Você é um match!
@@ -34,6 +54,16 @@ export default function VagaCard({
       </div>
       <p className="text-sm text-stone-600 whitespace-pre-line">{vaga.descricao}</p>
       {vaga.localizacao && <p className="text-xs text-stone-500">📍 {vaga.localizacao}</p>}
+      {linkRota && (
+        <a
+          href={linkRota}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-brand-700 underline self-start"
+        >
+          🚌 Ver ônibus e tempo até lá (Google Maps)
+        </a>
+      )}
 
       {erro && (
         <p className="text-xs text-red-600">

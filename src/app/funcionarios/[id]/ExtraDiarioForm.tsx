@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { atualizarExtraDiario } from "../actions";
+import CampoValorReais from "@/components/CampoValorReais";
 import type { ModoPagamento, FrequenciaPagamento } from "@/generated/prisma/enums";
 
 /** Liga/desliga a opção de a pessoa escolher, no totem, entre bater
@@ -44,6 +45,10 @@ export default function ExtraDiarioForm({
   return (
     <form
       action={formAction}
+      // Sem isso, o React 19 reseta o form nativamente após toda submissão
+      // bem-sucedida, mesmo em campo controlado — ver explicação completa
+      // em SalarioEscalaForm.tsx (mesmo bug, corrigido lá primeiro).
+      onReset={(e) => e.preventDefault()}
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm max-w-lg"
     >
       <input type="hidden" name="pessoaId" value={pessoaId} />
@@ -58,17 +63,22 @@ export default function ExtraDiarioForm({
 
       {!temChavePix && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          Esta pessoa ainda não tem chave PIX cadastrada — a opção só aparece
-          pra ela no totem depois de completar isso em &quot;Dados
-          pessoais&quot;.
+          <strong>Chave PIX obrigatória:</strong> pra habilitar essa opção, cadastre antes a chave PIX
+          desta pessoa em &quot;Dados pessoais&quot; — sem PIX não tem como pagar o turno extra, então a
+          opção não aparece pra ela no totem.
         </p>
       )}
 
-      <label className="flex items-center gap-2 text-sm text-stone-700">
+      <label
+        className={`flex items-center gap-2 text-sm text-stone-700 ${
+          !temChavePix && !permite ? "opacity-50 cursor-not-allowed" : ""
+        }`}
+      >
         <input
           type="checkbox"
           name="permiteExtraDiario"
           checked={permite}
+          disabled={!temChavePix && !permite}
           onChange={(e) => setPermite(e.target.checked)}
           className="h-4 w-4 accent-brand-600"
         />
@@ -113,18 +123,12 @@ export default function ExtraDiarioForm({
           </div>
 
           {modo === "DIARIA" && (
-            <label className="flex flex-col gap-1 text-sm text-stone-700">
-              Valor da diária (R$)
-              <input
-                type="number"
-                name="valorDiaria"
-                step="0.01"
-                min="0.01"
-                defaultValue={valorDiariaAtual ?? ""}
-                placeholder="120.00"
-                className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-              />
-            </label>
+            <CampoValorReais
+              name="valorDiaria"
+              label="Valor da diária (R$)"
+              placeholder="120,00"
+              valorInicial={valorDiariaAtual}
+            />
           )}
 
           <div className="border-t border-stone-100 pt-3 flex flex-col gap-2">

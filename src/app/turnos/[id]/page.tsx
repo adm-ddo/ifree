@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { buscarTurnoDaEmpresa } from "@/lib/turno";
 import { baixarComoDataUrl } from "@/lib/blob";
 import { formatarDataHora, formatarDataHoraComDiaSemana, paraDatetimeLocalBrasil } from "@/lib/data";
@@ -25,7 +25,7 @@ export default async function TurnoDetalhePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("turnos");
   const { id } = await params;
   const turnoId = Number(id);
   if (!Number.isInteger(turnoId)) notFound();
@@ -77,6 +77,22 @@ export default async function TurnoDetalhePage({
           <span className="text-xs rounded-full border px-3 py-1.5 border-stone-300 text-stone-700">
             {STATUS_LABEL[turno.status]}
           </span>
+          {turno.pagamento?.status === "CONCLUIDO" && (
+            <span
+              className={`text-xs rounded-full border px-3 py-1.5 ${
+                turno.pagamento.pagoAutomaticamente
+                  ? "bg-sky-50 text-sky-700 border-sky-200"
+                  : "bg-stone-100 text-stone-600 border-stone-200"
+              }`}
+              title={
+                turno.pagamento.pagoAutomaticamente
+                  ? "PIX enviado automaticamente pela conta de pagamento conectada"
+                  : "Marcado como pago manualmente pelo admin"
+              }
+            >
+              {turno.pagamento.pagoAutomaticamente ? "🌐 Online" : "✋ Manual"}
+            </span>
+          )}
           {turno.pagamento?.grupoPagamentoId != null && (
             <>
               <span

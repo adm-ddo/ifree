@@ -8,6 +8,7 @@ import { captchaValido } from "@/lib/captcha";
 import { uploadDataUrl } from "@/lib/blob";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SEXOS_VALIDOS = ["MASCULINO", "FEMININO", "PREFIRO_NAO_DIZER"] as const;
 
 export type CriarCadastroPortalState = { erro?: string; sucesso?: boolean } | undefined;
 
@@ -38,6 +39,7 @@ export async function criarCadastroPortal(
   const complemento = String(formData.get("complemento") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fotoDataUrl = String(formData.get("fotoDataUrl") ?? "");
+  const sexoBruto = String(formData.get("sexo") ?? "");
   const indicadoPorNomeTexto = String(formData.get("indicadoPorNomeTexto") ?? "").trim();
   const indicadoPorPessoaIdBruto = String(formData.get("indicadoPorPessoaId") ?? "");
 
@@ -57,6 +59,9 @@ export async function criarCadastroPortal(
   if (complemento.length > 100) return { erro: "Complemento muito longo." };
   if (!EMAIL_REGEX.test(email)) return { erro: "Informe um e-mail válido." };
   if (email.length > 200) return { erro: "E-mail muito longo." };
+  if (!SEXOS_VALIDOS.includes(sexoBruto as (typeof SEXOS_VALIDOS)[number])) {
+    return { erro: "Escolha uma opção de gênero." };
+  }
 
   const TIPOS_PERMITIDOS = ["data:image/jpeg", "data:image/png", "data:image/webp"];
   if (!TIPOS_PERMITIDOS.some((tipo) => fotoDataUrl.startsWith(`${tipo};base64`))) {
@@ -85,7 +90,7 @@ export async function criarCadastroPortal(
     }
   }
 
-  const fotoUrl = await uploadDataUrl(`pessoas/foto-perfil-cadastro-${Date.now()}.jpg`, fotoDataUrl);
+  const fotoPerfilUrl = await uploadDataUrl(`pessoas/foto-perfil-cadastro-${Date.now()}.jpg`, fotoDataUrl);
 
   const pessoa = await prisma.pessoa.create({
     data: {
@@ -97,7 +102,8 @@ export async function criarCadastroPortal(
       numero,
       complemento: complemento || null,
       email,
-      fotoUrl,
+      fotoPerfilUrl,
+      sexo: sexoBruto as (typeof SEXOS_VALIDOS)[number],
       indicadoPorPessoaId,
       // Guarda o texto só quando NÃO veio por link (indicação confiável já
       // resolvida acima) — evita os dois ficarem preenchidos e confundindo

@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import FuncaoRow from "./FuncaoRow";
 import NovaFuncaoForm from "./NovaFuncaoForm";
 
 export default async function FuncoesPage() {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("funcoes");
 
   const funcoes = await prisma.funcao.findMany({
     where: { empresaId: sessao.empresaEfetivoId },

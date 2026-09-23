@@ -166,6 +166,17 @@ export async function gerarPdfReciboGrupo(props: DadosReciboGrupo): Promise<Buff
           cada um, continuam disponíveis separadamente.
         </Text>
 
+        <Text style={{ ...styles.paragrafo, fontSize: 8, color: "#78716c" }}>
+          Quando processado automaticamente pela plataforma, o repasse via
+          PIX é executado pela Asaas Gestão Financeira S.A., instituição
+          de pagamento autorizada a funcionar pelo Banco Central do
+          Brasil, a partir da conta digital de titularidade da empresa
+          contratante — o iFREE é a plataforma de tecnologia que
+          intermedeia o serviço, não a instituição que processa o
+          pagamento. Pagamentos feitos manualmente pela empresa seguem o
+          meio por ela escolhido.
+        </Text>
+
         <Text style={{ ...styles.paragrafo, fontSize: 8, color: "#a8a29e" }}>
           Este é um texto padrão gerado automaticamente e não substitui
           revisão jurídica antes do uso em produção.

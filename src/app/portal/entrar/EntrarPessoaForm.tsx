@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { entrarPessoa } from "./actions";
 import { formatarCpf } from "@/lib/cpf";
+import CaptchaWidget from "@/components/CaptchaWidget";
 
 export default function EntrarPessoaForm() {
   const [state, formAction, pending] = useActionState(entrarPessoa, undefined);
@@ -58,6 +59,8 @@ export default function EntrarPessoaForm() {
           className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
+
+      <CaptchaWidget />
 
       {state?.erro && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

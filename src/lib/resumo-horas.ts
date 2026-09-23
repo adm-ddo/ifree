@@ -34,6 +34,21 @@ export function mesPassadoFechado(
 /// (justificada ou não — a contagem não distingue isso, só sinaliza).
 const DIAS_FOLGA_NORMAL_POR_SEMANA = 2;
 
+/// Diferença dentro desse tanto de minutos não conta como hora extra nem
+/// hora a menos pra fins de classificação — evita alarme por causa de um
+/// arredondamento pequeno. Usado tanto em /relatorios/resumo quanto no
+/// espelho de ponto (src/lib/espelho-ponto-pdf.tsx), pra classificar do
+/// mesmo jeito nos dois lugares.
+export const TOLERANCIA_MIN = 30;
+
+/// Meta proporcional ao tamanho do período, a partir da carga semanal
+/// configurada (VinculoPessoaEmpresa.cargaHorariaSemanalMin) — mesma conta
+/// usada em calcularResumoHoras, extraída pra ser reaproveitada pelo
+/// espelho de ponto (que não itera todo mundo da empresa, só uma pessoa).
+export function calcularMetaMinutos(cargaSemanalMin: number | null, diasNoPeriodo: number): number | null {
+  return cargaSemanalMin !== null ? Math.round((cargaSemanalMin * diasNoPeriodo) / 7) : null;
+}
+
 export type ResumoPessoa = {
   pessoaId: number;
   nome: string;
@@ -199,7 +214,7 @@ export async function calcularResumoHoras(
   const resultado: ResumoPessoa[] = [...porPessoa.entries()].map(([pessoaId, dados]) => {
     const vinculo = vinculoPorPessoa.get(pessoaId);
     const cargaSemanalMin = vinculo?.cargaHorariaSemanalMin ?? null;
-    const metaMinutos = cargaSemanalMin !== null ? Math.round((cargaSemanalMin * periodo.dias) / 7) : null;
+    const metaMinutos = calcularMetaMinutos(cargaSemanalMin, periodo.dias);
 
     let diasSemBaterPonto: number | null = null;
     let possivelFalta: boolean | null = null;

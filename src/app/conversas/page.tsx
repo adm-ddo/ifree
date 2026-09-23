@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireTenant } from "@/lib/auth";
+import { requireModulo } from "@/lib/requireModulo";
 import { formatarDataHora } from "@/lib/data";
 
 export default async function ConversasPage() {
-  const sessao = await requireTenant();
+  const sessao = await requireModulo("conversas");
 
   const conversas = await prisma.conversa.findMany({
     where: { empresaId: sessao.empresaEfetivoId },

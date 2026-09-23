@@ -30,7 +30,7 @@ const TURNO_COM_RELACOES = {
       },
     },
     funcao: { select: { id: true, nome: true } },
-    pagamento: { select: { status: true, grupoPagamentoId: true } },
+    pagamento: { select: { status: true, grupoPagamentoId: true, pagoAutomaticamente: true } },
   },
 } as const;
 

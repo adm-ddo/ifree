@@ -42,6 +42,7 @@ export default function AppHeader({
   isMasterSemEmpresa,
   empresaEfetivoNome,
   responsavelEtica,
+  responsavelGed,
   vagasAlertaCount = 0,
 }: {
   logoHref: string;
@@ -53,6 +54,7 @@ export default function AppHeader({
   isMasterSemEmpresa: boolean;
   empresaEfetivoNome: string | null;
   responsavelEtica: boolean;
+  responsavelGed: boolean;
   /// Candidaturas aguardando resposta + mensagens não lidas do iFREE
   /// Conecta — mostrado como numerozinho em cima do nav "Vagas" (o dono
   /// pode pedir pra mudar de lugar depois, por ora é ali de propósito).
@@ -65,9 +67,11 @@ export default function AppHeader({
   const temMenu = logado;
   const mostrarVoltar = dentroDeTenant && pathname !== logoHref;
   const naLanding = pathname === "/";
-  const itensNav = responsavelEtica
-    ? [...navItems, { href: "/etica", label: "Central de Ética" }]
-    : navItems;
+  const itensNav = [
+    ...navItems,
+    ...(responsavelEtica ? [{ href: "/etica", label: "Central de Ética" }] : []),
+    ...(responsavelGed ? [{ href: "/ged", label: "GED" }] : []),
+  ];
 
   return (
     <header className="border-b border-stone-200 bg-white sticky top-0 z-10">

@@ -34,7 +34,7 @@ export async function candidatarSe(vagaId: number): Promise<CandidatarSeResultad
     where: { id: sessao.pessoaId },
     select: {
       habilidades: true,
-      fotoUrl: true,
+      fotoPerfilUrl: true,
       biografia: true,
       chavePix: true,
       dataNascimento: true,

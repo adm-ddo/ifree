@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { marcarPagamentoPagoManualmente } from "@/app/pagamentos/actions";
+import { marcarPagamentoPagoManualmente, tentarPagamentoNovamente } from "@/app/pagamentos/actions";
 import { corGrupoPagamento } from "@/lib/grupo-pagamento";
 import type { StatusTurno } from "@/generated/prisma/enums";
 
@@ -18,6 +18,17 @@ type TurnoResumo = {
   /// atalho de marcar como pago bem aqui, junto do termo/recibo, pra não
   /// precisar ir até /pagamentos só pra isso.
   podeMarcarComoPago: boolean;
+  /// Motivo da última falha (ex.: "Saldo insuficiente"), vindo direto do
+  /// que a Asaas respondeu — null quando nunca falhou ou não é pagamento
+  /// automático. Mesmo campo Pagamento.erro já mostrado em
+  /// src/app/pagamentos/PagamentoRow.tsx, só que também aqui, sem
+  /// precisar ir até /pagamentos pra saber o que aconteceu.
+  erroPagamento: string | null;
+  /// Pagamento automático (Asaas) falhou — mostra o atalho de tentar de
+  /// novo bem aqui, mesma action de PagamentoRow.tsx
+  /// (tentarPagamentoNovamente). Diferente de podeMarcarComoPago (que
+  /// também aparece pra PENDENTE): esse é só pra FALHOU.
+  podeTentarNovamente: boolean;
   /// Não-nulo quando este turno foi pago junto de outros na mesma
   /// transferência PIX — ver GrupoPagamento no schema.
   grupoPagamentoId: number | null;
@@ -49,9 +60,32 @@ const STATUS_CLASSE: Record<StatusTurno, string> = {
 export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [marcandoIds, setMarcandoIds] = useState<Set<number>>(new Set());
+  const [tentandoIds, setTentandoIds] = useState<Set<number>>(new Set());
   const [pagosLocal, setPagosLocal] = useState<Set<number>>(new Set());
   const [erroPorId, setErroPorId] = useState<Map<number, string>>(new Map());
   const [, startTransition] = useTransition();
+
+  function tentarNovamente(turnoId: number) {
+    setErroPorId((atual) => {
+      const novo = new Map(atual);
+      novo.delete(turnoId);
+      return novo;
+    });
+    setTentandoIds((atual) => new Set(atual).add(turnoId));
+    startTransition(async () => {
+      try {
+        await tentarPagamentoNovamente(turnoId);
+      } catch {
+        setErroPorId((atual) => new Map(atual).set(turnoId, "Não foi possível tentar de novo agora."));
+      } finally {
+        setTentandoIds((atual) => {
+          const novo = new Set(atual);
+          novo.delete(turnoId);
+          return novo;
+        });
+      }
+    });
+  }
 
   function marcarComoPago(turnoId: number) {
     setErroPorId((atual) => {
@@ -146,6 +180,9 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
                     ⏱️ Ninguém bateu a saída — o sistema encerrou sozinho
                   </p>
                 )}
+                {turno.erroPagamento && (
+                  <p className="text-xs text-red-600 mt-0.5">⚠️ {turno.erroPagamento}</p>
+                )}
               </div>
             </label>
 
@@ -167,6 +204,16 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
                 >
                   🔗 Pago em grupo
                 </span>
+              )}
+              {turno.podeTentarNovamente && (
+                <button
+                  type="button"
+                  onClick={() => tentarNovamente(turno.id)}
+                  disabled={tentandoIds.has(turno.id)}
+                  className="rounded-lg border border-brand-600 text-brand-700 hover:bg-brand-50 text-xs font-medium px-3 py-1.5 disabled:opacity-50 transition-colors"
+                >
+                  {tentandoIds.has(turno.id) ? "Tentando..." : "🔁 Tentar de novo"}
+                </button>
               )}
               {turno.podeMarcarComoPago && !pagosLocal.has(turno.id) && (
                 <button

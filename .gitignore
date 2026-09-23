@@ -51,3 +51,8 @@ next-env.d.ts
 
 # configuração local do Claude Code (específica desta máquina)
 /.claude
+
+# scripts e evidências descartáveis de teste/diagnóstico (screenshots,
+# scripts avulsos de setup/limpeza de dados de teste) — não é código da
+# aplicação, e screenshots podem conter dado real de cliente na tela
+/scripts-temp

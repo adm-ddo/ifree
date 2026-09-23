@@ -126,7 +126,7 @@ const KIT_ITENS = [
 export default async function Home() {
   const sessao = await getSessao();
 
-  if (sessao?.empresaEfetivoId) redirect("/dashboard");
+  if (sessao?.empresaEfetivoId) redirect("/v2/dashboard");
   if (sessao?.isMaster) redirect("/master");
 
   return (
@@ -507,6 +507,9 @@ export default async function Home() {
             </Link>
             <Link href="/portal/entrar" className="hover:text-brand-700 transition-colors">
               Já trabalhou por aqui? Acesse seu perfil
+            </Link>
+            <Link href="/termos" className="hover:text-brand-700 transition-colors">
+              Termos de Uso
             </Link>
             <WhatsAppButton
               mensagem={MENSAGEM_PADRAO}
