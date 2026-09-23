@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { inicioDoDiaBrasil, dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { classificarTurno, type TipoTurno } from "@/lib/turno";
 import { horarioEsperadoClt, saidaEsperadaClt } from "@/lib/ponto";
+import { buscarSaldoAsaas } from "@/lib/pagamentos/asaas-deposito";
 import type { ModoPagamento, FrequenciaPagamento, StatusTurno, Sexo } from "@/generated/prisma/enums";
 
 /// Porte completo da lógica de dados de src/app/dashboard/page.tsx (v1,
@@ -77,6 +78,9 @@ export type DadosDashboard = {
   resumoOntem: [string, ResumoPessoaTurno][];
   valorTotalHoje: number;
   valorTotalOntem: number;
+  /// null = conta Asaas não conectada (não mostra o atalho) OU falha
+  /// momentânea ao consultar — ver buscarSaldoAsaas.
+  saldoAsaas: number | null;
 };
 
 export async function buscarDadosDashboard(empresaId: number): Promise<DadosDashboard> {
@@ -93,6 +97,7 @@ export async function buscarDadosDashboard(empresaId: number): Promise<DadosDash
     turnosFechadosRecentes,
     registrosPontoFechadosRecentes,
     empresaConfig,
+    contaAsaas,
   ] = await Promise.all([
     prisma.turno.count({ where: { empresaId, criadoEm: { gte: hoje } } }),
     prisma.pagamento.aggregate({
@@ -165,7 +170,14 @@ export async function buscarDadosDashboard(empresaId: number): Promise<DadosDash
         horarioSaida12x36NoiteMin: true,
       },
     }),
+    prisma.contaAsaasEmpresa.findUnique({ where: { empresaId }, select: { empresaId: true } }),
   ]);
+
+  // buscarSaldoAsaas chama a API da Asaas ao vivo — só vale a pena depois
+  // de confirmar que a empresa tem conta conectada (contaAsaas acima),
+  // por isso fica fora do Promise.all principal (não dá pra saber se vale
+  // chamar antes de esperar aquela query voltar).
+  const saldoAsaas = contaAsaas ? await buscarSaldoAsaas(empresaId) : null;
 
   const pessoaIds = [
     ...emTurnoAgora.map((t) => t.pessoa.id),
@@ -391,5 +403,6 @@ export async function buscarDadosDashboard(empresaId: number): Promise<DadosDash
     resumoOntem,
     valorTotalHoje,
     valorTotalOntem,
+    saldoAsaas,
   };
 }

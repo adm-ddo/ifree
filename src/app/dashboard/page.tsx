@@ -4,6 +4,7 @@ import { requireTenant } from "@/lib/auth";
 import { formatarHora, inicioDoDiaBrasil, dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { classificarTurno, type TipoTurno } from "@/lib/turno";
 import { horarioEsperadoClt, saidaEsperadaClt } from "@/lib/ponto";
+import { buscarSaldoAsaas } from "@/lib/pagamentos/asaas-deposito";
 import AutoRefresh from "@/components/AutoRefresh";
 import AvatarPessoa from "@/components/AvatarPessoa";
 import SeletorEmpresa from "./SeletorEmpresa";
@@ -62,6 +63,7 @@ export default async function DashboardPage() {
     turnosFechadosRecentes,
     registrosPontoFechadosRecentes,
     empresaConfig,
+    contaAsaas,
   ] = await Promise.all([
     prisma.turno.count({
       where: { empresaId: sessao.empresaEfetivoId, criadoEm: { gte: hoje } },
@@ -160,7 +162,16 @@ export default async function DashboardPage() {
         horarioSaida12x36NoiteMin: true,
       },
     }),
+    prisma.contaAsaasEmpresa.findUnique({
+      where: { empresaId: sessao.empresaEfetivoId },
+      select: { empresaId: true },
+    }),
   ]);
+
+  // buscarSaldoAsaas chama a API da Asaas ao vivo — só vale a pena depois
+  // de confirmar que a empresa tem conta conectada (contaAsaas acima),
+  // por isso fica fora do Promise.all principal.
+  const saldoAsaas = contaAsaas ? await buscarSaldoAsaas(sessao.empresaEfetivoId!) : null;
 
   const pessoaIds = [
     ...emTurnoAgora.map((t) => t.pessoa.id),
@@ -478,6 +489,15 @@ export default async function DashboardPage() {
         <Card label="Pagamentos pendentes" valor={pendentesPagamento} />
         <Card label="Funções cadastradas" valor={totalFuncoes} />
         <Card label="Totens ativos" valor={totalTotens} />
+        {saldoAsaas !== null && (
+          <Link
+            href="/pagamentos"
+            className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm hover:border-brand-300 hover:bg-brand-50/40 transition-colors"
+          >
+            <p className="text-2xl font-semibold text-navy-900">R$ {saldoAsaas.toFixed(2)}</p>
+            <p className="text-xs text-stone-500 mt-1">💰 Saldo Asaas</p>
+          </Link>
+        )}
       </div>
 
       {totalFuncoes === 0 && (

@@ -73,6 +73,16 @@ export default async function V2DashboardPage() {
         </div>
       </div>
 
+      {dados.saldoAsaas !== null && (
+        <Link
+          href="/pagamentos"
+          className="bg-white border border-stone-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:border-brand-300 hover:bg-brand-50/40 transition-colors"
+        >
+          <span className="text-[13px] font-semibold text-stone-600">💰 Saldo pra pagar extras (Asaas)</span>
+          <span className="text-lg font-extrabold text-navy-900">R$ {dados.saldoAsaas.toFixed(2)}</span>
+        </Link>
+      )}
+
       <div className="rounded-2xl bg-white border border-stone-200 p-3.5">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[13px] font-bold text-navy-900">Em turno agora</p>
