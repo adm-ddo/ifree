@@ -56,7 +56,11 @@ jobs:
         run: |
           set -euo pipefail
           data="$(date -u +%Y-%m-%d)"
-          pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges -f "/tmp/backup-$data.dump"
+          # Caminho explícito (não "pg_dump" solto): o runner já vem com um
+          # postgresql-client mais antigo instalado, e o /usr/bin/pg_dump
+          # genérico continuou apontando pra ele mesmo depois de instalar
+          # o pacote -17 — só o binário versionado garante a 17 de verdade.
+          /usr/lib/postgresql/17/bin/pg_dump "$DATABASE_URL" --format=custom --no-owner --no-privileges -f "/tmp/backup-$data.dump"
           openssl enc -aes-256-cbc -pbkdf2 -salt \
             -in "/tmp/backup-$data.dump" -out "/tmp/backup-$data.dump.enc" \
             -pass env:BACKUP_ENCRYPTION_KEY
