@@ -75,7 +75,7 @@ export default async function V2DashboardPage() {
 
       {dados.saldoAsaas !== null && (
         <Link
-          href="/pagamentos"
+          href="/v2/pagamentos"
           className="bg-white border border-stone-200 rounded-2xl px-4 py-3 flex items-center justify-between hover:border-brand-300 hover:bg-brand-50/40 transition-colors"
         >
           <span className="text-[13px] font-semibold text-stone-600">💰 Saldo pra pagar extras (Asaas)</span>
