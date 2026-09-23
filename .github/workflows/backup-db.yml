@@ -20,7 +20,7 @@ name: Backup do banco (criptografado)
 
 on:
   schedule:
-    - cron: "0 6 * * *" # 03:00 em Brasília (UTC-3), todo dia
+    - cron: "0 9 * * *" # 06:00 em Brasília (UTC-3), todo dia — depois do fim do turno noturno (22h-5h), pra não pegar backup em cima de turno rodando
   workflow_dispatch: {} # permite rodar manualmente pra testar
 
 permissions:
