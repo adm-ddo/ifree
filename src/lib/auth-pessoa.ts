@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { comRetentativaDePool } from "@/lib/retry";
 
 /** Login da Pessoa no Portal (iFREE Conecta) — deliberadamente separado
  * do login do dono (src/lib/auth.ts, Usuario/Sessao/TokenAutenticacao).
@@ -55,13 +56,17 @@ export const getSessaoPessoa = cache(async (): Promise<SessaoPessoaAtual | null>
   const token = cookieStore.get(SESSAO_PESSOA_COOKIE)?.value;
   if (!token) return null;
 
-  const sessao = await prisma.sessaoPessoa.findUnique({
-    where: { token },
-    select: {
-      expiraEm: true,
-      pessoa: { select: { id: true, nome: true, documento: true } },
-    },
-  });
+  // Mesma proteção contra pico de conexão que getSessao em src/lib/auth.ts
+  // (comentário completo lá) — primeira query de toda página do Portal.
+  const sessao = await comRetentativaDePool(() =>
+    prisma.sessaoPessoa.findUnique({
+      where: { token },
+      select: {
+        expiraEm: true,
+        pessoa: { select: { id: true, nome: true, documento: true } },
+      },
+    })
+  );
   if (!sessao || sessao.expiraEm < new Date()) return null;
 
   // Sessão deslizante — mesmo mecanismo de getSessao em src/lib/auth.ts

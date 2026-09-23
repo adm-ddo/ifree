@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { comRetentativaDePool } from "@/lib/retry";
 import type { StatusAssinatura } from "@/generated/prisma/enums";
 
 export const SESSAO_COOKIE = "sessao_token";
@@ -80,34 +81,43 @@ export const getSessao = cache(async (): Promise<SessaoAtual | null> => {
   const token = cookieStore.get(SESSAO_COOKIE)?.value;
   if (!token) return null;
 
-  const sessao = await prisma.sessao.findUnique({
-    where: { token },
-    select: {
-      empresaAtivaId: true,
-      masterBypassEmpresaId: true,
-      expiraEm: true,
-      usuario: {
-        select: {
-          id: true,
-          email: true,
-          isMaster: true,
-          empresas: {
-            select: {
-              empresa: {
-                select: {
-                  id: true,
-                  nome: true,
-                  statusAssinatura: true,
-                  liberacaoConfiancaAteEm: true,
+  // Primeira consulta ao banco em TODA página, pra todo usuário logado —
+  // se o pool de conexões estiver sob pico (ver src/lib/retry.ts), isso
+  // derrubava o layout raiz inteiro com a tela genérica de erro, mesmo sem
+  // nenhum problema de verdade além de um soluço passageiro. Reportado
+  // pelo Thiago em 2026-09-23: a tela "aparecia do nada", em qualquer
+  // página — fazia sentido, já que é literalmente a primeira query de
+  // qualquer request autenticada.
+  const sessao = await comRetentativaDePool(() =>
+    prisma.sessao.findUnique({
+      where: { token },
+      select: {
+        empresaAtivaId: true,
+        masterBypassEmpresaId: true,
+        expiraEm: true,
+        usuario: {
+          select: {
+            id: true,
+            email: true,
+            isMaster: true,
+            empresas: {
+              select: {
+                empresa: {
+                  select: {
+                    id: true,
+                    nome: true,
+                    statusAssinatura: true,
+                    liberacaoConfiancaAteEm: true,
+                  },
                 },
               },
             },
           },
         },
+        empresaAtiva: { select: { nome: true } },
       },
-      empresaAtiva: { select: { nome: true } },
-    },
-  });
+    })
+  );
   if (!sessao || sessao.expiraEm < new Date()) return null;
 
   // Sessão deslizante: perto do vencimento (faltando menos que a metade

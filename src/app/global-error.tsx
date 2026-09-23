@@ -6,10 +6,18 @@ import { useEffect } from "react";
  * pagamentos pendentes, etc.) — o único caso que error.tsx normal não
  * cobre, já que ele fica DENTRO do layout. Precisa montar <html>/<body>
  * próprios porque substitui o layout raiz inteiro quando disparado. Sem
- * isso, uma falha aqui derruba o site inteiro com a tela crua do Next. */
+ * isso, uma falha aqui derruba o site inteiro com a tela crua do Next.
+ *
+ * "Tentar de novo" dá reload de verdade (window.location.reload), não o
+ * reset() que o Next passa pra cá — mesmo motivo já corrigido em
+ * error.tsx: reset() só re-renderiza com o mesmo estado da falha, então
+ * numa falha que persiste (conexão momentânea com o banco, por exemplo)
+ * reproduz o erro de novo sem mudar nada na tela, parecendo que o botão
+ * não faz nada. Esse boundary cobre o layout raiz inteiro (sessão,
+ * pagamentos pendentes), então dispara em qualquer página, não só numa
+ * específica — por isso parecia "aparecer do nada". */
 export default function GlobalError({
   error,
-  reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
@@ -60,7 +68,7 @@ export default function GlobalError({
         </p>
         <button
           type="button"
-          onClick={() => reset()}
+          onClick={() => window.location.reload()}
           style={{
             borderRadius: 8,
             background: "#00A87D",
