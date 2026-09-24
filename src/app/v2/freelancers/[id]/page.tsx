@@ -3,8 +3,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import { usuarioEhResponsavelGed } from "@/lib/ged";
-import { formatarDataHoraComDiaSemana } from "@/lib/data";
+import { formatarDataHoraComDiaSemana, formatarDataHora } from "@/lib/data";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO, LABEL_TIPO_CHAVE_PIX } from "@/lib/documento";
+import { calcularRiscoCltPessoa } from "@/lib/riscoClt";
 import SelecaoTurnos from "@/app/freelancers/[id]/SelecaoTurnos";
 import CorrigirFuncaoForm from "@/app/turnos/[id]/CorrigirFuncaoForm";
 import PagamentoForm from "@/app/freelancers/[id]/PagamentoForm";
@@ -13,6 +14,7 @@ import TurnoPredefinidoSelect from "@/app/freelancers/[id]/TurnoPredefinidoSelec
 import DadosPessoaForm from "@/app/freelancers/[id]/DadosPessoaForm";
 import ConverterParaCltButton from "@/app/freelancers/[id]/ConverterParaCltButton";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
+import AlertaRiscoCltPessoa from "@/app/freelancers/[id]/AlertaRiscoCltPessoa";
 import RestricaoHorarioForm from "@/components/RestricaoHorarioForm";
 import AvatarPessoa from "@/components/AvatarPessoa";
 import { atualizarRestricaoHorario } from "@/app/funcionarios/actions";
@@ -30,7 +32,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
   const pessoaId = Number(id);
   if (!Number.isInteger(pessoaId)) notFound();
 
-  const [vinculo, avaliacoesRecebidas, totalIndicacoes, turnos, funcoesAtivas, responsavelGed] = await Promise.all([
+  const [vinculo, avaliacoesRecebidas, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findUnique({
       where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
       select: {
@@ -86,6 +88,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
     }),
     prisma.funcao.findMany({ where: { empresaId: sessao.empresaEfetivoId, ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     usuarioEhResponsavelGed(sessao.usuarioId, sessao.empresaEfetivoId, sessao.isMaster),
+    calcularRiscoCltPessoa(pessoaId, sessao.empresaEfetivoId),
   ]);
   if (!vinculo) notFound();
   const valorDiariaAtual = vinculo.valorDiaria !== null ? Number(vinculo.valorDiaria) : null;
@@ -153,6 +156,16 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
       />
 
       <ConverterParaCltButton pessoaId={pessoaId} pessoaNome={vinculo.pessoa.nome} responsavelGed={responsavelGed} />
+
+      {riscoClt && (
+        <AlertaRiscoCltPessoa
+          pessoaId={pessoaId}
+          pessoaNome={vinculo.pessoa.nome}
+          responsavelGed={responsavelGed}
+          turnosNaSemana={riscoClt.turnosNaSemana}
+          dispensadoEmLabel={riscoClt.dispensadoEm ? formatarDataHora(riscoClt.dispensadoEm) : null}
+        />
+      )}
 
       <PagamentoForm pessoaId={pessoaId} modoPagamentoAtual={vinculo.modoPagamento} valorDiariaAtual={valorDiariaAtual} frequenciaPagamentoAtual={vinculo.frequenciaPagamento} />
 

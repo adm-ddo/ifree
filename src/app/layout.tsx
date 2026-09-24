@@ -9,6 +9,7 @@ import AlertaExperienciaVencendo from "@/components/AlertaExperienciaVencendo";
 import AlertaDenunciasNovas from "@/components/AlertaDenunciasNovas";
 import AlertaCandidaturasConecta from "@/components/AlertaCandidaturasConecta";
 import AlertaAssinaturaVencendo from "@/components/AlertaAssinaturaVencendo";
+import AlertaRiscoClt from "@/components/AlertaRiscoClt";
 import ChromeGate from "@/components/ChromeGate";
 import MainWrapper from "@/components/MainWrapper";
 import SplashScreen from "@/components/SplashScreen";
@@ -17,6 +18,7 @@ import { calcularStatusExperiencia } from "@/lib/experiencia";
 import { usuarioEhResponsavelEtica } from "@/lib/etica";
 import { usuarioEhResponsavelGed } from "@/lib/ged";
 import { diasParaVencer, GRACA_DIAS } from "@/lib/assinatura";
+import { buscarRiscoCltEmpresa } from "@/lib/riscoClt";
 import "./globals.css";
 
 const urbanist = Urbanist({
@@ -232,6 +234,23 @@ async function buscarAssinaturaAlerta(
   }
 }
 
+/** Extras trabalhando 3+ vezes na semana sem a declaração de ciência da
+ * oferta CLT gerada — risco de caracterizar vínculo empregatício (ver
+ * src/lib/riscoClt.ts). Só conta quem AINDA NÃO dispensou o aviso — quem
+ * já dispensou continua vendo o lembrete na própria página do freelancer
+ * (ver /freelancers/[id]), mas some daqui pra não voltar a incomodar no
+ * topo depois de já ter sido avisado uma vez. */
+async function buscarRiscoCltAlerta(empresaId: number): Promise<{ quantidade: number } | null> {
+  try {
+    const pessoas = await buscarRiscoCltEmpresa(empresaId);
+    const naoDispensadas = pessoas.filter((p) => p.dispensadoEm === null);
+    return naoDispensadas.length > 0 ? { quantidade: naoDispensadas.length } : null;
+  } catch (err) {
+    console.error("Falha ao checar risco de vínculo CLT pro aviso do topo:", err);
+    return null;
+  }
+}
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -285,9 +304,9 @@ export default async function RootLayout({
   const mostrarLinkEmpresas = !!sessao && !sessao.isMaster && dentroDeTenant;
   const mostrarEmpresasMaster = !!(sessao?.isMaster && !sessao.empresaAtivaId);
 
-  // Os 7 avisos abaixo não dependem uns dos outros (só de empresaEfetivoId/
+  // Os 8 avisos abaixo não dependem uns dos outros (só de empresaEfetivoId/
   // usuarioId, já resolvidos acima) — rodam em paralelo num Promise.all só,
-  // em vez de 7 round-trips em série. denunciasNovas é a exceção: só faz
+  // em vez de 8 round-trips em série. denunciasNovas é a exceção: só faz
   // sentido buscar depois de saber responsavelEtica (não vaza nem a
   // existência de denúncia pra quem não tem acesso), por isso fica de fora
   // do Promise.all e vira 1 await dependente logo depois.
@@ -299,6 +318,7 @@ export default async function RootLayout({
     { candidaturasPendentes, candidaturasPendentesComMatch, mensagensConectaNaoLidas },
     experienciaAlerta,
     assinaturaAlerta,
+    riscoCltAlerta,
   ] = dentroDeTenant
     ? await Promise.all([
         buscarPagamentosPendentes(sessao!.empresaEfetivoId!),
@@ -308,6 +328,7 @@ export default async function RootLayout({
         buscarCandidaturasEConversas(sessao!.empresaEfetivoId!),
         buscarExperienciaAlerta(sessao!.empresaEfetivoId!),
         buscarAssinaturaAlerta(sessao!.empresaEfetivoId!),
+        buscarRiscoCltAlerta(sessao!.empresaEfetivoId!),
       ])
     : ([
         null,
@@ -315,6 +336,7 @@ export default async function RootLayout({
         false,
         false,
         { candidaturasPendentes: 0, candidaturasPendentesComMatch: 0, mensagensConectaNaoLidas: 0 },
+        null,
         null,
         null,
       ] as const);
@@ -382,6 +404,7 @@ export default async function RootLayout({
               vencendoEmBreve={experienciaAlerta.vencendoEmBreve}
             />
           )}
+          {riscoCltAlerta && <AlertaRiscoClt quantidade={riscoCltAlerta.quantidade} />}
         </ChromeGate>
         <MainWrapper>{children}</MainWrapper>
       </body>

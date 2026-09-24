@@ -861,6 +861,14 @@ model VinculoPessoaEmpresa {
   /// frequenciaPagamento deste mesmo vínculo — os mesmos campos que
   /// converterParaClt zera na conversão passam a ter uso de novo aqui.
   permiteExtraDiario     Boolean             @default(false)
+  /// Dono descartou o aviso de risco de vínculo CLT (3+ turnos numa
+  /// semana sem declaração de ciência gerada) — null enquanto nunca
+  /// descartou. Continua mostrando um lembrete na página da pessoa até
+  /// ela gerar a declaração de verdade (ver DocumentoGed tipo
+  /// TERMO_CIENCIA, termoSlug "opcao-autonomo-apos-oferta-clt") ou virar
+  /// CLT — descartar não é "resolver", só "estou ciente, pare de me
+  /// avisar no topo" (ver src/lib/riscoClt.ts).
+  riscoCltDispensadoEm   DateTime?
   criadoEm               DateTime            @default(now())
 
   pessoa  Pessoa  @relation(fields: [pessoaId], references: [id], onDelete: Cascade)

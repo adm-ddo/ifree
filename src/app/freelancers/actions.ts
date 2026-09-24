@@ -213,6 +213,31 @@ export async function alternarAtivoVinculo(pessoaId: number, ativo: boolean) {
   revalidatePath("/freelancers");
 }
 
+/** Dono está ciente do risco de vínculo CLT (3+ turnos na semana sem
+ * declaração de ciência gerada, ver src/lib/riscoClt.ts) e decidiu
+ * assumir o risco por enquanto, em vez de gerar a declaração agora. Tira
+ * do aviso de topo, mas o lembrete continua na própria página da pessoa
+ * até a declaração ser gerada de verdade (ou ela virar CLT) — descartar
+ * não resolve nada, só para de incomodar no topo. */
+export async function dispensarRiscoClt(pessoaId: number) {
+  const sessao = await requireModulo("freelancers");
+
+  const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
+    where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
+  });
+  if (!vinculo) {
+    throw new Error("Esse freelancer não pertence a esta empresa.");
+  }
+
+  await prisma.vinculoPessoaEmpresa.update({
+    where: { id: vinculo.id },
+    data: { riscoCltDispensadoEm: new Date() },
+  });
+
+  revalidatePath(`/freelancers/${pessoaId}`);
+  revalidatePath("/", "layout");
+}
+
 /** Turno fixo da pessoa (manhã/noite/livre) — ajuda o fechamento
  * automático a saber qual corte aplicar quando ela esquece de bater
  * saída (ver src/lib/turno.ts:classificarTurno e

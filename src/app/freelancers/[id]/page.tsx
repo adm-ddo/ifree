@@ -3,8 +3,9 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import { usuarioEhResponsavelGed } from "@/lib/ged";
-import { formatarDataHoraComDiaSemana } from "@/lib/data";
+import { formatarDataHoraComDiaSemana, formatarDataHora } from "@/lib/data";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO, LABEL_TIPO_CHAVE_PIX } from "@/lib/documento";
+import { calcularRiscoCltPessoa } from "@/lib/riscoClt";
 import SelecaoTurnos from "./SelecaoTurnos";
 import CorrigirFuncaoForm from "@/app/turnos/[id]/CorrigirFuncaoForm";
 import PagamentoForm from "./PagamentoForm";
@@ -13,6 +14,7 @@ import TurnoPredefinidoSelect from "./TurnoPredefinidoSelect";
 import DadosPessoaForm from "./DadosPessoaForm";
 import ConverterParaCltButton from "./ConverterParaCltButton";
 import ReputacaoCard from "./ReputacaoCard";
+import AlertaRiscoCltPessoa from "./AlertaRiscoCltPessoa";
 import RestricaoHorarioForm from "@/components/RestricaoHorarioForm";
 import AvatarPessoa from "@/components/AvatarPessoa";
 import { atualizarRestricaoHorario } from "@/app/funcionarios/actions";
@@ -35,7 +37,7 @@ export default async function FreelancerDetalhePage({
   // inteiras) evita over-fetch de campos que essa tela de EXTRA nunca usa
   // (ex.: os ~20 campos só de CLT: salarioMensal, escalaTrabalho,
   // experienciaDias1/2, dataRescisao, benefícios etc.).
-  const [vinculo, avaliacoesRecebidas, totalIndicacoes, turnos, funcoesAtivas, responsavelGed] = await Promise.all([
+  const [vinculo, avaliacoesRecebidas, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findUnique({
       where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
       select: {
@@ -100,6 +102,7 @@ export default async function FreelancerDetalhePage({
       select: { id: true, nome: true },
     }),
     usuarioEhResponsavelGed(sessao.usuarioId, sessao.empresaEfetivoId, sessao.isMaster),
+    calcularRiscoCltPessoa(pessoaId, sessao.empresaEfetivoId),
   ]);
   if (!vinculo) notFound();
   const valorDiariaAtual = vinculo.valorDiaria !== null ? Number(vinculo.valorDiaria) : null;
@@ -190,6 +193,16 @@ export default async function FreelancerDetalhePage({
       />
 
       <ConverterParaCltButton pessoaId={pessoaId} pessoaNome={vinculo.pessoa.nome} responsavelGed={responsavelGed} />
+
+      {riscoClt && (
+        <AlertaRiscoCltPessoa
+          pessoaId={pessoaId}
+          pessoaNome={vinculo.pessoa.nome}
+          responsavelGed={responsavelGed}
+          turnosNaSemana={riscoClt.turnosNaSemana}
+          dispensadoEmLabel={riscoClt.dispensadoEm ? formatarDataHora(riscoClt.dispensadoEm) : null}
+        />
+      )}
 
       <PagamentoForm
         pessoaId={pessoaId}
