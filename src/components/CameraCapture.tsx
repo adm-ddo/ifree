@@ -31,6 +31,13 @@ export default function CameraCapture({
   // src/lib/retry.ts), então um envio normal já passa perto de 1-2s às
   // vezes; sem esse aviso, esse tempo a mais parecia trava.
   const [demorando, setDemorando] = useState(false);
+  // Incrementar isto força o efeito de pedir a câmera a rodar de novo (ver
+  // "Tentar de novo" no estado de erro) — sem um jeito de tentar de novo,
+  // quem nega a permissão sem querer (comum em cadastro pelo celular
+  // próprio, fora do totem controlado) ficava travado pra sempre nessa
+  // tela, sem nenhum caminho de volta a não ser recarregar a página inteira
+  // e perder os dados já preenchidos. Reportado pelo Thiago em 2026-09-24.
+  const [tentativa, setTentativa] = useState(0);
 
   useEffect(() => {
     if (!enviando) return;
@@ -43,6 +50,7 @@ export default function CameraCapture({
 
   useEffect(() => {
     let cancelado = false;
+    setErro(null);
 
     navigator.mediaDevices
       ?.getUserMedia({ video: { facingMode: "user" }, audio: false })
@@ -67,7 +75,7 @@ export default function CameraCapture({
       cancelado = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, []);
+  }, [tentativa]);
 
   async function capturar() {
     const video = videoRef.current;
@@ -116,9 +124,23 @@ export default function CameraCapture({
 
   if (erro) {
     return (
-      <p className="text-lg text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-        {erro}
-      </p>
+      <div className="flex flex-col items-center gap-3 text-center max-w-md">
+        <p className="text-lg text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          {erro}
+        </p>
+        <p className="text-sm text-stone-500">
+          Se o navegador perguntou e você tocou em &quot;bloquear&quot; ou
+          &quot;não permitir&quot;, procure o ícone de cadeado ou câmera perto
+          do endereço do site, libere o acesso à câmera e tente de novo.
+        </p>
+        <button
+          type="button"
+          onClick={() => setTentativa((t) => t + 1)}
+          className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-base font-medium px-6 py-3 transition-colors"
+        >
+          Tentar de novo
+        </button>
+      </div>
     );
   }
 
