@@ -4,8 +4,10 @@ import { prisma } from "@/lib/prisma";
 /** Dias de teste grátis pra empresa nova — ver cadastrarNovaEmpresa em
  * src/app/empresas/actions.ts. Só constante em código de propósito, fácil
  * de ajustar sem migração. Master pode estender manualmente pra qualquer
- * empresa específica via assinaturaVenceEm em /master/assinaturas. */
-export const TRIAL_DIAS = 7;
+ * empresa específica via assinaturaVenceEm em /master/assinaturas.
+ * Subiu de 7 pra 14 dias em 2026-09-24 (decisão do Thiago, alinhado com o
+ * card comercial de planos). */
+export const TRIAL_DIAS = 14;
 
 /** Tolerância depois do vencimento antes de bloquear o painel de verdade
  * (ver verificarAssinaturasAtrasadas abaixo) — decisão do Thiago em
