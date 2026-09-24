@@ -74,18 +74,35 @@ export default function TotemKioskGuard() {
   // Garante que o campo em foco não fique escondido atrás do teclado
   // virtual — nem todo navegador reduz a área da página quando o teclado
   // abre, então rolamos o campo pra dentro da vista como reforço.
+  //
+  // Dois gatilhos combinados: o timeout fixo é um primeiro chute (cobre
+  // navegador sem suporte a visualViewport), mas em tablet mais lento o
+  // teclado pode demorar mais que isso pra terminar de abrir, e a rolagem
+  // calculada antes da hora erra a posição — o listener de resize do
+  // visualViewport é o sinal de verdade (dispara exatamente quando a área
+  // visível da página muda de tamanho de verdade) e reforça a rolagem de
+  // novo nesse momento, corrigindo o caso em que o timeout foi cedo demais.
+  // Reportado pelo Thiago em 2026-09-23: campo sumindo atrás do teclado no
+  // formulário de cadastro (vários campos empilhados) do totem.
   useEffect(() => {
+    function rolarCampoAtivo() {
+      const alvo = document.activeElement;
+      if (!(alvo instanceof HTMLInputElement || alvo instanceof HTMLTextAreaElement)) return;
+      alvo.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+
     function aoFocar(e: FocusEvent) {
       const alvo = e.target;
       if (!(alvo instanceof HTMLInputElement || alvo instanceof HTMLTextAreaElement)) return;
-      // espera o teclado terminar de abrir antes de rolar, senão a posição
-      // calculada fica errada (a tela ainda não reduziu de tamanho)
-      setTimeout(() => {
-        alvo.scrollIntoView({ block: "center", behavior: "smooth" });
-      }, 300);
+      setTimeout(rolarCampoAtivo, 300);
     }
     document.addEventListener("focusin", aoFocar);
-    return () => document.removeEventListener("focusin", aoFocar);
+    window.visualViewport?.addEventListener("resize", rolarCampoAtivo);
+
+    return () => {
+      document.removeEventListener("focusin", aoFocar);
+      window.visualViewport?.removeEventListener("resize", rolarCampoAtivo);
+    };
   }, []);
 
   if (emTelaCheia) return null;
