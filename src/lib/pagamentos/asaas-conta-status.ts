@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { descriptografar } from "@/lib/crypto";
+import { enviarEmailContaAsaasAprovada } from "@/lib/email";
 
 function baseUrlAsaas(): string {
   return process.env.ASAAS_API_BASE_URL ?? "https://api-sandbox.asaas.com/v3";
@@ -72,4 +73,49 @@ export async function verificarStatusAsaas(empresaId: number): Promise<StatusAsa
   } catch {
     return null;
   }
+}
+
+/** Roda no cron /api/cron/verificar-aprovacoes-asaas (a cada 3h) — chama
+ * verificarStatusAsaas pra toda empresa ainda PENDENTE_ATIVACAO e avisa
+ * por e-mail quem acabou de ser aprovado de verdade (status ATIVA E
+ * pixLiberado, o ponto em que dá pra pagar extra de verdade). Sem isso, a
+ * única forma de descobrir a aprovação era alguém abrir /configuracoes ou
+ * /pagamentos de novo — não existe webhook da Asaas pra isso (ver
+ * comentário de verificarStatusAsaas acima).
+ *
+ * aprovacaoNotificadaEm (ContaAsaasEmpresa) garante que o e-mail só sai
+ * uma vez — sem essa marcação, toda rodada do cron reenviaria pra quem já
+ * foi avisado antes. Avisa TODO usuário com acesso à empresa (não só quem
+ * conectou a conta), porque o cadastro na Asaas guarda só o e-mail de
+ * contato digitado na hora, que nem chega a ser salvo em
+ * ContaAsaasEmpresa. */
+export async function verificarAprovacoesAsaasPendentes(): Promise<{ notificadas: number }> {
+  const pendentes = await prisma.contaAsaasEmpresa.findMany({
+    where: { status: "PENDENTE_ATIVACAO", desconectadoEm: null, aprovacaoNotificadaEm: null },
+    select: {
+      empresaId: true,
+      empresa: {
+        select: {
+          nome: true,
+          usuarios: { select: { usuario: { select: { email: true } } } },
+        },
+      },
+    },
+  });
+
+  let notificadas = 0;
+  for (const conta of pendentes) {
+    const statusAgora = await verificarStatusAsaas(conta.empresaId);
+    if (statusAgora?.statusConta !== "APPROVED" || !statusAgora.pixLiberado) continue;
+
+    for (const { usuario } of conta.empresa.usuarios) {
+      await enviarEmailContaAsaasAprovada(usuario.email, conta.empresa.nome);
+    }
+    await prisma.contaAsaasEmpresa.update({
+      where: { empresaId: conta.empresaId },
+      data: { aprovacaoNotificadaEm: new Date() },
+    });
+    notificadas++;
+  }
+  return { notificadas };
 }

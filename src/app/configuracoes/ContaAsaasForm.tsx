@@ -19,6 +19,18 @@ const LABEL_STATUS: Record<string, string> = {
   BLOQUEADA: "Bloqueada",
 };
 
+/// Tradução do status BRUTO que a própria Asaas devolve em GET
+/// /myAccount (ver StatusAsaasLive em src/lib/pagamentos/
+/// asaas-conta-status.ts) — preferido sobre LABEL_STATUS (nosso enum
+/// resumido) quando disponível, pra mostrar pro dono o mesmo texto que
+/// ele veria entrando direto no painel da Asaas.
+const LABEL_STATUS_ASAAS: Record<string, string> = {
+  PENDING: "Em análise",
+  AWAITING_APPROVAL: "Aguardando aprovação",
+  APPROVED: "Aprovada",
+  REPROVED: "Reprovada",
+};
+
 /// Dados já cadastrados em /configuracoes (ver ConfiguracoesForm) — usados
 /// só pra pré-preencher o formulário de conexão nova (botão "Puxar dados
 /// do cadastro"), evitando digitar tudo de novo. Cada campo é opcional
@@ -111,7 +123,11 @@ export default function ContaAsaasForm({
           <p className="text-xs text-stone-500 mt-1">
             Status:{" "}
             <span className="font-medium">
-              {aprovada ? "Aprovada" : LABEL_STATUS[contaAtual.status] ?? contaAtual.status}
+              {aprovada
+                ? "Aprovada"
+                : statusLive
+                  ? LABEL_STATUS_ASAAS[statusLive.statusConta] ?? statusLive.statusConta
+                  : LABEL_STATUS[contaAtual.status] ?? contaAtual.status}
             </span>
             {aprovada && (
               <>
@@ -239,7 +255,7 @@ export default function ContaAsaasForm({
               : "border border-stone-300 text-stone-600 hover:bg-stone-50"
           }`}
         >
-          Já tenho conta Asaas
+          Já tinha conta Asaas antes do iFREE
         </button>
       </div>
       {modoConexao === "nova" ? (
@@ -283,9 +299,11 @@ function FormularioConexaoExistente({
         <div>
           <h2 className="font-semibold text-navy-900 text-sm">Conectar conta Asaas existente</h2>
           <p className="text-xs text-stone-500 mt-1">
-            Use isso se o CNPJ desta empresa já tem uma conta na Asaas (por
-            já usar pra emitir boleto, nota, etc.) — nesse caso a Asaas não
-            deixa criar uma conta nova pro mesmo CNPJ.
+            Use isso só se essa empresa <strong>já tinha</strong> uma conta na Asaas
+            <strong> antes</strong> de usar o iFREE (por já usar pra emitir boleto, nota, etc.) — nesse
+            caso a Asaas não deixa criar uma conta nova pro mesmo CNPJ. Não é pra quem acabou de criar
+            pela opção &ldquo;Criar conta nova&rdquo; — essa já fica conectada sozinha, sem precisar
+            colar chave nenhuma aqui.
           </p>
         </div>
         <SeloAsaas porte="pequeno" />
@@ -369,7 +387,7 @@ function FormularioConexao({
 }: {
   formAction: (formData: FormData) => void;
   pending: boolean;
-  state: { erro?: string; sucesso?: boolean; aviso?: string } | undefined;
+  state: { erro?: string; sucesso?: boolean; aviso?: string; email?: string } | undefined;
   producao: boolean;
   dadosEmpresa: DadosEmpresaParaAsaas;
 }) {
@@ -555,7 +573,10 @@ function FormularioConexao({
       )}
       {state?.sucesso && (
         <p className="text-sm text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">
-          Conta criada! Recarregue a página pra ver o status.
+          ✅ Conta criada! Enviamos um e-mail pra{" "}
+          <strong>{state.email ?? "o endereço informado"}</strong> com o link pra criar a senha na
+          Asaas e completar o cadastro (documento + selfie). Não precisa fazer mais nada aqui — assim
+          que a Asaas aprovar, o status muda sozinho nesta tela.
         </p>
       )}
       {state?.aviso && (

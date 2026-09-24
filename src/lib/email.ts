@@ -328,3 +328,47 @@ export async function enviarEmailNovoCadastro(
     return { sucesso: false };
   }
 }
+
+/** Avisa que a conta de pagamento (Asaas) desta empresa foi aprovada de
+ * verdade — status ATIVA E documentos liberados (pixLiberado), o ponto
+ * em que dá pra colocar saldo e começar a pagar os extras automaticamente
+ * (ver verificarAprovacoesAsaasPendentes em
+ * src/lib/pagamentos/asaas-conta-status.ts, chamada pelo cron
+ * /api/cron/verificar-aprovacoes-asaas). Sem token/link de confirmação —
+ * é só notificação, mesmo espírito de enviarEmailNovoCadastro acima. Vai
+ * pra todo usuário com acesso a essa empresa, não só quem criou a conta
+ * (o cadastro na Asaas não guarda qual login fez, só o e-mail de contato
+ * digitado, que nem chega a ser salvo aqui). */
+export async function enviarEmailContaAsaasAprovada(
+  destinatario: string,
+  empresaNome: string
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — aviso de conta Asaas aprovada não enviado.");
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: "Sua conta de pagamento foi aprovada! 🎉",
+    paragrafos: [
+      `A conta de pagamento (Asaas) de <strong>${escaparHtml(empresaNome)}</strong> já foi aprovada pela Asaas.`,
+      "Agora é só colocar saldo pra começar a pagar os extras automaticamente pelo iFREE — o PIX sai sozinho assim que cada turno fecha.",
+    ],
+    textoBotao: "Colocar saldo agora",
+    linkBotao: `${SITE_URL}/pagamentos`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "Sua conta de pagamento foi aprovada 🎉",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar aviso de conta Asaas aprovada:", err);
+    return { sucesso: false };
+  }
+}

@@ -1228,6 +1228,13 @@ model ContaAsaasEmpresa {
   /// reconectarContaAsaas) é só limpar este campo, sem precisar criar outra
   /// subconta na Asaas.
   desconectadoEm     DateTime?
+  /// Quando o e-mail de "sua conta foi aprovada" foi enviado (ver
+  /// verificarAprovacoesAsaasPendentes em src/lib/pagamentos/
+  /// asaas-conta-status.ts, chamada pelo cron /api/cron/
+  /// verificar-aprovacoes-asaas) — null enquanto não enviado. Evita
+  /// reenviar toda vez que o cron rodar de novo depois de já ter avisado
+  /// uma vez.
+  aprovacaoNotificadaEm DateTime?
   criadoEm           DateTime          @default(now())
   atualizadoEm       DateTime          @updatedAt
 

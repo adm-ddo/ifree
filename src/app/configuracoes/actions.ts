@@ -504,7 +504,9 @@ async function registrarWebhooksNaSubconta(apiKeySubconta: string): Promise<stri
 
 const COMPANY_TYPES_ASAAS = ["MEI", "INDIVIDUAL", "LIMITED", "ASSOCIATION"] as const;
 
-export type ConectarAsaasState = { erro?: string; sucesso?: boolean; aviso?: string } | undefined;
+export type ConectarAsaasState =
+  | { erro?: string; sucesso?: boolean; aviso?: string; email?: string }
+  | undefined;
 
 /** Cria a subconta Asaas desta empresa (dinheiro dela, isolado das outras —
  * ver o desenho completo em src/lib/pagamentos/asaas-payment-service.ts) e
@@ -600,7 +602,7 @@ export async function conectarContaAsaas(
 
   revalidatePath("/configuracoes");
   revalidatePath("/v2/configuracoes");
-  return { sucesso: true, aviso };
+  return { sucesso: true, aviso, email };
 }
 
 /** Alternativa a conectarContaAsaas pra quando o CNPJ da empresa JÁ tem
