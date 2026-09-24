@@ -6,18 +6,16 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { detectarTipoChavePix, chavePixValida } from "@/lib/documento";
 import { instanteBrasil } from "@/lib/data";
+import { STATUS_PENDENTES } from "@/lib/financeiro";
 
 export type ConverterVinculoState = { erro: string } | undefined;
 
 /** Promove um extra a funcionário CLT — pra quando alguém que começou
  * batendo turno acaba sendo efetivado. Mantém o cadastro da Pessoa intacto,
- * só troca o tipo do vínculo com esta empresa. Não bloqueia mesmo se
- * houver turno em aberto — a conversão troca só o tipo do vínculo pra
- * frente, o turno em aberto continua existindo e sendo fechado/pago
- * normalmente como turno de extra, decisão explícita do dono. Turnos e
- * pagamentos já existentes NUNCA são apagados/alterados por esta ação —
- * são histórico real de trabalho como extra, legítimo mesmo que a pessoa
- * já fosse "pra ser" CLT desde antes (ex.: cadastro atrasado).
+ * só troca o tipo do vínculo com esta empresa. Turnos e pagamentos de
+ * ANTES da data de admissão NUNCA são apagados/alterados — são histórico
+ * real de trabalho como extra, legítimo mesmo que a pessoa já fosse "pra
+ * ser" CLT desde antes (ex.: cadastro atrasado).
  *
  * Limpa os campos de valor do modo EXTRA (modoPagamento, valorDiaria,
  * frequenciaPagamento) — funcionário CLT não é pago por este sistema, só
@@ -28,10 +26,21 @@ export type ConverterVinculoState = { erro: string } | undefined;
  * atrasada: a pessoa já trabalhava/deveria ser CLT desde antes de o dono
  * lembrar de converter no sistema — nesse caso a data de admissão real
  * fica retroativa (base do cálculo de férias/experiência em
- * src/lib/ferias.ts e src/lib/experiencia.ts), sem mexer nos turnos extra
- * já pagos nesse meio-tempo. Se omitido, dataAdmissao fica em branco pra
- * preencher depois em /funcionarios/[id] (caso de conversão "a partir de
- * hoje", sem histórico relevante a preservar).
+ * src/lib/ferias.ts e src/lib/experiencia.ts). Se omitido, dataAdmissao
+ * fica em branco pra preencher depois em /funcionarios/[id] (caso de
+ * conversão "a partir de hoje", sem histórico relevante a preservar).
+ *
+ * Quando informada, DATA DE ADMISSÃO NO PASSADO OU HOJE dispara uma
+ * migração automática dos turnos de extra dessa pessoa nesta empresa a
+ * partir daquele dia (ver migrarTurnosExtraParaClt abaixo): o trabalho
+ * daquele dia em diante já é CLT de verdade (salário, não PIX avulso), por
+ * mais que a pessoa tenha batido o check-in pelo fluxo de extra antes do
+ * dono lembrar de converter no sistema. Caso real que motivou isto:
+ * Thiago pediu em 2026-09-24 (Julie Kelly, DB25) — ela virou CLT no dia
+ * 18/09, mas a conversão no sistema só aconteceu depois de ela já ter
+ * batido aquele turno como extra, e o pagamento automático (que falhou
+ * por saldo insuficiente, sem relação nenhuma com a conversão) ficou
+ * pendente pra sempre sem ninguém perceber que devia ser dispensado.
  *
  * Retorna { erro } em vez de lançar exceção: Server Actions chamadas
  * direto (sem passar por <form action>) têm a mensagem de erro REDACTED
@@ -75,9 +84,77 @@ export async function converterParaClt(
     },
   });
 
+  if (dataAdmissaoValida) {
+    await migrarTurnosExtraParaClt(pessoaId, sessao.empresaEfetivoId!, dataAdmissaoValida);
+  }
+
   revalidatePath("/freelancers");
   revalidatePath("/funcionarios");
   redirect(`/funcionarios/${pessoaId}`);
+}
+
+/** Turnos de extra desta pessoa, nesta empresa, com entrada NO DIA da
+ * admissão CLT ou depois — cobre o caso de conversão feita depois de a
+ * pessoa já ter batido o check-in daquele dia como extra (ver comentário
+ * completo em converterParaClt acima).
+ *
+ * Turno já FECHADO (tem horaSaida) vira um RegistroPonto espelhado, com a
+ * mesma foto de entrada/saída de verdade tirada no totem — é o mesmo
+ * check-in real, só passa a valer como jornada CLT em vez de turno pago.
+ * Sem RegistroPonto.fotoEntradaUrl (campo obrigatório lá, ao contrário de
+ * Turno) não tem como migrar — só acontece pra turno lançado manualmente
+ * pelo dono sem foto (Turno.criadoManualmente), caso raro o bastante pra
+ * só pular a migração em vez de resolver sozinho; o dono resolve o ponto
+ * na mão em /funcionarios/[id].
+ *
+ * Turno ainda ABERTO na hora da conversão não é migrado — não dá pra saber
+ * a que horas a pessoa vai bater saída, e forçar uma agora seria inventar
+ * dado. Fica como turno de extra normal (fecha e tenta pagar sozinho como
+ * sempre); se isso não for o que o dono quer, o card de "Pagamentos de
+ * extra pendentes" em /funcionarios/[id] continua disponível pra dispensar
+ * na mão depois que fechar.
+ *
+ * Em qualquer caso (migrado ou não), qualquer pagamento ainda
+ * PENDENTE/FALHOU/PROCESSANDO desses turnos é dispensado (CANCELADO) — o
+ * dono já deixou claro que não quer pagar via PIX o que virou salário
+ * CLT. Mesmo efeito de zerarPagamentosExtraPendentes (funcionarios/
+ * actions.ts), só que automático no momento da conversão em vez de exigir
+ * um segundo passo manual. */
+async function migrarTurnosExtraParaClt(
+  pessoaId: number,
+  empresaId: number,
+  dataAdmissao: Date
+): Promise<void> {
+  const turnosAfetados = await prisma.turno.findMany({
+    where: { pessoaId, empresaId, horaEntrada: { gte: dataAdmissao } },
+  });
+
+  for (const turno of turnosAfetados) {
+    if (turno.horaSaida && turno.fotoEntradaUrl) {
+      await prisma.registroPonto.create({
+        data: {
+          pessoaId,
+          empresaId,
+          totemId: turno.totemId,
+          horaEntrada: turno.horaEntrada,
+          horaSaida: turno.horaSaida,
+          status: "CONCLUIDO",
+          fotoEntradaUrl: turno.fotoEntradaUrl,
+          fotoSaidaUrl: turno.fotoSaidaUrl,
+        },
+      });
+    }
+  }
+
+  if (turnosAfetados.length > 0) {
+    await prisma.pagamento.updateMany({
+      where: {
+        status: { in: STATUS_PENDENTES },
+        turnoId: { in: turnosAfetados.map((t) => t.id) },
+      },
+      data: { status: "CANCELADO" },
+    });
+  }
 }
 
 export async function alternarAtivoVinculo(pessoaId: number, ativo: boolean) {
