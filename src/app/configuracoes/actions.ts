@@ -588,15 +588,49 @@ export async function conectarContaAsaas(
     return { erro: mensagem };
   }
 
-  await prisma.contaAsaasEmpresa.create({
-    data: {
+  // A partir daqui a conta JÁ EXISTE na Asaas — POST /accounts é
+  // irreversível e a apiKey só é entregue nesta resposta, nunca mais depois
+  // (confirmado no caso real do Bar Cabral em 2026-09-24: a conta foi
+  // criada, a Asaas mandou o e-mail de criação de senha, mas o salvamento
+  // aqui embaixo falhou silenciosamente — a chave ficou perdida pro iFREE
+  // pra sempre, sem nenhum aviso na tela). Por isso tenta salvar de novo
+  // antes de desistir (cobre falha passageira de conexão com o banco) e,
+  // se ainda assim falhar, avisa claramente em vez de deixar a conta órfã
+  // sem ninguém saber.
+  let salvou = false;
+  let ultimoErro: unknown;
+  for (let tentativa = 1; tentativa <= 3 && !salvou; tentativa++) {
+    try {
+      await prisma.contaAsaasEmpresa.create({
+        data: {
+          empresaId: sessao.empresaEfetivoId,
+          accountId: dadosConta.id,
+          walletId: dadosConta.walletId ?? null,
+          apiKeyCriptografada: criptografar(dadosConta.apiKey),
+          status: "PENDENTE_ATIVACAO",
+        },
+      });
+      salvou = true;
+    } catch (erro) {
+      ultimoErro = erro;
+      if (tentativa < 3) await new Promise((resolve) => setTimeout(resolve, 500 * tentativa));
+    }
+  }
+
+  if (!salvou) {
+    console.error("Falha ao salvar ContaAsaasEmpresa após criar a conta na Asaas:", {
       empresaId: sessao.empresaEfetivoId,
       accountId: dadosConta.id,
-      walletId: dadosConta.walletId ?? null,
-      apiKeyCriptografada: criptografar(dadosConta.apiKey),
-      status: "PENDENTE_ATIVACAO",
-    },
-  });
+      erro: ultimoErro,
+    });
+    return {
+      erro:
+        "A conta já foi criada na Asaas, mas houve uma falha ao salvar aqui no iFREE — não crie de novo. " +
+        "Peça pro responsável entrar em asaas.com/login com o e-mail informado (depois de criar a senha " +
+        'pelo link que a Asaas mandou por e-mail), gerar uma Chave de API em Integrações, e usar a aba ' +
+        '"Já tinha conta Asaas antes do iFREE" aqui embaixo pra conectar. Persistindo, avise o suporte.',
+    };
+  }
 
   const aviso = await registrarWebhooksNaSubconta(dadosConta.apiKey);
 
