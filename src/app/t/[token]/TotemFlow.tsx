@@ -213,7 +213,21 @@ export default function TotemFlow({
   // interação fazia o toque no botão "Continuar" errar o alvo (a posição
   // mudava debaixo do dedo). Deixando fixo desde o início evita esse risco
   // por completo: nada se move durante a digitação.
-  const telaDocumento = step.name === "documento";
+  //
+  // Mesmo motivo (e mais um: overflow de verdade) pros formulários longos
+  // de cadastro/edição de dados (vários campos empilhados, mais altos que
+  // a tela) — um container flex com justify-center e conteúdo maior que a
+  // área visível deixa o topo do formulário inacessível por scroll em
+  // vários navegadores (o overflow "estoura" pros dois lados da centralização,
+  // não só pra baixo). Ancorado no topo, o overflow vai sempre só pra
+  // baixo — alcançável de forma previsível arrastando o dedo pra cima,
+  // com ou sem teclado aberto. Reportado pelo Thiago em 2026-09-23: campo
+  // sumindo atrás do teclado no cadastro, sem conseguir puxar a tela.
+  const telaComFormularioLongo =
+    step.name === "documento" ||
+    step.name === "cadastro" ||
+    step.name === "editarDados" ||
+    step.name === "confirmarIdentidade";
 
   // Compartilhado entre o ramo CLT normal e o botão "Bater ponto CLT" da
   // tela cltOuExtra — decide se pula direto pra cltFoto (só uma ação
@@ -238,7 +252,7 @@ export default function TotemFlow({
   return (
     <div
       className={`flex flex-1 flex-col items-center gap-8 text-center py-8 ${
-        telaDocumento ? "justify-start pt-10 sm:pt-16" : "justify-center"
+        telaComFormularioLongo ? "justify-start pt-10 sm:pt-16" : "justify-center"
       }`}
     >
       <TotemKioskGuard />
