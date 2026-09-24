@@ -177,12 +177,20 @@ export default async function Home() {
           <p className="text-navy-400 text-sm lg:text-base">
             Sem cartão de crédito · Configuração em minutos
           </p>
-          <Link
-            href="/login"
-            className="text-navy-200 hover:text-white text-sm lg:text-base font-medium underline underline-offset-4 mt-1"
-          >
-            Já é cliente? Acessar o sistema →
-          </Link>
+          <div className="flex flex-wrap justify-center gap-x-5 gap-y-1 mt-1">
+            <Link
+              href="/planos"
+              className="text-navy-200 hover:text-white text-sm lg:text-base font-medium underline underline-offset-4"
+            >
+              Ver planos e preços →
+            </Link>
+            <Link
+              href="/login"
+              className="text-navy-200 hover:text-white text-sm lg:text-base font-medium underline underline-offset-4"
+            >
+              Já é cliente? Acessar o sistema →
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -504,6 +512,9 @@ export default async function Home() {
               className="inline-flex items-center gap-1 font-semibold text-brand-700 hover:text-brand-800 transition-colors"
             >
               Descubra →
+            </Link>
+            <Link href="/planos" className="hover:text-brand-700 transition-colors">
+              Planos
             </Link>
             <Link href="/portal/entrar" className="hover:text-brand-700 transition-colors">
               Já trabalhou por aqui? Acesse seu perfil
