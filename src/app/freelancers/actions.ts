@@ -7,6 +7,8 @@ import { redirect } from "next/navigation";
 import { detectarTipoChavePix, chavePixValida } from "@/lib/documento";
 import { instanteBrasil } from "@/lib/data";
 import { STATUS_PENDENTES } from "@/lib/financeiro";
+import { classificarTurno } from "@/lib/turno";
+import { calcularMinutosPonto, resolverModoPausaClt } from "@/lib/ponto";
 
 export type ConverterVinculoState = { erro: string } | undefined;
 
@@ -128,9 +130,45 @@ async function migrarTurnosExtraParaClt(
   const turnosAfetados = await prisma.turno.findMany({
     where: { pessoaId, empresaId, horaEntrada: { gte: dataAdmissao } },
   });
+  if (turnosAfetados.length === 0) return;
 
-  for (const turno of turnosAfetados) {
-    if (turno.horaSaida && turno.fotoEntradaUrl) {
+  const turnosParaMigrar = turnosAfetados.filter((t) => t.horaSaida && t.fotoEntradaUrl);
+  if (turnosParaMigrar.length > 0) {
+    // Mesmo cálculo de horas trabalhadas/hora extra que o fechamento normal
+    // do ponto CLT faz (ver SAIDA_FINAL em src/app/t/[token]/actions.ts) —
+    // sem isso o registro migrado ficava sem "Xh trabalhadas" nem hora
+    // extra/horas devidas na tela, porque RegistroPontoHistorico.tsx lê
+    // esses campos direto do banco, não recalcula sozinho.
+    const [empresa, vinculo] = await Promise.all([
+      prisma.empresa.findUniqueOrThrow({
+        where: { id: empresaId },
+        select: {
+          modoPausaCltDia: true,
+          modoPausaCltNoite: true,
+          horarioInicioDiaMin: true,
+          horarioInicioNoiteMin: true,
+        },
+      }),
+      prisma.vinculoPessoaEmpresa.findUniqueOrThrow({
+        where: { pessoaId_empresaId: { pessoaId, empresaId } },
+        select: { turnoPredefinido: true, modoPausaOverride: true },
+      }),
+    ]);
+
+    for (const turno of turnosParaMigrar) {
+      const tipoTurno = classificarTurno(
+        turno.horaEntrada,
+        vinculo.turnoPredefinido,
+        empresa.horarioInicioDiaMin,
+        empresa.horarioInicioNoiteMin
+      );
+      const modoPausaAplicavel = resolverModoPausaClt(vinculo.modoPausaOverride, tipoTurno, empresa);
+      const { minutosTrabalhados, minutosDescontadosPausa } = calcularMinutosPonto({
+        horaEntrada: turno.horaEntrada,
+        horaSaida: turno.horaSaida!,
+        modoPausa: modoPausaAplicavel,
+      });
+
       await prisma.registroPonto.create({
         data: {
           pessoaId,
@@ -138,23 +176,23 @@ async function migrarTurnosExtraParaClt(
           totemId: turno.totemId,
           horaEntrada: turno.horaEntrada,
           horaSaida: turno.horaSaida,
+          minutosTrabalhados,
+          minutosDescontadosPausa,
           status: "CONCLUIDO",
-          fotoEntradaUrl: turno.fotoEntradaUrl,
+          fotoEntradaUrl: turno.fotoEntradaUrl!,
           fotoSaidaUrl: turno.fotoSaidaUrl,
         },
       });
     }
   }
 
-  if (turnosAfetados.length > 0) {
-    await prisma.pagamento.updateMany({
-      where: {
-        status: { in: STATUS_PENDENTES },
-        turnoId: { in: turnosAfetados.map((t) => t.id) },
-      },
-      data: { status: "CANCELADO" },
-    });
-  }
+  await prisma.pagamento.updateMany({
+    where: {
+      status: { in: STATUS_PENDENTES },
+      turnoId: { in: turnosAfetados.map((t) => t.id) },
+    },
+    data: { status: "CANCELADO" },
+  });
 }
 
 export async function alternarAtivoVinculo(pessoaId: number, ativo: boolean) {
