@@ -78,6 +78,7 @@ export default function AssinaturaCard({
   urgencia,
   saldoAsaas,
   totalTransacionadoAsaas,
+  totalCreditadoAsaas,
   ultimaCobranca,
 }: {
   empresa: Empresa;
@@ -89,6 +90,10 @@ export default function AssinaturaCard({
   /// Pix automático (ver comentário em page.tsx) — só curiosidade/
   /// referência, não é usado em filtro nem cálculo nenhum.
   totalTransacionadoAsaas: number;
+  /// Soma de tudo que já foi CREDITADO (depósito confirmado) na subconta
+  /// Asaas dessa empresa — bruto, histórico, diferente do saldo atual (que
+  /// já desconta o que saiu pra pagar extra).
+  totalCreditadoAsaas: number;
   ultimaCobranca: { status: StatusCobranca; valor: number; dataLabel: string } | null;
 }) {
   const [editando, setEditando] = useState(false);
@@ -136,6 +141,7 @@ export default function AssinaturaCard({
           valor={empresa.splitPercentualAsaas !== null ? `${empresa.splitPercentualAsaas}%` : "—"}
         />
         <MiniDado label="Saldo Asaas" valor={saldoLabel} destaque={saldoAsaas.tipo === "valor"} />
+        <MiniDado label="Já creditado (depósitos)" valor={`R$ ${totalCreditadoAsaas.toFixed(2)}`} />
         <MiniDado label="Já pago aos extras" valor={`R$ ${totalTransacionadoAsaas.toFixed(2)}`} />
         <MiniDado label="Funções" valor={String(empresa.funcoesCount)} />
         <MiniDado label="Turnos" valor={String(empresa.turnosCount)} />

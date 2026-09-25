@@ -172,9 +172,11 @@ export default async function MasterAssinaturasPage({
   // Última cobrança de cada empresa + saldo Asaas de cada uma + tudo que já
   // foi pago de verdade pra extra via Pix automático (Pagamento.status
   // CONCLUIDO + pagoAutomaticamente — pagamento marcado manualmente não
-  // passou pela Asaas, não entra nessa soma) — as três são independentes
-  // entre si (e da lista de empresas em si), rodam juntas.
-  const [cobrancas, saldosAsaas, pagamentosAsaas] = await Promise.all([
+  // passou pela Asaas, não entra nessa soma) + tudo que já foi creditado de
+  // depósito nas subcontas (DepositoAsaas.status RECEBIDO — PENDENTE/
+  // EXPIRADO não é dinheiro de verdade ainda) — as quatro são
+  // independentes entre si (e da lista de empresas em si), rodam juntas.
+  const [cobrancas, saldosAsaas, pagamentosAsaas, depositosAsaas] = await Promise.all([
     prisma.cobrancaMensalidade.findMany({
       where: { empresaId: { in: empresaIds } },
       orderBy: { criadoEm: "desc" },
@@ -184,6 +186,10 @@ export default async function MasterAssinaturasPage({
     prisma.pagamento.findMany({
       where: { status: "CONCLUIDO", pagoAutomaticamente: true, turno: { empresaId: { in: empresaIds } } },
       select: { valor: true, turno: { select: { empresaId: true } } },
+    }),
+    prisma.depositoAsaas.findMany({
+      where: { status: "RECEBIDO", empresaId: { in: empresaIds } },
+      select: { empresaId: true, valor: true },
     }),
   ]);
   const ultimaCobrancaPorEmpresa = new Map<number, (typeof cobrancas)[number]>();
@@ -214,6 +220,17 @@ export default async function MasterAssinaturasPage({
   let saldoTotalAsaas = 0;
   for (const saldo of saldosAsaas.values()) {
     if (saldo !== null) saldoTotalAsaas += saldo;
+  }
+
+  // Total já CREDITADO (histórico) nas subcontas — diferente do saldo
+  // atual (que já desconta tudo que saiu pra pagar extra): este é bruto,
+  // dinheiro de verdade que já entrou algum dia via depósito confirmado.
+  let totalCreditadoAsaas = 0;
+  const creditadoPorEmpresa = new Map<number, number>();
+  for (const d of depositosAsaas) {
+    const valor = Number(d.valor);
+    totalCreditadoAsaas += valor;
+    creditadoPorEmpresa.set(d.empresaId, (creditadoPorEmpresa.get(d.empresaId) ?? 0) + valor);
   }
 
   const ordenadas = [...empresas].sort(
@@ -281,19 +298,25 @@ export default async function MasterAssinaturasPage({
         </p>
       </div>
 
-      <div className="rounded-2xl bg-brand-50 border border-brand-200 p-4 flex flex-col sm:flex-row gap-3 sm:gap-6">
+      <div className="rounded-2xl bg-brand-50 border border-brand-200 p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex items-center gap-3">
-          <span className="text-2xl">💸</span>
+          <span className="text-2xl">🏦</span>
           <p className="text-sm text-brand-800">
-            O iFREE já processou{" "}
-            <strong className="text-base">R$ {totalTransacionadoAsaas.toFixed(2)}</strong> em pagamentos
-            automáticos pra extras, via Pix pela Asaas.
+            Já creditado (depósitos) nas contas Asaas:{" "}
+            <strong className="text-base">R$ {totalCreditadoAsaas.toFixed(2)}</strong>.
           </p>
         </div>
-        <div className="flex items-center gap-3 sm:border-l sm:border-brand-200 sm:pl-6">
+        <div className="flex items-center gap-3 sm:border-l sm:border-brand-200 sm:pl-4">
+          <span className="text-2xl">💸</span>
+          <p className="text-sm text-brand-800">
+            Já pago aos extras, via Pix automático:{" "}
+            <strong className="text-base">R$ {totalTransacionadoAsaas.toFixed(2)}</strong>.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 sm:border-l sm:border-brand-200 sm:pl-4">
           <span className="text-2xl">💰</span>
           <p className="text-sm text-brand-800">
-            Saldo somado, agora, em todas as contas Asaas conectadas:{" "}
+            Saldo somado, agora, em todas as contas:{" "}
             <strong className="text-base">R$ {saldoTotalAsaas.toFixed(2)}</strong>.
           </p>
         </div>
@@ -494,6 +517,7 @@ export default async function MasterAssinaturasPage({
                 vencimentoLabel={vencimentoLabel}
                 urgencia={urgencia}
                 totalTransacionadoAsaas={transacionadoPorEmpresa.get(empresa.id) ?? 0}
+                totalCreditadoAsaas={creditadoPorEmpresa.get(empresa.id) ?? 0}
                 saldoAsaas={
                   saldo === undefined ? { tipo: "semConta" } : saldo === null ? { tipo: "indisponivel" } : { tipo: "valor", valor: saldo }
                 }
