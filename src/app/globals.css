@@ -71,3 +71,28 @@ html.totem-kiosk textarea {
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Barra de rolagem da barra lateral v2 (NavShell.tsx) — o scrollbar cinza
+   padrão do navegador destoava do verde da marca de fundo. Fina, verde-clara
+   translúcida, sem track visível — só some quando não precisa rolar. */
+.scroll-sidebar-v2 {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-brand-200) 55%, transparent) transparent;
+}
+
+.scroll-sidebar-v2::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scroll-sidebar-v2::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-sidebar-v2::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--color-brand-200) 55%, transparent);
+  border-radius: 9999px;
+}
+
+.scroll-sidebar-v2::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--color-brand-100) 75%, transparent);
+}

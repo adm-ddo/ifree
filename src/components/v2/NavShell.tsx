@@ -66,7 +66,7 @@ export default function NavShell({
        * inteira só pra sair. Agora fica sempre visível, rolando por conta
        * própria só se a barra em si não couber na tela (muitos itens de
        * menu numa tela baixa). */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto bg-brand-500 px-3 py-4 gap-1">
+      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto scroll-sidebar-v2 bg-brand-500 px-3 py-4 gap-1">
         <div className="text-white font-extrabold text-lg px-2 pb-4">iFREE</div>
         <nav className="flex flex-col gap-0.5 overflow-y-auto">
           {itens.map((item) => {
