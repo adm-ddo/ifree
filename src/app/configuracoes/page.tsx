@@ -15,6 +15,7 @@ import SlaEticaForm from "./SlaEticaForm";
 import LimparTurnosTesteForm from "./LimparTurnosTesteForm";
 import ContaAsaasForm from "./ContaAsaasForm";
 import AssinaturaConfigForm from "./AssinaturaConfigForm";
+import AlertaSaldoBaixoForm from "./AlertaSaldoBaixoForm";
 import { verificarStatusAsaas } from "@/lib/pagamentos/asaas-conta-status";
 import { diasParaVencer } from "@/lib/assinatura";
 
@@ -63,6 +64,8 @@ export default async function ConfiguracoesPage() {
         statusAssinatura: true,
         assinaturaVenceEm: true,
         avisoVencimentoDias: true,
+        alertaSaldoBaixoAtivo: true,
+        alertaSaldoBaixoValorMinimo: true,
       },
     }),
     usuarioEhResponsavelEtica(sessao.usuarioId, sessao.empresaEfetivoId, sessao.isMaster),
@@ -243,6 +246,13 @@ export default async function ConfiguracoesPage() {
           numero: empresa.numero,
           complemento: empresa.complemento,
         }}
+      />
+
+      <AlertaSaldoBaixoForm
+        ativoAtual={empresa.alertaSaldoBaixoAtivo}
+        valorMinimoAtual={
+          empresa.alertaSaldoBaixoValorMinimo !== null ? Number(empresa.alertaSaldoBaixoValorMinimo) : null
+        }
       />
 
       <LimparTurnosTesteForm />

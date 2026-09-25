@@ -14,6 +14,7 @@ import SemanaPagamentoForm from "@/app/configuracoes/SemanaPagamentoForm";
 import SlaEticaForm from "@/app/configuracoes/SlaEticaForm";
 import LimparTurnosTesteForm from "@/app/configuracoes/LimparTurnosTesteForm";
 import ContaAsaasForm from "@/app/configuracoes/ContaAsaasForm";
+import AlertaSaldoBaixoForm from "@/app/configuracoes/AlertaSaldoBaixoForm";
 import AssinaturaConfigFormV2 from "@/components/v2/AssinaturaConfigFormV2";
 import { verificarStatusAsaas } from "@/lib/pagamentos/asaas-conta-status";
 import { diasParaVencer } from "@/lib/assinatura";
@@ -72,6 +73,8 @@ export default async function V2ConfiguracoesPage() {
         statusAssinatura: true,
         assinaturaVenceEm: true,
         avisoVencimentoDias: true,
+        alertaSaldoBaixoAtivo: true,
+        alertaSaldoBaixoValorMinimo: true,
       },
     }),
     usuarioEhResponsavelEtica(sessao.usuarioId, sessao.empresaEfetivoId, sessao.isMaster),
@@ -204,6 +207,13 @@ export default async function V2ConfiguracoesPage() {
           numero: empresa.numero,
           complemento: empresa.complemento,
         }}
+      />
+
+      <AlertaSaldoBaixoForm
+        ativoAtual={empresa.alertaSaldoBaixoAtivo}
+        valorMinimoAtual={
+          empresa.alertaSaldoBaixoValorMinimo !== null ? Number(empresa.alertaSaldoBaixoValorMinimo) : null
+        }
       />
 
       <LimparTurnosTesteForm />

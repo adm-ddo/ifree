@@ -372,3 +372,85 @@ export async function enviarEmailContaAsaasAprovada(
     return { sucesso: false };
   }
 }
+
+/** Avisa que o saldo da conta de pagamento (Asaas) caiu abaixo do mínimo
+ * configurado pelo dono (ver alertaSaldoBaixoValorMinimo em Empresa,
+ * atualizado em /configuracoes) — chamado por
+ * verificarAlertasSaldoBaixo em src/lib/pagamentos/asaas-deposito.ts,
+ * rodando no cron /api/cron/verificar-saldo-baixo. */
+export async function enviarEmailSaldoBaixo(
+  destinatario: string,
+  empresaNome: string,
+  saldoAtual: number,
+  valorMinimo: number
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — aviso de saldo baixo não enviado.");
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: "⚠️ Saldo baixo na sua conta de pagamento",
+    paragrafos: [
+      `O saldo da conta de pagamento (Asaas) de <strong>${escaparHtml(empresaNome)}</strong> está em <strong>R$ ${saldoAtual.toFixed(2)}</strong>, abaixo do mínimo que você configurou (R$ ${valorMinimo.toFixed(2)}).`,
+      "Coloque mais saldo agora pra garantir que os extras continuem sendo pagos automaticamente sem interrupção.",
+    ],
+    textoBotao: "Colocar saldo agora",
+    linkBotao: `${SITE_URL}/pagamentos`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "⚠️ Saldo baixo na sua conta de pagamento",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar aviso de saldo baixo:", err);
+    return { sucesso: false };
+  }
+}
+
+/** Mesma condição de enviarEmailSaldoBaixo, mas com o texto de sexta-feira
+ * — só dispara quando o saldo já está baixo E hoje é sexta (nunca como
+ * lembrete preventivo sozinho), pra empresa não ser pega de surpresa no
+ * fim de semana sem ninguém pra resolver. Ver verificarAlertasSaldoBaixo
+ * em src/lib/pagamentos/asaas-deposito.ts pra a regra completa. */
+export async function enviarEmailSaldoBaixoSextaFeira(
+  destinatario: string,
+  empresaNome: string,
+  saldoAtual: number,
+  valorMinimo: number
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — aviso de saldo baixo (sexta) não enviado.");
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: "⚠️ Saldo baixo antes do fim de semana",
+    paragrafos: [
+      `O saldo da conta de pagamento (Asaas) de <strong>${escaparHtml(empresaNome)}</strong> está em <strong>R$ ${saldoAtual.toFixed(2)}</strong>, abaixo do mínimo que você configurou (R$ ${valorMinimo.toFixed(2)}).`,
+      "Pra ter um final de semana tranquilo e sem surpresas, abasteça sua conta de pagamento de extras agora e aproveite o final de semana!",
+    ],
+    textoBotao: "Colocar saldo agora",
+    linkBotao: `${SITE_URL}/pagamentos`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "⚠️ Saldo baixo antes do fim de semana",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar aviso de saldo baixo (sexta):", err);
+    return { sucesso: false };
+  }
+}

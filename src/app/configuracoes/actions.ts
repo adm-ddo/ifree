@@ -96,6 +96,42 @@ export async function atualizarAvisoVencimento(
   return { sucesso: true };
 }
 
+export type AlertaSaldoBaixoState = { erro?: string; sucesso?: boolean } | undefined;
+
+/** Liga/desliga o e-mail automático de saldo baixo na conta Asaas (ver
+ * verificarAlertasSaldoBaixo em src/lib/pagamentos/asaas-deposito.ts) e
+ * define o valor mínimo (R$) que dispara o aviso. Exige valor válido só
+ * quando está ativando — desativar sempre funciona, mesmo sem valor. Ao
+ * desativar, zera os dois timestamps de dedupe pra não deixar lixo de uma
+ * configuração anterior atrapalhando se reativar depois com outro valor. */
+export async function atualizarAlertaSaldoBaixo(
+  _prev: AlertaSaldoBaixoState,
+  formData: FormData
+): Promise<AlertaSaldoBaixoState> {
+  const sessao = await requireModulo("configuracoes");
+
+  const ativo = formData.get("alertaSaldoBaixoAtivo") === "on";
+  const valorBruto = String(formData.get("alertaSaldoBaixoValorMinimo") ?? "").trim();
+  const valorMinimo = valorBruto ? Number(valorBruto) : null;
+
+  if (ativo && (valorMinimo === null || !Number.isFinite(valorMinimo) || valorMinimo <= 0)) {
+    return { erro: "Informe um valor mínimo válido pra ativar o aviso." };
+  }
+
+  await prisma.empresa.update({
+    where: { id: sessao.empresaEfetivoId },
+    data: {
+      alertaSaldoBaixoAtivo: ativo,
+      alertaSaldoBaixoValorMinimo: ativo ? valorMinimo : null,
+      ...(!ativo ? { alertaSaldoBaixoNotificadoEm: null, alertaSaldoBaixoSextaNotificadoEm: null } : {}),
+    },
+  });
+
+  revalidatePath("/configuracoes");
+  revalidatePath("/v2/configuracoes");
+  return { sucesso: true };
+}
+
 export type TermosState = { erro?: string; sucesso?: boolean } | undefined;
 
 export async function atualizarTermosContrato(

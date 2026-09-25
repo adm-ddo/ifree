@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { descriptografar } from "@/lib/crypto";
+import { diaSemanaISOBrasil, dataISOBrasil } from "@/lib/data";
+import { enviarEmailSaldoBaixo, enviarEmailSaldoBaixoSextaFeira } from "@/lib/email";
 
 function baseUrlAsaas(): string {
   return process.env.ASAAS_API_BASE_URL ?? "https://api-sandbox.asaas.com/v3";
@@ -239,4 +241,93 @@ export async function buscarSaldosAsaas(empresaIds: number[]): Promise<Map<numbe
     })
   );
   return resultado;
+}
+
+/** Roda no cron /api/cron/verificar-saldo-baixo (2x/dia) — pra toda
+ * empresa com alertaSaldoBaixoAtivo, compara o saldo ao vivo
+ * (buscarSaldosAsaas) contra alertaSaldoBaixoValorMinimo e avisa por
+ * e-mail quando cair abaixo.
+ *
+ * Sexta-feira tem prioridade: se o saldo está baixo E hoje é sexta (ver
+ * diaSemanaISOBrasil), manda a versão com clima de fim de semana em vez
+ * da genérica — nunca as duas juntas no mesmo dia. Decisão do Thiago em
+ * 2026-09-25: o aviso de sexta só dispara junto com a mesma condição do
+ * aviso normal (saldo baixo), nunca como lembrete preventivo pra quem
+ * está com saldo tranquilo.
+ *
+ * Dedupe: alertaSaldoBaixoNotificadoEm (genérico) fica marcado enquanto o
+ * saldo continuar baixo — não reenvia a cada rodada do cron — e zera
+ * sozinho assim que o saldo volta pra cima do mínimo, pronto pra avisar
+ * de novo na próxima queda. alertaSaldoBaixoSextaNotificadoEm é comparado
+ * só pela DATA (dataISOBrasil): evita duplicar entre as duas rodadas do
+ * mesmo dia, mas permite avisar de novo na sexta seguinte se o saldo
+ * continuar baixo (por isso nunca reseta com a recuperação do saldo). */
+export async function verificarAlertasSaldoBaixo(): Promise<{
+  notificadas: number;
+  sextaNotificadas: number;
+}> {
+  const empresas = await prisma.empresa.findMany({
+    where: { alertaSaldoBaixoAtivo: true, alertaSaldoBaixoValorMinimo: { not: null } },
+    select: {
+      id: true,
+      nome: true,
+      alertaSaldoBaixoValorMinimo: true,
+      alertaSaldoBaixoNotificadoEm: true,
+      alertaSaldoBaixoSextaNotificadoEm: true,
+      usuarios: { select: { usuario: { select: { email: true } } } },
+    },
+  });
+  if (empresas.length === 0) return { notificadas: 0, sextaNotificadas: 0 };
+
+  const saldos = await buscarSaldosAsaas(empresas.map((e) => e.id));
+  const hoje = new Date();
+  const ehSexta = diaSemanaISOBrasil(hoje) === 5;
+  const hojeISO = dataISOBrasil(hoje);
+
+  let notificadas = 0;
+  let sextaNotificadas = 0;
+  for (const empresa of empresas) {
+    const saldo = saldos.get(empresa.id);
+    if (saldo === undefined || saldo === null) continue; // sem conta ou consulta falhou — não dá pra saber
+
+    const minimo = Number(empresa.alertaSaldoBaixoValorMinimo);
+    if (saldo >= minimo) {
+      if (empresa.alertaSaldoBaixoNotificadoEm) {
+        await prisma.empresa.update({
+          where: { id: empresa.id },
+          data: { alertaSaldoBaixoNotificadoEm: null },
+        });
+      }
+      continue;
+    }
+
+    if (ehSexta) {
+      const jaAvisadoHoje =
+        empresa.alertaSaldoBaixoSextaNotificadoEm &&
+        dataISOBrasil(empresa.alertaSaldoBaixoSextaNotificadoEm) === hojeISO;
+      if (!jaAvisadoHoje) {
+        for (const { usuario } of empresa.usuarios) {
+          await enviarEmailSaldoBaixoSextaFeira(usuario.email, empresa.nome, saldo, minimo);
+        }
+        await prisma.empresa.update({
+          where: { id: empresa.id },
+          data: { alertaSaldoBaixoSextaNotificadoEm: hoje },
+        });
+        sextaNotificadas++;
+      }
+      continue; // sexta nunca manda o genérico junto, mesmo se já avisado hoje
+    }
+
+    if (!empresa.alertaSaldoBaixoNotificadoEm) {
+      for (const { usuario } of empresa.usuarios) {
+        await enviarEmailSaldoBaixo(usuario.email, empresa.nome, saldo, minimo);
+      }
+      await prisma.empresa.update({
+        where: { id: empresa.id },
+        data: { alertaSaldoBaixoNotificadoEm: hoje },
+      });
+      notificadas++;
+    }
+  }
+  return { notificadas, sextaNotificadas };
 }

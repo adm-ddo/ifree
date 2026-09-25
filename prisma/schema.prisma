@@ -256,6 +256,24 @@ model Empresa {
   /// Só aceita 1, 3 ou 7 (ver AVISO_VENCIMENTO_OPCOES em
   /// src/lib/assinatura.ts); default 7 (mais folga) pra quem nunca mexeu.
   avisoVencimentoDias Int    @default(7)
+  /// Liga/desliga o e-mail automático de saldo baixo na conta Asaas (ver
+  /// verificarAlertasSaldoBaixo em src/lib/pagamentos/asaas-deposito.ts).
+  alertaSaldoBaixoAtivo Boolean @default(false)
+  /// Valor (R$) abaixo do qual dispara o aviso de saldo baixo — null
+  /// enquanto nunca foi configurado (obrigatório preencher pra poder
+  /// ativar, ver atualizarAlertaSaldoBaixo em src/app/configuracoes/
+  /// actions.ts).
+  alertaSaldoBaixoValorMinimo Decimal? @db.Decimal(10, 2)
+  /// Quando o aviso GENÉRICO de saldo baixo foi enviado — null enquanto
+  /// não enviado, ou depois que o saldo volta a ficar acima do mínimo
+  /// (reseta pra poder avisar de novo na próxima queda, mesmo espírito de
+  /// aprovacaoNotificadaEm em ContaAsaasEmpresa).
+  alertaSaldoBaixoNotificadoEm DateTime?
+  /// Quando o aviso ESPECIAL de sexta-feira foi enviado — comparado só
+  /// pela data (nunca reseta com a recuperação do saldo, diferente do
+  /// campo acima): evita mandar 2x no mesmo dia (o cron roda 2x/dia), mas
+  /// permite mandar de novo na sexta seguinte se o saldo continuar baixo.
+  alertaSaldoBaixoSextaNotificadoEm DateTime?
   /// Data do último uso da "liberação de confiança" (ver
   /// solicitarLiberacaoConfianca em src/app/assinatura/actions.ts) — 1x por
   /// mês (não por vida da empresa): só libera de novo quando já passou 1
