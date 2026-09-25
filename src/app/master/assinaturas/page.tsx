@@ -35,6 +35,18 @@ const STATUS_CLASSE: Record<StatusAssinatura, string> = {
   CANCELADA: "bg-stone-100 text-stone-600 border-stone-200",
 };
 
+/// Versão "selecionada" (preenchida) da mesma cor de STATUS_CLASSE — usada
+/// nas pills de filtro, pra virar legenda visual da mesma cor que já
+/// aparece na borda lateral e no badge de cada card (ver STATUS_BORDA em
+/// AssinaturaCard.tsx). Cor igual em tudo quanto é lugar = mais fácil de
+/// bater o olho e já entender o filtro.
+const STATUS_CLASSE_ATIVO: Record<StatusAssinatura, string> = {
+  TRIAL: "bg-indigo-600 text-white border-indigo-600",
+  ATIVA: "bg-brand-600 text-white border-brand-600",
+  ATRASADA: "bg-red-600 text-white border-red-600",
+  CANCELADA: "bg-stone-600 text-white border-stone-600",
+};
+
 type PeriodoPreset = "mes" | "mesAnterior";
 
 const PERIODO_PRESETS: { valor: PeriodoPreset; label: string }[] = [
@@ -385,9 +397,7 @@ export default async function MasterAssinaturasPage({
               key={valor}
               href={linkStatus(valor)}
               className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                statusFiltro === valor
-                  ? "bg-stone-800 text-white border-stone-800"
-                  : "border-stone-300 text-stone-600 hover:bg-stone-50"
+                statusFiltro === valor ? STATUS_CLASSE_ATIVO[valor] : `${STATUS_CLASSE[valor]} hover:opacity-80`
               }`}
             >
               {label}
