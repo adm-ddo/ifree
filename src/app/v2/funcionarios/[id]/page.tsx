@@ -28,7 +28,8 @@ import {
   calcularSaldoDiarioClt,
   pausaAplicadaEm,
 } from "@/lib/ponto";
-import { paraDatetimeLocalBrasil } from "@/lib/data";
+import { paraDatetimeLocalBrasil, inicioDoMesBrasil } from "@/lib/data";
+import FlutuanteGrupoForm from "@/app/funcionarios/[id]/FlutuanteGrupoForm";
 
 function formatarDataUTC(data: Date): string {
   return data.toLocaleDateString("pt-BR", { timeZone: "UTC" });
@@ -92,6 +93,7 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
     prisma.empresa.findUniqueOrThrow({
       where: { id: sessao.empresaEfetivoId },
       select: {
+        grupoEconomicoId: true,
         horarioEntrada5x2Min: true,
         horarioSaida5x2Min: true,
         horarioEntrada5x2NoiteMin: true,
@@ -109,6 +111,31 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
   ]);
 
   const horarioEsperado = horarioEsperadoClt(vinculo.escalaTrabalho, vinculo.escalaTurno, vinculo.horarioEntradaMin, vinculo.horarioSaidaMin, empresaHorarios);
+
+  // Ver comentário completo em src/app/funcionarios/[id]/page.tsx (v1) —
+  // mesma lógica, só espelhada aqui.
+  let registrosPorEmpresaDoMes: { empresaId: number; empresaNome: string; registros: number; minutos: number }[] = [];
+  if (empresaHorarios.grupoEconomicoId !== null) {
+    const agrupado = await prisma.registroPonto.groupBy({
+      by: ["empresaId"],
+      where: { pessoaId, horaEntrada: { gte: inicioDoMesBrasil(new Date()) } },
+      _count: { id: true },
+      _sum: { minutosTrabalhados: true },
+    });
+    if (agrupado.length > 1) {
+      const empresasEnvolvidas = await prisma.empresa.findMany({
+        where: { id: { in: agrupado.map((a) => a.empresaId) } },
+        select: { id: true, nome: true },
+      });
+      const nomePorId = new Map(empresasEnvolvidas.map((e) => [e.id, e.nome]));
+      registrosPorEmpresaDoMes = agrupado.map((a) => ({
+        empresaId: a.empresaId,
+        empresaNome: nomePorId.get(a.empresaId) ?? "Empresa desconhecida",
+        registros: a._count.id,
+        minutos: a._sum.minutosTrabalhados ?? 0,
+      }));
+    }
+  }
 
   let statusFerias: null | { fase: "AQUISITIVO"; texto: string } | { fase: "CONCESSIVO"; texto: string; urgente: boolean } | { fase: "VENCIDA"; texto: string } = null;
   if (vinculo.dataAdmissao) {
@@ -300,6 +327,34 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
         frequenciaPagamentoAtual={vinculo.frequenciaPagamento}
         temChavePix={temChavePix}
       />
+
+      {empresaHorarios.grupoEconomicoId !== null && (
+        <FlutuanteGrupoForm pessoaId={pessoaId} podeBaterPontoNoGrupoAtual={vinculo.podeBaterPontoNoGrupo} />
+      )}
+
+      {registrosPorEmpresaDoMes.length > 1 && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm max-w-lg flex flex-col gap-3">
+          <div>
+            <h2 className="font-semibold text-navy-900">Ponto neste mês, por empresa do grupo</h2>
+            <p className="text-xs text-stone-500 mt-1">
+              Essa pessoa bateu ponto em mais de uma empresa do grupo econômico este mês.
+            </p>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {registrosPorEmpresaDoMes.map((r) => (
+              <li
+                key={r.empresaId}
+                className="flex items-center justify-between text-sm rounded-lg bg-stone-50 px-3 py-2"
+              >
+                <span className="text-navy-900">{r.empresaNome}</span>
+                <span className="text-stone-500">
+                  {r.registros} {r.registros === 1 ? "dia" : "dias"} · {(r.minutos / 60).toFixed(1)}h
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <CriarTurnoManualForm pessoaId={pessoaId} funcoes={funcoesAtivas} temChavePix={temChavePix} />
 

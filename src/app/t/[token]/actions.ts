@@ -179,6 +179,42 @@ async function buscarConflitoOutroLocal(
   return { desde: maisAntigo.toISOString() };
 }
 
+/** Resolve o vínculo CLT aplicável nesta empresa — direto se existir,
+ * senão tenta achar um vínculo CLT flutuante (VinculoPessoaEmpresa.
+ * podeBaterPontoNoGrupo) numa empresa IRMÃ do mesmo grupo econômico (ver
+ * Empresa.grupoEconomicoId). Usado por buscarPessoaPorDocumento e
+ * baterPontoClt — quem chama sempre grava RegistroPonto/Turno com
+ * `empresaId: totemEmpresaId` (a empresa física onde bateu), nunca a de
+ * origem: só a escala/horário/restrições vêm do vínculo de origem, o
+ * lugar de trabalho é sempre onde a pessoa está de verdade. Sem grupo
+ * econômico configurado, devolve exatamente o que a busca direta achou —
+ * comportamento idêntico a antes desta função existir. */
+async function resolverVinculoCltComGrupo(pessoaId: number, totemEmpresaId: number) {
+  const direto = await prisma.vinculoPessoaEmpresa.findUnique({
+    where: { pessoaId_empresaId: { pessoaId, empresaId: totemEmpresaId } },
+    include: { restricoesHorario: { select: { diaSemana: true, horaMinimaMin: true, horaMaximaMin: true } } },
+  });
+  if (direto?.tipoVinculo === "CLT") return direto;
+
+  const empresaTotem = await prisma.empresa.findUnique({
+    where: { id: totemEmpresaId },
+    select: { grupoEconomicoId: true },
+  });
+  if (!empresaTotem?.grupoEconomicoId) return direto;
+
+  const flutuante = await prisma.vinculoPessoaEmpresa.findFirst({
+    where: {
+      pessoaId,
+      tipoVinculo: "CLT",
+      ativo: true,
+      podeBaterPontoNoGrupo: true,
+      empresa: { grupoEconomicoId: empresaTotem.grupoEconomicoId },
+    },
+    include: { restricoesHorario: { select: { diaSemana: true, horaMinimaMin: true, horaMaximaMin: true } } },
+  });
+  return flutuante ?? direto;
+}
+
 export async function buscarPessoaPorDocumento(
   token: string,
   documentoBruto: string
@@ -195,9 +231,7 @@ export async function buscarPessoaPorDocumento(
   const pessoa = await prisma.pessoa.findUnique({ where: { documento } });
   if (!pessoa) return { encontrada: false };
 
-  const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
-    where: { pessoaId_empresaId: { pessoaId: pessoa.id, empresaId: totem.empresaId } },
-  });
+  const vinculo = await resolverVinculoCltComGrupo(pessoa.id, totem.empresaId);
 
   // Turno extra em aberto tem prioridade sobre o ramo CLT — uma pessoa
   // CLT que optou por um extra (permiteExtraDiario) continua presa nesse
@@ -495,10 +529,7 @@ export async function baterPontoClt(
   const totem = await resolverTotemAtivo(token);
   if (!totem) return { erro: "Totem inválido ou desativado." };
 
-  const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
-    where: { pessoaId_empresaId: { pessoaId: dados.pessoaId, empresaId: totem.empresaId } },
-    include: { restricoesHorario: { select: { diaSemana: true, horaMinimaMin: true, horaMaximaMin: true } } },
-  });
+  const vinculo = await resolverVinculoCltComGrupo(dados.pessoaId, totem.empresaId);
   if (!vinculo || vinculo.tipoVinculo !== "CLT") return { erro: "Funcionário inválido." };
   if (!vinculo.ativo) return { erro: "Você está bloqueado(a) nesta empresa. Fale com o responsável." };
   if (dados.acao === "ENTRADA") {

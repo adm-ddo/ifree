@@ -151,3 +151,81 @@ export async function excluirEmpresa(empresaId: number) {
   revalidatePath("/v2/empresas");
   revalidatePath("/", "layout");
 }
+
+export type GrupoEconomicoState = { erro?: string; sucesso?: boolean } | undefined;
+
+/** Cria ou edita o grupo econômico entre empresas do PRÓPRIO login —
+ * permite que um funcionário CLT marcado como flutuante
+ * (VinculoPessoaEmpresa.podeBaterPontoNoGrupo) bata ponto em qualquer
+ * empresa do grupo (ver resolverVinculoCltComGrupo em
+ * src/app/t/[token]/actions.ts). Auto-serviço: quem já é admin de 2+
+ * empresas prova que são do mesmo dono, não precisa do master aprovar.
+ *
+ * Semântica de "substituir tudo": reaproveita um grupo já existente entre
+ * as empresas selecionadas (se houver), ou cria um novo; empresas DESTE
+ * login que tinham esse grupo mas não foram marcadas desta vez saem dele
+ * (nunca mexe numa empresa de outro dono que porventura compartilhe o
+ * grupo — só quem já é admin dela consegue tirá-la). Grupo que fica sem
+ * nenhuma empresa é apagado. */
+export async function salvarGrupoEconomico(
+  _prev: GrupoEconomicoState,
+  formData: FormData
+): Promise<GrupoEconomicoState> {
+  const sessao = await requireSessao();
+
+  const nome = String(formData.get("nome") ?? "").trim();
+  const empresaIds = formData.getAll("empresaIds").map(Number).filter(Number.isInteger);
+
+  if (empresaIds.length < 2) {
+    return { erro: "Selecione pelo menos 2 empresas pra formar um grupo." };
+  }
+  if (!nome) {
+    return { erro: "Dê um nome pro grupo." };
+  }
+
+  const vinculos = await prisma.usuarioEmpresa.findMany({
+    where: { usuarioId: sessao.usuarioId, empresaId: { in: empresaIds } },
+    select: { empresaId: true, admin: true, empresa: { select: { grupoEconomicoId: true } } },
+  });
+  if (vinculos.length !== empresaIds.length || vinculos.some((v) => !v.admin)) {
+    return { erro: "Você precisa ser admin de todas as empresas selecionadas." };
+  }
+
+  const grupoExistenteId = vinculos.map((v) => v.empresa.grupoEconomicoId).find((id) => id !== null) ?? null;
+
+  await prisma.$transaction(async (tx) => {
+    const grupo = grupoExistenteId
+      ? await tx.grupoEconomico.update({ where: { id: grupoExistenteId }, data: { nome } })
+      : await tx.grupoEconomico.create({ data: { nome } });
+
+    await tx.empresa.updateMany({
+      where: { id: { in: empresaIds } },
+      data: { grupoEconomicoId: grupo.id },
+    });
+
+    // Empresas DESTE usuário que estavam nesse grupo mas ficaram de fora da
+    // seleção desta vez — saem do grupo. Nunca toca empresa de outro dono.
+    const minhasEmpresasIds = (
+      await tx.usuarioEmpresa.findMany({
+        where: { usuarioId: sessao.usuarioId },
+        select: { empresaId: true },
+      })
+    ).map((v) => v.empresaId);
+    await tx.empresa.updateMany({
+      where: {
+        id: { in: minhasEmpresasIds, notIn: empresaIds },
+        grupoEconomicoId: grupo.id,
+      },
+      data: { grupoEconomicoId: null },
+    });
+
+    const restantes = await tx.empresa.count({ where: { grupoEconomicoId: grupo.id } });
+    if (restantes === 0) {
+      await tx.grupoEconomico.delete({ where: { id: grupo.id } });
+    }
+  });
+
+  revalidatePath("/empresas");
+  revalidatePath("/v2/empresas");
+  return { sucesso: true };
+}

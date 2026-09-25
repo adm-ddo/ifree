@@ -128,6 +128,20 @@ enum FrequenciaPagamento {
   SEMANAL
 }
 
+/// Agrupa empresas do mesmo dono (ex.: matriz + filiais) pra permitir
+/// funcionário CLT flutuante entre elas (ver Empresa.grupoEconomicoId e
+/// VinculoPessoaEmpresa.podeBaterPontoNoGrupo). Criado por quem já é
+/// admin de todas as empresas envolvidas, em /empresas — nunca uma
+/// entidade legal de verdade, só um agrupamento operacional dentro do
+/// iFREE.
+model GrupoEconomico {
+  id       Int      @id @default(autoincrement())
+  nome     String
+  criadoEm DateTime @default(now())
+
+  empresas Empresa[]
+}
+
 model Empresa {
   id                         Int       @id @default(autoincrement())
   nome                       String
@@ -274,6 +288,15 @@ model Empresa {
   /// campo acima): evita mandar 2x no mesmo dia (o cron roda 2x/dia), mas
   /// permite mandar de novo na sexta seguinte se o saldo continuar baixo.
   alertaSaldoBaixoSextaNotificadoEm DateTime?
+  /// Grupo de empresas do mesmo dono (ver GrupoEconomico) — permite que um
+  /// funcionário CLT marcado como flutuante (VinculoPessoaEmpresa.
+  /// podeBaterPontoNoGrupo) bata ponto em qualquer empresa deste mesmo
+  /// grupo, sem precisar de vínculo próprio em cada uma. null = empresa
+  /// avulsa, comportamento de sempre. Gerenciado em /empresas
+  /// (salvarGrupoEconomico) por quem já é admin de todas as empresas
+  /// envolvidas — nunca pelo master.
+  grupoEconomicoId Int?
+  grupoEconomico   GrupoEconomico? @relation(fields: [grupoEconomicoId], references: [id], onDelete: SetNull)
   /// Data do último uso da "liberação de confiança" (ver
   /// solicitarLiberacaoConfianca em src/app/assinatura/actions.ts) — 1x por
   /// mês (não por vida da empresa): só libera de novo quando já passou 1
@@ -879,6 +902,14 @@ model VinculoPessoaEmpresa {
   /// frequenciaPagamento deste mesmo vínculo — os mesmos campos que
   /// converterParaClt zera na conversão passam a ter uso de novo aqui.
   permiteExtraDiario     Boolean             @default(false)
+  /// Só CLT: permite bater ponto em QUALQUER outra empresa do mesmo
+  /// grupo econômico da empresa deste vínculo (ver Empresa.
+  /// grupoEconomicoId) — usa a escala/horário/restrições deste vínculo
+  /// (de origem), só grava o RegistroPonto na empresa visitante (ver
+  /// resolverVinculoCltComGrupo em src/app/t/[token]/actions.ts).
+  /// Ligado pessoa a pessoa pelo dono da empresa de origem — nunca
+  /// automático só por a empresa estar no grupo.
+  podeBaterPontoNoGrupo  Boolean             @default(false)
   /// Dono descartou o aviso de risco de vínculo CLT (3+ turnos numa
   /// semana sem declaração de ciência gerada) — null enquanto nunca
   /// descartou. Continua mostrando um lembrete na página da pessoa até

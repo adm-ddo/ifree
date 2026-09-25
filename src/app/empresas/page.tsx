@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSessao } from "@/lib/auth";
 import EmpresaRow from "./EmpresaRow";
 import NovaEmpresaForm from "./NovaEmpresaForm";
+import GrupoEconomicoForm from "./GrupoEconomicoForm";
 
 export default async function EmpresasPage() {
   const sessao = await requireSessao();
@@ -9,11 +10,16 @@ export default async function EmpresasPage() {
   const vinculos = await prisma.usuarioEmpresa.findMany({
     where: { usuarioId: sessao.usuarioId },
     select: {
-      empresa: { select: { id: true, nome: true, cnpj: true, endereco: true } },
+      empresa: { select: { id: true, nome: true, cnpj: true, endereco: true, grupoEconomicoId: true } },
     },
     orderBy: { empresa: { nome: "asc" } },
   });
   const empresas = vinculos.map((v) => v.empresa);
+
+  const grupoExistenteId = empresas.find((e) => e.grupoEconomicoId !== null)?.grupoEconomicoId ?? null;
+  const grupoExistente = grupoExistenteId
+    ? await prisma.grupoEconomico.findUnique({ where: { id: grupoExistenteId }, select: { nome: true } })
+    : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -35,6 +41,8 @@ export default async function EmpresasPage() {
       </ul>
 
       <NovaEmpresaForm />
+
+      <GrupoEconomicoForm empresas={empresas} nomeGrupoAtual={grupoExistente?.nome ?? null} />
     </div>
   );
 }

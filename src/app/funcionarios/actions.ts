@@ -920,6 +920,33 @@ export async function atualizarExtraDiario(
   return { sucesso: true };
 }
 
+export type FlutuanteGrupoState = { erro?: string; sucesso?: boolean } | undefined;
+
+/** Liga/desliga, pra uma pessoa CLT, a permissão de bater ponto em
+ * qualquer outra empresa do mesmo grupo econômico desta empresa (ver
+ * Empresa.grupoEconomicoId e resolverVinculoCltComGrupo em
+ * src/app/t/[token]/actions.ts) — cópia enxuta de atualizarExtraDiario,
+ * sem campo nenhum além do próprio boolean. Só faz sentido chamar quando
+ * a empresa atual já está num grupo (a UI já esconde o formulário nesse
+ * caso, ver FlutuanteGrupoForm.tsx). */
+export async function atualizarFlutuanteGrupo(
+  _prev: FlutuanteGrupoState,
+  formData: FormData
+): Promise<FlutuanteGrupoState> {
+  const pessoaId = Number(formData.get("pessoaId"));
+  if (!Number.isInteger(pessoaId)) return { erro: "Funcionário inválido." };
+  const { vinculo } = await vinculoCltDaEmpresa(pessoaId);
+
+  await prisma.vinculoPessoaEmpresa.update({
+    where: { id: vinculo.id },
+    data: { podeBaterPontoNoGrupo: formData.get("podeBaterPontoNoGrupo") === "on" },
+  });
+
+  revalidatePath(`/funcionarios/${pessoaId}`);
+  revalidatePath(`/v2/funcionarios/${pessoaId}`);
+  return { sucesso: true };
+}
+
 export type CriarTurnoManualState =
   | { erro?: string; sucesso?: boolean; valorTotal?: number }
   | undefined;
