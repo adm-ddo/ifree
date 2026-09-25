@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { StatusAssinatura } from "@/generated/prisma/enums";
 
 /** Dias de teste grátis pra empresa nova — ver cadastrarNovaEmpresa em
  * src/app/empresas/actions.ts. Só constante em código de propósito, fácil
@@ -46,6 +47,26 @@ export const VALOR_MENSALIDADE_PADRAO = 99.9;
 
 export function valorMensalidadeEfetivo(valorMensalidade: number | null): number {
   return valorMensalidade ?? VALOR_MENSALIDADE_PADRAO;
+}
+
+/** MRR em dois números separados — nunca misturados num só, pra não
+ * confundir receita confirmada com previsão (decisão do Thiago em
+ * 2026-09-24, discutindo o dashboard de clientes de /master/assinaturas):
+ * `real` é exatamente o cálculo que já existia (só empresas ATIVA, pagando
+ * em dia), `potencial` soma também quem está em TRIAL — cenário "se todo
+ * trial virasse pagante". ATRASADA/CANCELADA ficam de fora dos dois (mesma
+ * regra de sempre pra ATRASADA: não é receita disponível agora). */
+export function calcularMrr(
+  empresas: { statusAssinatura: StatusAssinatura; valorMensalidade: number | null }[]
+): { real: number; potencial: number } {
+  const somaPorStatus = (status: StatusAssinatura) =>
+    empresas
+      .filter((e) => e.statusAssinatura === status)
+      .reduce((soma, e) => soma + valorMensalidadeEfetivo(e.valorMensalidade), 0);
+
+  const real = somaPorStatus("ATIVA");
+  const potencial = real + somaPorStatus("TRIAL");
+  return { real, potencial };
 }
 
 /** Máximo de parcelas pro tablet fornecido (12x sem juros) — ver

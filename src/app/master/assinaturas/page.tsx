@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { requireMaster } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { valorMensalidadeEfetivo } from "@/lib/assinatura";
+import { valorMensalidadeEfetivo, calcularMrr, diasParaVencer } from "@/lib/assinatura";
 import { inicioDoMesBrasil } from "@/lib/data";
-import AssinaturaEditForm from "./AssinaturaEditForm";
+import { buscarSaldosAsaas } from "@/lib/pagamentos/asaas-deposito";
+import AssinaturaCard from "./AssinaturaCard";
 import type { StatusAssinatura } from "@/generated/prisma/enums";
 
 const ORDEM_URGENCIA: Record<StatusAssinatura, number> = {
@@ -56,6 +57,33 @@ function formatarDataCurta(data: Date): string {
   return data.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+/// Texto + cor da tira de urgência de cada card, a partir de
+/// diasParaVencer (src/lib/assinatura.ts) — ATRASADA entra como "atrasado"
+/// mesmo se por algum motivo os dias derem positivo (dado desatualizado),
+/// já que o status manda mais que a data crua.
+function infoVencimento(
+  assinaturaVenceEm: Date | null,
+  statusAssinatura: StatusAssinatura,
+  agora: Date
+): { label: string; urgencia: "atrasado" | "atencao" | "normal" } {
+  if (!assinaturaVenceEm) return { label: "Sem vencimento definido", urgencia: "normal" };
+
+  const dias = diasParaVencer(assinaturaVenceEm, agora);
+  const dataLabel = formatarDataCurta(assinaturaVenceEm);
+
+  if (statusAssinatura === "ATRASADA" || dias < 0) {
+    const diasAtraso = Math.abs(dias);
+    return {
+      label: `Venceu em ${dataLabel} · ${diasAtraso} dia${diasAtraso === 1 ? "" : "s"} atrás`,
+      urgencia: "atrasado",
+    };
+  }
+  return {
+    label: `Vence em ${dataLabel} · ${dias} dia${dias === 1 ? "" : "s"}`,
+    urgencia: dias <= 7 ? "atencao" : "normal",
+  };
+}
+
 /** Visão de billing separada da lista de usuários/empresas do /master —
  * ordenada por urgência (atrasada primeiro) em vez de por dono, é o
  * "outro portal de controle" que o dono pediu pra acompanhar assinatura
@@ -63,10 +91,11 @@ function formatarDataCurta(data: Date): string {
 export default async function MasterAssinaturasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; periodo?: string; inicio?: string; fim?: string }>;
+  searchParams: Promise<{ status?: string; periodo?: string; inicio?: string; fim?: string; q?: string }>;
 }) {
   await requireMaster();
-  const { status, periodo, inicio, fim } = await searchParams;
+  const { status, periodo, inicio, fim, q } = await searchParams;
+  const busca = (q ?? "").trim().toLowerCase();
 
   const statusFiltro = (Object.keys(STATUS_FILTRO_LABEL) as StatusAssinatura[]).includes(
     status as StatusAssinatura
@@ -84,6 +113,7 @@ export default async function MasterAssinaturasPage({
   function linkStatus(s: StatusAssinatura | null): string {
     const params = new URLSearchParams();
     if (s) params.set("status", s);
+    if (busca) params.set("q", q!);
     if (periodoCustomizado) {
       params.set("inicio", inicio!);
       params.set("fim", fim!);
@@ -97,6 +127,7 @@ export default async function MasterAssinaturasPage({
   function linkPeriodo(p: PeriodoPreset): string {
     const params = new URLSearchParams();
     if (statusFiltro) params.set("status", statusFiltro);
+    if (busca) params.set("q", q!);
     if (p !== "mes") params.set("periodo", p);
     return `/master/assinaturas?${params.toString()}`;
   }
@@ -107,6 +138,11 @@ export default async function MasterAssinaturasPage({
       id: true,
       nome: true,
       cnpj: true,
+      email: true,
+      endereco: true,
+      numero: true,
+      bairro: true,
+      cidade: true,
       statusAssinatura: true,
       assinaturaVenceEm: true,
       valorMensalidade: true,
@@ -116,16 +152,21 @@ export default async function MasterAssinaturasPage({
       tabletValorTotal: true,
       tabletParcelasTotal: true,
       tabletParcelasPagas: true,
+      _count: { select: { funcoes: true, turnos: true } },
     },
   });
+  const empresaIds = empresas.map((e) => e.id);
 
-  // Última cobrança de cada empresa — uma query só, reduzida em JS (mesmo
-  // padrão de agregação em Map já usado no resto do projeto).
-  const cobrancas = await prisma.cobrancaMensalidade.findMany({
-    where: { empresaId: { in: empresas.map((e) => e.id) } },
-    orderBy: { criadoEm: "desc" },
-    select: { empresaId: true, status: true, valor: true, pagoEm: true, criadoEm: true },
-  });
+  // Última cobrança de cada empresa + saldo Asaas de cada uma — as duas são
+  // independentes entre si (e da lista de empresas em si), rodam juntas.
+  const [cobrancas, saldosAsaas] = await Promise.all([
+    prisma.cobrancaMensalidade.findMany({
+      where: { empresaId: { in: empresaIds } },
+      orderBy: { criadoEm: "desc" },
+      select: { empresaId: true, status: true, valor: true, pagoEm: true, criadoEm: true },
+    }),
+    buscarSaldosAsaas(empresaIds),
+  ]);
   const ultimaCobrancaPorEmpresa = new Map<number, (typeof cobrancas)[number]>();
   for (const c of cobrancas) {
     if (!ultimaCobrancaPorEmpresa.has(c.empresaId)) ultimaCobrancaPorEmpresa.set(c.empresaId, c);
@@ -134,7 +175,17 @@ export default async function MasterAssinaturasPage({
   const ordenadas = [...empresas].sort(
     (a, b) => ORDEM_URGENCIA[a.statusAssinatura] - ORDEM_URGENCIA[b.statusAssinatura]
   );
-  const visiveis = statusFiltro ? ordenadas.filter((e) => e.statusAssinatura === statusFiltro) : ordenadas;
+  const filtradasPorStatus = statusFiltro
+    ? ordenadas.filter((e) => e.statusAssinatura === statusFiltro)
+    : ordenadas;
+  const buscaDigitos = busca.replace(/\D/g, "");
+  const visiveis = busca
+    ? filtradasPorStatus.filter(
+        (e) =>
+          e.nome.toLowerCase().includes(busca) ||
+          (buscaDigitos.length > 0 && e.cnpj.replace(/\D/g, "").includes(buscaDigitos))
+      )
+    : filtradasPorStatus;
 
   // Financeiro do período: "gerado" olha criadoEm (emissão), "recebido"
   // olha pagoEm (só cobranças PAGA) — mesma distinção emissão/recebimento
@@ -159,18 +210,19 @@ export default async function MasterAssinaturasPage({
     (e) => e.assinaturaVenceEm && e.assinaturaVenceEm >= dataInicio && e.assinaturaVenceEm <= dataFim
   );
 
+  const mrr = calcularMrr(
+    empresas.map((e) => ({
+      statusAssinatura: e.statusAssinatura,
+      valorMensalidade: e.valorMensalidade !== null ? Number(e.valorMensalidade) : null,
+    }))
+  );
   const resumo = {
     trial: empresas.filter((e) => e.statusAssinatura === "TRIAL").length,
     ativa: empresas.filter((e) => e.statusAssinatura === "ATIVA").length,
     atrasada: empresas.filter((e) => e.statusAssinatura === "ATRASADA").length,
     cancelada: empresas.filter((e) => e.statusAssinatura === "CANCELADA").length,
-    mrr: empresas
-      .filter((e) => e.statusAssinatura === "ATIVA")
-      .reduce(
-        (soma, e) =>
-          soma + valorMensalidadeEfetivo(e.valorMensalidade !== null ? Number(e.valorMensalidade) : null),
-        0
-      ),
+    mrrReal: mrr.real,
+    mrrPotencial: mrr.potencial,
   };
 
   return (
@@ -185,12 +237,13 @@ export default async function MasterAssinaturasPage({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <ResumoCard label="Em trial" valor={resumo.trial} />
         <ResumoCard label="Em dia" valor={resumo.ativa} />
         <ResumoCard label="Atrasadas" valor={resumo.atrasada} />
         <ResumoCard label="Canceladas" valor={resumo.cancelada} />
-        <ResumoCard label="MRR estimado" valor={`R$ ${resumo.mrr.toFixed(2)}`} />
+        <ResumoCard label="MRR real" valor={`R$ ${resumo.mrrReal.toFixed(2)}`} />
+        <ResumoCard label="MRR potencial (com trial)" valor={`R$ ${resumo.mrrPotencial.toFixed(2)}`} />
       </div>
 
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-4">
@@ -315,46 +368,85 @@ export default async function MasterAssinaturasPage({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Link
-          href={linkStatus(null)}
-          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-            !statusFiltro
-              ? "bg-stone-800 text-white border-stone-800"
-              : "border-stone-300 text-stone-600 hover:bg-stone-50"
-          }`}
-        >
-          Todas
-        </Link>
-        {(Object.entries(STATUS_FILTRO_LABEL) as [StatusAssinatura, string][]).map(([valor, label]) => (
+      <div className="flex flex-wrap items-center gap-2 justify-between">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
-            key={valor}
-            href={linkStatus(valor)}
+            href={linkStatus(null)}
             className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-              statusFiltro === valor
+              !statusFiltro
                 ? "bg-stone-800 text-white border-stone-800"
                 : "border-stone-300 text-stone-600 hover:bg-stone-50"
             }`}
           >
-            {label}
+            Todas
           </Link>
-        ))}
+          {(Object.entries(STATUS_FILTRO_LABEL) as [StatusAssinatura, string][]).map(([valor, label]) => (
+            <Link
+              key={valor}
+              href={linkStatus(valor)}
+              className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                statusFiltro === valor
+                  ? "bg-stone-800 text-white border-stone-800"
+                  : "border-stone-300 text-stone-600 hover:bg-stone-50"
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+
+        <form method="GET" className="flex items-center gap-2">
+          {statusFiltro && <input type="hidden" name="status" value={statusFiltro} />}
+          {periodoCustomizado ? (
+            <>
+              <input type="hidden" name="inicio" value={inicio} />
+              <input type="hidden" name="fim" value={fim} />
+            </>
+          ) : (
+            presetValido !== "mes" && <input type="hidden" name="periodo" value={presetValido} />
+          )}
+          <input
+            type="text"
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Buscar por nome ou CNPJ..."
+            className="border border-stone-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-56"
+          />
+        </form>
       </div>
 
       {visiveis.length === 0 ? (
         <p className="text-stone-500 text-sm">Nenhuma empresa encontrada com esse filtro.</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {visiveis.map((empresa) => {
             const ultima = ultimaCobrancaPorEmpresa.get(empresa.id) ?? null;
+            const saldo = saldosAsaas.get(empresa.id);
+            const { label: vencimentoLabel, urgencia } = infoVencimento(
+              empresa.assinaturaVenceEm,
+              empresa.statusAssinatura,
+              agora
+            );
             return (
-              <AssinaturaEditForm
+              <AssinaturaCard
                 key={empresa.id}
                 valorMensalidadePadrao={valorMensalidadeEfetivo(null)}
+                vencimentoLabel={vencimentoLabel}
+                urgencia={urgencia}
+                saldoAsaas={
+                  saldo === undefined ? { tipo: "semConta" } : saldo === null ? { tipo: "indisponivel" } : { tipo: "valor", valor: saldo }
+                }
                 empresa={{
                   id: empresa.id,
                   nome: empresa.nome,
                   cnpj: empresa.cnpj,
+                  email: empresa.email,
+                  endereco: empresa.endereco,
+                  numero: empresa.numero,
+                  bairro: empresa.bairro,
+                  cidade: empresa.cidade,
+                  funcoesCount: empresa._count.funcoes,
+                  turnosCount: empresa._count.turnos,
                   statusAssinatura: empresa.statusAssinatura,
                   assinaturaVenceEm: empresa.assinaturaVenceEm
                     ? empresa.assinaturaVenceEm.toISOString().slice(0, 10)

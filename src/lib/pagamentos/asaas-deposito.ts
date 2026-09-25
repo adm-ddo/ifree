@@ -194,3 +194,49 @@ export async function buscarSaldoAsaas(empresaId: number): Promise<number | null
     return null;
   }
 }
+
+/** Mesma consulta de buscarSaldoAsaas, mas pra várias empresas de uma vez
+ * (usado pelo dashboard de clientes em /master/assinaturas) — uma query só
+ * pra achar todas as contas conectadas, depois uma chamada em paralelo por
+ * conta. Duplica o miolo de buscarSaldoAsaas em vez de fazer essa
+ * reaproveitar esta (ou vice-versa) de propósito: aquela função é usada em
+ * 4 telas de fluxo de dinheiro ao vivo (dashboard, pagamentos), não vale o
+ * risco de mexer nela só pra virar genérica.
+ *
+ * `Promise.allSettled` (não `Promise.all`) — uma conta com chave inválida
+ * ou fora do ar não pode apagar o saldo das outras. Timeout de 5s por
+ * chamada: como todas rodam em paralelo, o tempo total da função fica
+ * limitado a isso, não a N vezes o tempo de resposta da Asaas.
+ *
+ * Resultado: empresa AUSENTE do Map = não tem conta Asaas conectada;
+ * presente com `null` = tem conta, mas a consulta falhou agora (chave
+ * inválida, rede, timeout) — nunca vira 0, mesmo espírito de
+ * buscarSaldoAsaas (0 real é diferente de "não sei"). */
+export async function buscarSaldosAsaas(empresaIds: number[]): Promise<Map<number, number | null>> {
+  const contas = await prisma.contaAsaasEmpresa.findMany({
+    where: { empresaId: { in: empresaIds } },
+    select: { empresaId: true, apiKeyCriptografada: true },
+  });
+
+  const resultado = new Map<number, number | null>();
+  await Promise.allSettled(
+    contas.map(async (conta) => {
+      try {
+        const apiKey = descriptografar(conta.apiKeyCriptografada);
+        const resposta = await fetch(`${baseUrlAsaas()}/finance/balance`, {
+          headers: { access_token: apiKey },
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!resposta.ok) {
+          resultado.set(conta.empresaId, null);
+          return;
+        }
+        const dados = await resposta.json();
+        resultado.set(conta.empresaId, typeof dados.balance === "number" ? dados.balance : null);
+      } catch {
+        resultado.set(conta.empresaId, null);
+      }
+    })
+  );
+  return resultado;
+}
