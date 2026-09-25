@@ -206,6 +206,16 @@ export default async function MasterAssinaturasPage({
     );
   }
 
+  // Soma dos saldos AGORA em todas as contas Asaas conectadas — diferente
+  // de totalTransacionadoAsaas (que é o que já SAIU pros extras), este é o
+  // dinheiro que as empresas têm parado nas próprias subcontas neste
+  // instante. Ignora `null` (consulta falhou) pra não subtrair dinheiro
+  // que só não conseguimos consultar agora.
+  let saldoTotalAsaas = 0;
+  for (const saldo of saldosAsaas.values()) {
+    if (saldo !== null) saldoTotalAsaas += saldo;
+  }
+
   const ordenadas = [...empresas].sort(
     (a, b) => ORDEM_URGENCIA[a.statusAssinatura] - ORDEM_URGENCIA[b.statusAssinatura]
   );
@@ -271,13 +281,22 @@ export default async function MasterAssinaturasPage({
         </p>
       </div>
 
-      <div className="rounded-2xl bg-brand-50 border border-brand-200 p-4 flex items-center gap-3">
-        <span className="text-2xl">💸</span>
-        <p className="text-sm text-brand-800">
-          O iFREE já processou{" "}
-          <strong className="text-base">R$ {totalTransacionadoAsaas.toFixed(2)}</strong> em pagamentos
-          automáticos pra extras, via Pix pela Asaas.
-        </p>
+      <div className="rounded-2xl bg-brand-50 border border-brand-200 p-4 flex flex-col sm:flex-row gap-3 sm:gap-6">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">💸</span>
+          <p className="text-sm text-brand-800">
+            O iFREE já processou{" "}
+            <strong className="text-base">R$ {totalTransacionadoAsaas.toFixed(2)}</strong> em pagamentos
+            automáticos pra extras, via Pix pela Asaas.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 sm:border-l sm:border-brand-200 sm:pl-6">
+          <span className="text-2xl">💰</span>
+          <p className="text-sm text-brand-800">
+            Saldo somado, agora, em todas as contas Asaas conectadas:{" "}
+            <strong className="text-base">R$ {saldoTotalAsaas.toFixed(2)}</strong>.
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
