@@ -77,6 +77,7 @@ export default function AssinaturaCard({
   vencimentoLabel,
   urgencia,
   saldoAsaas,
+  totalTransacionadoAsaas,
   ultimaCobranca,
 }: {
   empresa: Empresa;
@@ -84,6 +85,10 @@ export default function AssinaturaCard({
   vencimentoLabel: string;
   urgencia: "atrasado" | "atencao" | "normal";
   saldoAsaas: SaldoAsaas;
+  /// Soma de tudo que já foi pago de verdade pra extras dessa empresa via
+  /// Pix automático (ver comentário em page.tsx) — só curiosidade/
+  /// referência, não é usado em filtro nem cálculo nenhum.
+  totalTransacionadoAsaas: number;
   ultimaCobranca: { status: StatusCobranca; valor: number; dataLabel: string } | null;
 }) {
   const [editando, setEditando] = useState(false);
@@ -131,6 +136,7 @@ export default function AssinaturaCard({
           valor={empresa.splitPercentualAsaas !== null ? `${empresa.splitPercentualAsaas}%` : "—"}
         />
         <MiniDado label="Saldo Asaas" valor={saldoLabel} destaque={saldoAsaas.tipo === "valor"} />
+        <MiniDado label="Já pago aos extras" valor={`R$ ${totalTransacionadoAsaas.toFixed(2)}`} />
         <MiniDado label="Funções" valor={String(empresa.funcoesCount)} />
         <MiniDado label="Turnos" valor={String(empresa.turnosCount)} />
         <MiniDado label="Tablet" valor={tabletLabel} />

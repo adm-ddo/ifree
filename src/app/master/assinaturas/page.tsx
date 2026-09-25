@@ -169,19 +169,41 @@ export default async function MasterAssinaturasPage({
   });
   const empresaIds = empresas.map((e) => e.id);
 
-  // Última cobrança de cada empresa + saldo Asaas de cada uma — as duas são
-  // independentes entre si (e da lista de empresas em si), rodam juntas.
-  const [cobrancas, saldosAsaas] = await Promise.all([
+  // Última cobrança de cada empresa + saldo Asaas de cada uma + tudo que já
+  // foi pago de verdade pra extra via Pix automático (Pagamento.status
+  // CONCLUIDO + pagoAutomaticamente — pagamento marcado manualmente não
+  // passou pela Asaas, não entra nessa soma) — as três são independentes
+  // entre si (e da lista de empresas em si), rodam juntas.
+  const [cobrancas, saldosAsaas, pagamentosAsaas] = await Promise.all([
     prisma.cobrancaMensalidade.findMany({
       where: { empresaId: { in: empresaIds } },
       orderBy: { criadoEm: "desc" },
       select: { empresaId: true, status: true, valor: true, pagoEm: true, criadoEm: true },
     }),
     buscarSaldosAsaas(empresaIds),
+    prisma.pagamento.findMany({
+      where: { status: "CONCLUIDO", pagoAutomaticamente: true, turno: { empresaId: { in: empresaIds } } },
+      select: { valor: true, turno: { select: { empresaId: true } } },
+    }),
   ]);
   const ultimaCobrancaPorEmpresa = new Map<number, (typeof cobrancas)[number]>();
   for (const c of cobrancas) {
     if (!ultimaCobrancaPorEmpresa.has(c.empresaId)) ultimaCobrancaPorEmpresa.set(c.empresaId, c);
+  }
+
+  // Curiosidade de referência (ver conversa com o Thiago em 2026-09-24):
+  // quanto o iFREE já processou de verdade em Pix automático pra extras,
+  // no total e por empresa — não é uma métrica operacional (não entra nos
+  // filtros nem no resumo), só um número pra acompanhar o crescimento.
+  let totalTransacionadoAsaas = 0;
+  const transacionadoPorEmpresa = new Map<number, number>();
+  for (const p of pagamentosAsaas) {
+    const valor = Number(p.valor);
+    totalTransacionadoAsaas += valor;
+    transacionadoPorEmpresa.set(
+      p.turno.empresaId,
+      (transacionadoPorEmpresa.get(p.turno.empresaId) ?? 0) + valor
+    );
   }
 
   const ordenadas = [...empresas].sort(
@@ -246,6 +268,15 @@ export default async function MasterAssinaturasPage({
         <h1 className="text-2xl font-semibold text-navy-900 mt-1">Assinaturas</h1>
         <p className="text-stone-600 mt-1 text-sm">
           Status de cobrança de cada empresa cadastrada no sistema.
+        </p>
+      </div>
+
+      <div className="rounded-2xl bg-brand-50 border border-brand-200 p-4 flex items-center gap-3">
+        <span className="text-2xl">💸</span>
+        <p className="text-sm text-brand-800">
+          O iFREE já processou{" "}
+          <strong className="text-base">R$ {totalTransacionadoAsaas.toFixed(2)}</strong> em pagamentos
+          automáticos pra extras, via Pix pela Asaas.
         </p>
       </div>
 
@@ -443,6 +474,7 @@ export default async function MasterAssinaturasPage({
                 valorMensalidadePadrao={valorMensalidadeEfetivo(null)}
                 vencimentoLabel={vencimentoLabel}
                 urgencia={urgencia}
+                totalTransacionadoAsaas={transacionadoPorEmpresa.get(empresa.id) ?? 0}
                 saldoAsaas={
                   saldo === undefined ? { tipo: "semConta" } : saldo === null ? { tipo: "indisponivel" } : { tipo: "valor", valor: saldo }
                 }
