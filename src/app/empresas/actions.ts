@@ -58,12 +58,23 @@ export async function cadastrarNovaEmpresa(
         termosAceitosEm: new Date(),
       },
     });
-    // responsavelEtica: true — quem cria a empresa é o dono, mantém acesso
-    // à Central de Ética por padrão (mesmo espírito do backfill da
-    // migração: ninguém fica sem acesso à própria empresa por padrão, só
-    // logins secundários criados depois em /equipe nascem sem a marcação).
+    // responsavelEtica/Ged: true — quem cria a empresa é o dono, mantém
+    // acesso à Central de Ética e ao GED por padrão (mesmo espírito do
+    // backfill da migração: ninguém fica sem acesso à própria empresa por
+    // padrão, só logins secundários criados depois em /equipe nascem sem a
+    // marcação). Sem isso o dono fica sem saída nenhuma pela própria UI
+    // quando é o único usuário da empresa: alternarResponsavelGed bloqueia
+    // autoalternância (só dá pra habilitar pra OUTRO membro da equipe), e
+    // sem outro admin ninguém consegue ligar isso — bug real encontrado no
+    // caso do Bar Cabral em 2026-09-24 (GED faltando, sem nenhuma forma de
+    // habilitar sozinho).
     await tx.usuarioEmpresa.create({
-      data: { usuarioId: sessao.usuarioId, empresaId: novaEmpresa.id, responsavelEtica: true },
+      data: {
+        usuarioId: sessao.usuarioId,
+        empresaId: novaEmpresa.id,
+        responsavelEtica: true,
+        responsavelGed: true,
+      },
     });
     return novaEmpresa;
   });
