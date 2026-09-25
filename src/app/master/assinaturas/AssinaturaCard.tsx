@@ -18,6 +18,17 @@ const STATUS_CLASSE: Record<StatusAssinatura, string> = {
   CANCELADA: "bg-stone-100 text-stone-600 border-stone-200",
 };
 
+/// Tira de cor na lateral do card, no mesmo espírito das linhas com
+/// destaque de borda que a v2 usa (ver src/app/v2/dashboard/page.tsx) — em
+/// vez do card v1 tradicional com borda uniforme cinza, dá pra bater o
+/// olho na cor e já saber o status antes de ler o badge.
+const STATUS_BORDA: Record<StatusAssinatura, string> = {
+  TRIAL: "border-l-indigo-400",
+  ATIVA: "border-l-brand-500",
+  ATRASADA: "border-l-red-500",
+  CANCELADA: "border-l-stone-300",
+};
+
 const COBRANCA_LABEL: Record<StatusCobranca, string> = {
   PENDENTE: "pendente",
   PAGA: "paga",
@@ -93,7 +104,9 @@ export default function AssinaturaCard({
     : "Não";
 
   return (
-    <li className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-3">
+    <li
+      className={`rounded-2xl border border-l-4 border-stone-200 ${STATUS_BORDA[empresa.statusAssinatura]} bg-white p-4 shadow-sm flex flex-col gap-3 transition-shadow hover:shadow-md`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-medium text-navy-900 truncate">{empresa.nome}</p>
@@ -108,7 +121,7 @@ export default function AssinaturaCard({
 
       <p className={`text-xs rounded-lg border px-3 py-1.5 ${URGENCIA_CLASSE[urgencia]}`}>{vencimentoLabel}</p>
 
-      <div className="grid grid-cols-2 gap-2 text-sm">
+      <div className="flex flex-col gap-1.5 text-sm">
         <MiniDado
           label="Mensalidade"
           valor={`R$ ${(empresa.valorMensalidade ?? valorMensalidadePadrao).toFixed(2)}`}
@@ -168,9 +181,9 @@ export default function AssinaturaCard({
 
 function MiniDado({ label, valor, destaque }: { label: string; valor: string; destaque?: boolean }) {
   return (
-    <div className="rounded-lg bg-stone-50 px-3 py-2">
-      <p className="text-stone-500 text-xs">{label}</p>
-      <p className={`font-medium ${destaque ? "text-brand-700" : "text-navy-900"}`}>{valor}</p>
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-brand-50 px-3 py-2">
+      <p className="text-stone-600 text-xs">{label}</p>
+      <p className={`font-medium text-right ${destaque ? "text-brand-700" : "text-navy-900"}`}>{valor}</p>
     </div>
   );
 }

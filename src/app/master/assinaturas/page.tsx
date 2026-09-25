@@ -242,8 +242,8 @@ export default async function MasterAssinaturasPage({
         <ResumoCard label="Em dia" valor={resumo.ativa} />
         <ResumoCard label="Atrasadas" valor={resumo.atrasada} />
         <ResumoCard label="Canceladas" valor={resumo.cancelada} />
-        <ResumoCard label="MRR real" valor={`R$ ${resumo.mrrReal.toFixed(2)}`} />
-        <ResumoCard label="MRR potencial (com trial)" valor={`R$ ${resumo.mrrPotencial.toFixed(2)}`} />
+        <ResumoCard label="MRR real" valor={`R$ ${resumo.mrrReal.toFixed(2)}`} destaque />
+        <ResumoCard label="MRR potencial (com trial)" valor={`R$ ${resumo.mrrPotencial.toFixed(2)}`} destaque />
       </div>
 
       <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-4">
@@ -481,7 +481,19 @@ export default async function MasterAssinaturasPage({
   );
 }
 
-function ResumoCard({ label, valor }: { label: string; valor: number | string }) {
+/// `destaque` dá o mesmo tratamento que a v2 usa pra métrica mais
+/// importante da tela (tile escuro navy-900, ver src/app/v2/dashboard/
+/// page.tsx) — usado aqui só no MRR, que é o número que mais importa
+/// olhar de cara nessa tela.
+function ResumoCard({ label, valor, destaque }: { label: string; valor: number | string; destaque?: boolean }) {
+  if (destaque) {
+    return (
+      <div className="rounded-2xl bg-navy-900 text-white p-4 shadow-sm">
+        <p className="text-2xl font-semibold">{valor}</p>
+        <p className="text-xs opacity-75 mt-1">{label}</p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
       <p className="text-2xl font-semibold text-navy-900">{valor}</p>
