@@ -58,8 +58,15 @@ export default function NavShell({
 
   return (
     <div className="min-h-full flex flex-col lg:flex-row bg-stone-50">
-      {/* Barra lateral — computador */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:shrink-0 bg-brand-500 px-3 py-4 gap-1">
+      {/* Barra lateral — computador. Fixa na tela (sticky + h-screen +
+       * overflow-y-auto próprio) em vez de esticar junto com o conteúdo à
+       * direita — sem isso, numa tela de conteúdo longo (relatório grande,
+       * lista extensa) o rodapé (Meus dados/Sair) ficava lá embaixo do
+       * tanto que o conteúdo tinha de altura, obrigando rolar a página
+       * inteira só pra sair. Agora fica sempre visível, rolando por conta
+       * própria só se a barra em si não couber na tela (muitos itens de
+       * menu numa tela baixa). */}
+      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto bg-brand-500 px-3 py-4 gap-1">
         <div className="text-white font-extrabold text-lg px-2 pb-4">iFREE</div>
         <nav className="flex flex-col gap-0.5 overflow-y-auto">
           {itens.map((item) => {
