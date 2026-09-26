@@ -141,7 +141,7 @@ export async function GET() {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="curriculo-${sanitizarNomeArquivo(pessoa.nome)}.pdf"`,
-      "Cache-Control": "private, no-store",
+      "Cache-Control": "private, no-store, no-cache, must-revalidate",
     },
   });
 }

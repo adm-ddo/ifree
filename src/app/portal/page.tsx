@@ -243,7 +243,14 @@ export default async function PortalHomePage() {
         <div className="flex flex-col gap-1 mt-1">
           {completude.liberaCurriculo ? (
             <Link
-              href="/portal/curriculo/pdf"
+              // "?v=" quebra o cache do navegador/visualizador de PDF —
+              // sem isso, alguns celulares reabrem a versão antiga salva
+              // em cache pra essa mesma URL em vez de buscar de novo,
+              // mesmo o servidor sempre montando o PDF com os dados atuais
+              // (foto, bio etc. — já confirmado direto no banco). Como
+              // esta página é renderizada de novo a cada visita, o valor
+              // muda toda vez que a pessoa volta aqui.
+              href={`/portal/curriculo/pdf?v=${Date.now()}`}
               target="_blank"
               className="rounded-lg bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium px-4 py-2.5 transition-colors self-start"
             >

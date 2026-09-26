@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requirePessoaComTermosAceitos } from "@/lib/auth-pessoa";
 import { formatarDataHora } from "@/lib/data";
+import AutoRefresh from "@/components/AutoRefresh";
 
 export default async function ConversasPortalPage() {
   const sessao = await requirePessoaComTermosAceitos();
@@ -20,6 +21,11 @@ export default async function ConversasPortalPage() {
     },
   });
 
+  // Já ordenava por mensagem mais recente, mas só no momento em que a
+  // página carregava — sem atualizar sozinha, uma conversa nova ficando
+  // mais recente em outra aba/turno não subia pro topo até recarregar na
+  // mão. AutoRefresh (mesmo componente de /dashboard e /pagamentos) chama
+  // router.refresh() sozinho, reordenando junto.
   const ordenadas = conversas.sort((a, b) => {
     const dataA = a.mensagens[0]?.criadoEm ?? new Date(0);
     const dataB = b.mensagens[0]?.criadoEm ?? new Date(0);
@@ -28,6 +34,7 @@ export default async function ConversasPortalPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <AutoRefresh intervaloMs={5000} />
       <div className="flex items-center gap-4 flex-wrap text-sm">
         <Link href="/portal" className="text-brand-700 hover:underline">
           🏠 Meu perfil
