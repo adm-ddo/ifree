@@ -7,6 +7,7 @@ import type { ModoPausa } from "@/generated/prisma/enums";
  * exatamente o que leu na tela. */
 export const TERMOS_CONTRATO: string[] = [
   "O(a) Contratado(a) presta este serviço de forma eventual e autônoma ao Contratante, na função e pelo valor/hora informados nesta tela, sem vínculo empregatício, subordinação hierárquica, exclusividade ou horário fixo obrigatório.",
+  "Os registros de entrada e saída deste turno — horário, foto e assinatura digital, capturados no momento do check-in e do check-out — constituem prova da execução do serviço e do tempo efetivamente trabalhado, podendo ser usados por qualquer uma das partes em caso de divergência sobre este turno.",
   "Como prestador(a) autônomo(a), o(a) Contratado(a) é responsável por manter conduta profissional adequada durante a prestação do serviço, incluindo zelar pela limpeza e organização dos ambientes que utilizar — inclusive banheiros — como se espera de qualquer profissional em local de trabalho compartilhado.",
   "O(a) Contratado(a) declara estar devidamente trajado(a) e apto(a) para exercer a função contratada, sendo de sua responsabilidade providenciar, por conta própria, os trajes e equipamentos de proteção individual (EPI) adequados e necessários à atividade.",
   "O pagamento será calculado com base no tempo efetivamente trabalhado, arredondado para o bloco de 5 (cinco) minutos mais próximo, e efetuado via PIX na chave cadastrada pelo(a) Contratado(a) em até 24 (vinte e quatro) horas após o término do serviço e emissão do recibo correspondente.",

@@ -30,7 +30,18 @@ export const metadata = { title: "Termos de Uso — Freelancers — iFREE" };
  * "strikes"), nem responsabilidade por aparelho/conexão próprios no totem
  * — diferente do concorrente, o freelancer NUNCA usa o próprio celular
  * pra bater o ponto aqui, só tablet ou celular da própria empresa
- * Contratante (ver item 3). Rota pública,
+ * Contratante (ver item 3).
+ *
+ * Duas clausulas novas depois de comparar com outro concorrente (Freela
+ * Servicos, 2026-09-26): item 4 (check-in/check-out como prova da
+ * execucao - o concorrente tem um capitulo inteiro so sobre isso, e faz
+ * sentido pro iFREE formalizar ja que o totem e o coracao do produto) e
+ * item 9 (uso continuado da plataforma pras proximas contratacoes, ideia
+ * de "anti-desintermediacao" do concorrente - aqui em tom mais leve pro
+ * freelancer, sem ameaca de suspensao: diferente da empresa, ele nao paga
+ * nada pro iFREE, entao nao tem o mesmo incentivo de burlar a plataforma;
+ * a versao com consequencia de verdade fica do lado da empresa, ver
+ * [[termos/empresa/page.tsx]] item 7). Rota pública,
  * sem autenticação; linkada a partir de /portal/termos e do índice em
  * /termos. */
 export default function TermosFreelancerPage() {
@@ -91,7 +102,19 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">4. iFREE Conecta</h2>
+          <h2 className="font-semibold text-navy-900">4. Check-in, check-out e valor como prova</h2>
+          <p className="text-sm text-stone-700 leading-relaxed">
+            Os registros de check-in e check-out feitos no totem a cada turno — horário de entrada e saída, foto
+            e assinatura digital — não servem só para calcular o pagamento: eles também funcionam como prova de
+            que o serviço foi de fato prestado e de quanto tempo durou, podendo ser usados por você, pela empresa
+            Contratante ou pelo iFREE numa eventual disputa sobre um turno específico (por exemplo, divergência
+            sobre o horário real de saída). Por isso é importante bater o próprio ponto, no momento exato de
+            chegada e saída, sem pedir para outra pessoa fazer isso por você (ver item 7).
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="font-semibold text-navy-900">5. iFREE Conecta</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O <strong>iFREE Conecta</strong> é o seu portal dentro da plataforma: um perfil público com dados de
             contato, habilidades e disponibilidade, um histórico de avaliações recebidas das empresas onde já
@@ -107,7 +130,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">5. Pagamento</h2>
+          <h2 className="font-semibold text-navy-900">6. Pagamento</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Quando a empresa contratante utiliza o pagamento automático via PIX integrado à plataforma, o
             repasse é executado diretamente pela <strong>Asaas Gestão Financeira S.A.</strong>, instituição de
@@ -121,7 +144,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">6. Suas responsabilidades como prestador(a) autônomo(a)</h2>
+          <h2 className="font-semibold text-navy-900">7. Suas responsabilidades como prestador(a) autônomo(a)</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Você é responsável por manter conduta profissional adequada durante a prestação do serviço, e por
             providenciar, por conta própria, os trajes e equipamentos de proteção individual (EPI) necessários à
@@ -138,7 +161,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">7. Natureza autônoma da prestação de serviço</h2>
+          <h2 className="font-semibold text-navy-900">8. Natureza autônoma da prestação de serviço</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Sua prestação de serviço por meio do iFREE tem natureza eventual e autônoma, sem subordinação,
             exclusividade ou horário fixo obrigatório. Você é livre para atuar simultaneamente para quantas
@@ -162,8 +185,20 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
+          <h2 className="font-semibold text-navy-900">9. Uso da plataforma para as próximas contratações</h2>
+          <p className="text-sm text-stone-700 leading-relaxed">
+            Depois que você e uma empresa Contratante se conhecem por meio do iFREE, o ideal é que os próximos
+            turnos entre vocês continuem sendo organizados pela plataforma — é isso que mantém o registro de
+            entrada/saída como prova (item 4), o pagamento automático via PIX e o seu histórico de avaliações
+            atualizado. Combinações recorrentes e deliberadas para tirar essa relação da plataforma não trazem
+            benefício nenhum pra você (usar o iFREE nunca tem custo pro freelancer) e enfraquecem justamente as
+            proteções que este documento te dá — mas a decisão de onde e como trabalhar continua sendo sempre sua.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-3">
           <h2 className="font-semibold text-navy-900">
-            8. Ambiente de trabalho seguro e repúdio à discriminação
+            10. Ambiente de trabalho seguro e repúdio à discriminação
           </h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O iFREE repudia qualquer forma de discriminação por gênero, orientação sexual, idade, aparência,
@@ -177,7 +212,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">9. Confidencialidade</h2>
+          <h2 className="font-semibold text-navy-900">11. Confidencialidade</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Informações técnicas, administrativas ou comerciais às quais você tenha acesso em razão de um turno —
             inclusive dados de clientes ou processos internos da empresa Contratante — devem ser tratadas como
@@ -186,7 +221,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">10. Propriedade intelectual da plataforma</h2>
+          <h2 className="font-semibold text-navy-900">12. Propriedade intelectual da plataforma</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             A marca iFREE, o software, o layout e os demais elementos da plataforma são de propriedade do iFREE
             ou de seus licenciantes, sendo vedada a reprodução, engenharia reversa ou uso fora do que é
@@ -195,7 +230,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">11. Seu currículo, seus dados e uso de imagem</h2>
+          <h2 className="font-semibold text-navy-900">13. Seu currículo, seus dados e uso de imagem</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Você pode gerar um currículo em PDF com os dados do seu perfil quando ele estiver pelo menos
             parcialmente completo. Esse documento é seu, para usar como quiser, inclusive fora do iFREE.
@@ -212,7 +247,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">12. Fraude e retenção de pagamentos</h2>
+          <h2 className="font-semibold text-navy-900">14. Fraude e retenção de pagamentos</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O iFREE tem tolerância zero a fraudes — uso indevido da plataforma, informações falsas, turnos
             registrados sem prestação real do serviço, entre outros. Contas envolvidas em fraude comprovada
@@ -224,7 +259,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">13. Encerramento de conta</h2>
+          <h2 className="font-semibold text-navy-900">15. Encerramento de conta</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Você pode encerrar sua conta a qualquer momento entrando em contato pelo WhatsApp do iFREE. O iFREE
             pode suspender ou encerrar o acesso de uma conta em caso de descumprimento destes Termos, uso
@@ -233,7 +268,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">14. Privacidade e proteção de dados</h2>
+          <h2 className="font-semibold text-navy-900">16. Privacidade e proteção de dados</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Tratamos os dados pessoais necessários para operar a plataforma (nome, CPF, telefone, endereço, chave
             PIX, foto e assinatura digital, entre outros) com base na execução do contrato entre você e a empresa
@@ -248,7 +283,7 @@ export default function TermosFreelancerPage() {
 
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold text-navy-900">
-            15. Interrupções, alterações e descontinuação da plataforma
+            17. Interrupções, alterações e descontinuação da plataforma
           </h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O acesso à plataforma pode ser interrompido, suspenso ou ficar temporariamente indisponível, sem
@@ -260,7 +295,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">16. Disposições gerais</h2>
+          <h2 className="font-semibold text-navy-900">18. Disposições gerais</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Este documento representa a vontade final das partes quanto ao uso da plataforma como um todo. Em
             caso de conflito com o contrato de um turno específico gerado na plataforma, prevalece o contrato
@@ -273,7 +308,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">17. Legislação aplicável e foro</h2>
+          <h2 className="font-semibold text-navy-900">19. Legislação aplicável e foro</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Estes Termos são regidos pelas leis brasileiras. Eventuais controvérsias serão submetidas ao foro do
             seu domicílio, salvo disposição legal em contrário, priorizando sempre que possível a resolução por
@@ -282,7 +317,7 @@ export default function TermosFreelancerPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">18. Contato</h2>
+          <h2 className="font-semibold text-navy-900">20. Contato</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Dúvidas sobre estes termos ou sobre seus dados? Fale com a gente pelo WhatsApp disponível no rodapé
             da página inicial.

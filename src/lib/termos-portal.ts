@@ -7,13 +7,15 @@
  * /termos/freelancer (src/app/termos/freelancer/page.tsx) — este resumo
  * cobre os mesmos pontos, mas condensado pra caber num scrollbox de
  * aceite; sempre que uma cláusula nova entrar lá (ex.: aviso de 30 dias
- * pra descontinuação, repúdio à discriminação/revista íntima), vale
- * refletir aqui também. */
+ * pra descontinuação, repúdio à discriminação/revista íntima, check-in
+ * como prova, uso continuado da plataforma), vale refletir aqui também. */
 export const TERMOS_PORTAL_PARAGRAFOS: readonly string[] = [
   "Ao usar o Portal do freelancer no iFREE, você concorda com o seguinte:",
   "O iFREE é uma plataforma de tecnologia que conecta freelancers (\"extras\") a empresas que precisam de mão de obra temporária. O iFREE não é parte da relação de trabalho entre você e as empresas onde atua — não é seu empregador, não define suas condições de trabalho e não garante turnos ou renda.",
   "Quando a empresa contratante utiliza o pagamento automático via PIX integrado à plataforma, o repasse é executado pela Asaas Gestão Financeira S.A., instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil, a partir da conta digital de titularidade da própria empresa — o iFREE não processa nem custodia esse dinheiro em nenhum momento.",
   "As informações que você preencher no seu perfil (dados pessoais, foto, biografia, habilidades, vagas desejadas) devem ser verdadeiras. Perfis com informações falsas podem ser suspensos.",
+  "Os registros de check-in e check-out de cada turno (horário, foto e assinatura) também valem como prova de que o serviço foi prestado e de quanto tempo durou — por isso é importante bater o ponto você mesmo(a), no horário real.",
+  "Depois de conhecer uma empresa pelo iFREE, o ideal é que os próximos turnos com ela continuem passando pela plataforma — é isso que mantém seu registro como prova e o pagamento automático funcionando. Usar o iFREE nunca tem custo pra você, então não há motivo pra sair da plataforma.",
   "Sua reputação no Portal é formada por avaliações de empresas onde você já trabalhou, e é exibida de forma agregada (nota média, tags mais frequentes) — as empresas também recebem avaliações suas. Avaliações não podem ser removidas a pedido de uma das partes, só em caso de erro comprovado.",
   "O iFREE repudia qualquer forma de discriminação (gênero, orientação sexual, idade, aparência, etnia, religião ou convicção política). Em nenhuma hipótese você deve se submeter a revista íntima por parte de uma empresa — suspeitas de furto ou irregularidade devem ir para as autoridades competentes, nunca resolvidas dessa forma.",
   "Você pode gerar um currículo em PDF com os dados do seu perfil quando ele estiver pelo menos parcialmente completo. Esse documento é seu, pra usar como quiser, inclusive fora do iFREE.",

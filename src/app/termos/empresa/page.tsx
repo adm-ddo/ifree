@@ -14,7 +14,18 @@ export const metadata = { title: "Termos de Uso — Empresas — iFREE" };
  * (item 4) é tratado como módulo complementar, não como o produto
  * principal — o núcleo do iFREE hoje é o controle de turno e a
  * automatização do pagamento por hora, não a intermediação/descoberta de
- * freelancers (isso é mais o foco de um concorrente como a Closeer). Rota
+ * freelancers (isso é mais o foco de um concorrente como a Closeer).
+ *
+ * Duas clausulas novas depois de comparar com outro concorrente (Freela
+ * Servicos, 2026-09-26): item 3 (check-in/check-out como prova da
+ * execucao - o concorrente tem um capitulo inteiro so sobre isso) e item
+ * 7 ("anti-desintermediacao": contratacao recorrente com o mesmo
+ * freelancer tem que continuar passando pela plataforma, nao ser
+ * combinada por fora so pra fugir da assinatura/taxa - aqui com
+ * consequencia de verdade, suspensao de conta, diferente da versao mais
+ * leve do lado do freelancer em [[termos/freelancer/page.tsx]] item 9,
+ * que nao paga nada pro iFREE e por isso nao tem o mesmo incentivo de
+ * burlar a plataforma). Rota
  * pública, sem autenticação; linkada a partir do checkbox de aceite em
  * NovaEmpresaForm.tsx e do índice em /termos. */
 export default function TermosEmpresaPage() {
@@ -44,7 +55,7 @@ export default function TermosEmpresaPage() {
             O iFREE é uma plataforma de tecnologia que ajuda a empresa Contratante a organizar a escala de
             trabalho com freelancers (&ldquo;extras&rdquo;), registrar entrada e saída de cada turno, calcular o
             valor devido e automatizar o pagamento correspondente. O núcleo do produto é o controle de turno e o
-            pagamento por hora — a intermediação e a descoberta de novos freelancers (item 4, iFREE Conecta) é um
+            pagamento por hora — a intermediação e a descoberta de novos freelancers (item 5, iFREE Conecta) é um
             recurso complementar, não um pré-requisito para usar a plataforma.
           </p>
           <p className="text-sm text-stone-700 leading-relaxed">
@@ -77,7 +88,20 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">3. Cadastro</h2>
+          <h2 className="font-semibold text-navy-900">3. Check-in, check-out e valor como prova</h2>
+          <p className="text-sm text-stone-700 leading-relaxed">
+            Os registros de check-in e check-out feitos no totem a cada turno — horário de entrada e saída, foto
+            e assinatura digital do freelancer — não servem só para calcular o valor devido: eles também
+            funcionam como prova de que o serviço foi de fato prestado e de quanto tempo durou, podendo ser
+            usados pela empresa, pelo freelancer ou pelo iFREE numa eventual disputa sobre um turno específico. É
+            responsabilidade da empresa garantir que o próprio freelancer realize o check-in e o check-out no
+            totem, no momento exato de chegada e saída — o registro feito por terceiro, ou fora do horário real,
+            enfraquece o valor desse registro como prova.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="font-semibold text-navy-900">4. Cadastro</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O cadastro da empresa exige CNPJ regularmente registrado nos órgãos competentes. É admitido apenas
             um cadastro por CNPJ na plataforma. A empresa é responsável pela veracidade dos dados informados no
@@ -88,7 +112,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">4. iFREE Conecta (módulo complementar)</h2>
+          <h2 className="font-semibold text-navy-900">5. iFREE Conecta (módulo complementar)</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O <strong>iFREE Conecta</strong> é um módulo complementar da plataforma que permite à empresa
             divulgar vagas abertas e descobrir freelancers com base no histórico de avaliações recebidas em
@@ -102,7 +126,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">5. Eventualidade da prestação de serviço</h2>
+          <h2 className="font-semibold text-navy-900">6. Eventualidade da prestação de serviço</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Os serviços intermediados pelo iFREE têm natureza eventual e autônoma, sem subordinação,
             exclusividade ou horário fixo obrigatório — características essenciais para que a relação não seja
@@ -117,7 +141,21 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">6. Responsabilidades da empresa Contratante</h2>
+          <h2 className="font-semibold text-navy-900">7. Uso da plataforma para as próximas contratações</h2>
+          <p className="text-sm text-stone-700 leading-relaxed">
+            Depois que a empresa Contratante conhece um freelancer por meio do iFREE — seja pelo iFREE Conecta,
+            seja porque ele já trabalhou um turno registrado na plataforma —, as contratações seguintes com essa
+            mesma pessoa devem continuar sendo organizadas e registradas pelo iFREE, e não combinadas por fora da
+            plataforma (pagamento direto, aplicativo de mensagens, dinheiro em espécie sem registro) com o único
+            objetivo de deixar de pagar a assinatura ou eventual taxa sobre o PIX automático. Contratações
+            recorrentes e deliberadamente mantidas fora da plataforma, depois de a empresa e o freelancer terem
+            se conhecido por meio dela, podem levar à suspensão da conta da empresa e, dependendo do caso, à
+            cobrança dos valores correspondentes que deveriam ter sido pagos ao iFREE.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="font-semibold text-navy-900">8. Responsabilidades da empresa Contratante</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Cabe à empresa Contratante oferecer um ambiente de trabalho seguro, fornecer as informações corretas
             sobre a vaga e o valor/hora antes do início do turno, e tratar cada freelancer com respeito, sem
@@ -128,7 +166,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">7. Pagamento</h2>
+          <h2 className="font-semibold text-navy-900">9. Pagamento</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Quando a empresa ativa o pagamento automático via PIX dentro da plataforma, esse dinheiro nunca passa
             pelo iFREE: a transferência é executada diretamente pela <strong>Asaas Gestão Financeira S.A.</strong>,
@@ -146,20 +184,20 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">8. Planos, mensalidade e taxas</h2>
+          <h2 className="font-semibold text-navy-900">10. Planos, mensalidade e taxas</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O uso do iFREE pela empresa Contratante está sujeito a uma assinatura mensal cujo valor é{" "}
             <strong>acordado individualmente com cada cliente</strong> — não existe uma tabela pública única de
             preços, e o valor pode variar de empresa para empresa conforme porte, volume de uso ou condição
             comercial negociada. O mesmo vale, quando aplicável, para eventual percentual retido pelo iFREE sobre
-            os depósitos feitos pela própria empresa em sua conta de pagamento (item 7 acima), que também é
+            os depósitos feitos pela própria empresa em sua conta de pagamento (item 9 acima), que também é
             definido individualmente e pode ser zero para parte dos clientes. O valor e as condições vigentes
             para cada empresa ficam sempre visíveis dentro do próprio painel do iFREE, na área de Assinatura.
           </p>
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">9. Propriedade intelectual</h2>
+          <h2 className="font-semibold text-navy-900">11. Propriedade intelectual</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             A marca iFREE, o software, o layout, os textos e demais elementos da plataforma são de propriedade do
             iFREE ou de seus licenciantes, sendo vedada a reprodução, engenharia reversa ou uso fora do que é
@@ -168,7 +206,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">10. Limitação de responsabilidade</h2>
+          <h2 className="font-semibold text-navy-900">12. Limitação de responsabilidade</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O iFREE se esforça para manter a plataforma disponível e funcionando corretamente, mas não garante
             operação ininterrupta ou livre de falhas, nem se responsabiliza por prejuízos decorrentes de
@@ -186,7 +224,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">11. Confidencialidade</h2>
+          <h2 className="font-semibold text-navy-900">13. Confidencialidade</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Informações técnicas, administrativas ou comerciais às quais a empresa tenha acesso em razão do uso
             da plataforma — inclusive dados de freelancers ou de outras empresas — devem ser tratadas como
@@ -196,7 +234,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">12. Compartilhamento de dados com terceiros</h2>
+          <h2 className="font-semibold text-navy-900">14. Compartilhamento de dados com terceiros</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O iFREE não vende nem aluga dados pessoais dos Usuários. Compartilhamos informações apenas quando
             necessário para: (a) viabilizar o pagamento via PIX, com a Asaas Gestão Financeira S.A.; (b) operar a
@@ -207,7 +245,7 @@ export default function TermosEmpresaPage() {
 
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold text-navy-900">
-            13. Interrupções, alterações e descontinuação da plataforma
+            15. Interrupções, alterações e descontinuação da plataforma
           </h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             O acesso à plataforma pode ser interrompido, suspenso ou ficar temporariamente indisponível, sem
@@ -225,7 +263,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">14. Suspensão e encerramento</h2>
+          <h2 className="font-semibold text-navy-900">16. Suspensão e encerramento</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             A empresa pode encerrar sua conta a qualquer momento entrando em contato pelo WhatsApp do iFREE. O
             iFREE pode suspender ou encerrar o acesso de uma conta em caso de descumprimento destes Termos, uso
@@ -236,7 +274,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">15. Privacidade e proteção de dados</h2>
+          <h2 className="font-semibold text-navy-900">17. Privacidade e proteção de dados</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Tratamos os dados pessoais necessários para operar a plataforma (nome, CPF/CNPJ, telefone, endereço,
             chave PIX, foto e assinatura digital, entre outros) com base na execução do contrato entre a empresa
@@ -248,7 +286,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">16. Disposições gerais</h2>
+          <h2 className="font-semibold text-navy-900">18. Disposições gerais</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Este documento representa a vontade final das partes quanto ao uso da plataforma. Em caso de conflito
             entre este documento e o contrato de um turno específico gerado na plataforma, prevalece o contrato
@@ -262,7 +300,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">17. Legislação aplicável e foro</h2>
+          <h2 className="font-semibold text-navy-900">19. Legislação aplicável e foro</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Estes Termos são regidos pelas leis brasileiras. Eventuais controvérsias serão submetidas ao foro do
             domicílio da empresa Contratante, salvo disposição legal em contrário, priorizando sempre que
@@ -271,7 +309,7 @@ export default function TermosEmpresaPage() {
         </section>
 
         <section className="flex flex-col gap-3">
-          <h2 className="font-semibold text-navy-900">18. Contato</h2>
+          <h2 className="font-semibold text-navy-900">20. Contato</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
             Dúvidas sobre estes termos ou sobre seus dados? Fale com a gente pelo WhatsApp disponível no rodapé
             da página inicial.
