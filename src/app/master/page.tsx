@@ -13,6 +13,9 @@ const EMPRESA_SELECT = {
   endereco: true,
   statusAssinatura: true,
   assinaturaVenceEm: true,
+  desativadaEm: true,
+  motivoDesativacao: true,
+  desativadaPorEmail: true,
   _count: {
     select: { funcoes: true, totens: true, turnos: true },
   },
@@ -283,6 +286,9 @@ export default async function MasterPage({
                         endereco: empresa.endereco,
                         statusAssinatura: empresa.statusAssinatura,
                         assinaturaVenceEm: empresa.assinaturaVenceEm,
+                        desativadaEm: empresa.desativadaEm,
+                        motivoDesativacao: empresa.motivoDesativacao,
+                        desativadaPorEmail: empresa.desativadaPorEmail,
                         counts: empresa._count,
                       }}
                       vinculadoEm={formatarData(criadoEm)}
@@ -312,6 +318,9 @@ export default async function MasterPage({
                   endereco: empresa.endereco,
                   statusAssinatura: empresa.statusAssinatura,
                   assinaturaVenceEm: empresa.assinaturaVenceEm,
+                  desativadaEm: empresa.desativadaEm,
+                  motivoDesativacao: empresa.motivoDesativacao,
+                  desativadaPorEmail: empresa.desativadaPorEmail,
                   counts: empresa._count,
                 }}
                 vinculadoEm={null}

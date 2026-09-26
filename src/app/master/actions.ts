@@ -47,6 +47,60 @@ export async function excluirEmpresaMaster(empresaId: number) {
   revalidatePath("/", "layout");
 }
 
+export type DesativarEmpresaState = { erro?: string; sucesso?: boolean } | undefined;
+
+/** Atalho "menos destrutivo" que excluirEmpresaMaster (pedido do Thiago em
+ * 2026-09-26: excluir pede demais confirmação dele mesmo, quase sempre o
+ * que ele quer de verdade é só desativar) — bloqueia o painel da empresa
+ * (mesmo efeito de CANCELADA em requireTenant, src/lib/auth.ts) sem
+ * apagar NADA, com motivo obrigatório gravado (Empresa.motivoDesativacao/
+ * desativadaEm/desativadaPorEmail) pra auditoria e pra explicar pro dono
+ * em /assinatura e /v2/assinatura. Reversível via reativarEmpresaMaster
+ * abaixo. */
+export async function desativarEmpresaMaster(
+  _prev: DesativarEmpresaState,
+  formData: FormData
+): Promise<DesativarEmpresaState> {
+  const sessao = await requireMaster();
+
+  const empresaId = Number(formData.get("empresaId"));
+  if (!Number.isInteger(empresaId)) return { erro: "Empresa inválida." };
+
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (motivo.length < 10) {
+    return { erro: "Descreva o motivo da desativação (pelo menos 10 caracteres)." };
+  }
+
+  await prisma.empresa.update({
+    where: { id: empresaId },
+    data: {
+      statusAssinatura: "CANCELADA",
+      motivoDesativacao: motivo,
+      desativadaEm: new Date(),
+      desativadaPorEmail: sessao.email,
+    },
+  });
+
+  revalidatePath("/master");
+  revalidatePath("/", "layout");
+  return { sucesso: true };
+}
+
+/** Desfaz a desativação manual acima — volta pra ATIVA (dono recupera
+ * acesso ao painel na hora) e limpa desativadaEm (deixa de "explicar" o
+ * bloqueio pro dono, já que não tem mais bloqueio nenhum). Mantém
+ * motivoDesativacao como histórico do último motivo usado, só pra
+ * referência — não é mais lido pra bloquear nada depois de reativada. */
+export async function reativarEmpresaMaster(empresaId: number) {
+  await requireMaster();
+  await prisma.empresa.update({
+    where: { id: empresaId },
+    data: { statusAssinatura: "ATIVA", desativadaEm: null, desativadaPorEmail: null },
+  });
+  revalidatePath("/master");
+  revalidatePath("/", "layout");
+}
+
 /** Exclusão de uma conta de dono — remove só o login (e os vínculos dele
  * com empresas, que ficam "sem dono" se não tiverem outro usuário). Nunca
  * apaga outro master por aqui, mesmo que o id seja forjado. */

@@ -387,6 +387,25 @@ model Empresa {
   /// desta feature — preço delas fica congelado no valorMensalidade
   /// explícito setado no backfill da migração, nunca lê este campo.
   planoCompletoDesde DateTime?
+  /// Motivo escrito pelo master ao desativar a empresa manualmente (ver
+  /// desativarEmpresaMaster, src/app/master/actions.ts) — sempre
+  /// obrigatório na hora de desativar, fica de registro/auditoria mesmo
+  /// depois de reativada (reativarEmpresaMaster só limpa desativadaEm,
+  /// não este campo, pra manter o histórico do último motivo). Null =
+  /// nunca foi desativada manualmente.
+  motivoDesativacao String? @db.Text
+  /// Quando a empresa foi desativada manualmente pelo master — usado só
+  /// pra diferenciar "CANCELADA por causa disso" (mostra o motivo pro
+  /// dono, ver /assinatura e /v2/assinatura) de "CANCELADA por outro
+  /// motivo qualquer" (ex.: o próprio dono cancelou, ou negociação normal
+  /// de cobrança). Null = nunca foi desativada manualmente (ou já foi
+  /// reativada — reativarEmpresaMaster limpa este campo de volta pra
+  /// null, mesmo mantendo motivoDesativacao como histórico).
+  desativadaEm DateTime?
+  /// E-mail do login master que desativou — mesmo espírito de
+  /// Vaga.criadoPorEmail, só texto solto pra auditoria simples, sem
+  /// relação formal (FK) com Usuario.
+  desativadaPorEmail String?
   criadoEm                   DateTime  @default(now())
 
   usuarios             UsuarioEmpresa[]

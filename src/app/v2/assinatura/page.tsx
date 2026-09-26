@@ -64,6 +64,8 @@ export default async function V2AssinaturaPage() {
       planoCompletoDesde: true,
       liberacaoConfiancaUsadaEm: true,
       liberacaoConfiancaAteEm: true,
+      desativadaEm: true,
+      motivoDesativacao: true,
     },
   });
 
@@ -117,7 +119,15 @@ export default async function V2AssinaturaPage() {
           </div>
         )}
 
-        {bloqueadoDeVerdade && (
+        {bloqueadoDeVerdade && empresa.desativadaEm && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Sua empresa foi desativada pelo iFREE
+            {empresa.motivoDesativacao ? `: ${empresa.motivoDesativacao}` : "."} Fale com a gente pra
+            entender o que houve — não é uma questão de pagamento, gerar PIX não resolve.
+          </div>
+        )}
+
+        {bloqueadoDeVerdade && !empresa.desativadaEm && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             O painel está bloqueado por falta de pagamento. O totem continua
             funcionando normalmente — gere o PIX abaixo pra liberar o painel
@@ -136,11 +146,11 @@ export default async function V2AssinaturaPage() {
           </form>
         )}
 
-        {bloqueadoDeVerdade && podeUsarLiberacaoConfianca(empresa.liberacaoConfiancaUsadaEm) && (
+        {bloqueadoDeVerdade && !empresa.desativadaEm && podeUsarLiberacaoConfianca(empresa.liberacaoConfiancaUsadaEm) && (
           <LiberacaoConfiancaButton empresaId={sessao.empresaEfetivoId} />
         )}
 
-        {bloqueadoDeVerdade && !podeUsarLiberacaoConfianca(empresa.liberacaoConfiancaUsadaEm) && (
+        {bloqueadoDeVerdade && !empresa.desativadaEm && !podeUsarLiberacaoConfianca(empresa.liberacaoConfiancaUsadaEm) && (
           <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-600">
             Você já usou sua liberação de confiança em{" "}
             {formatarDataHora(empresa.liberacaoConfiancaUsadaEm!)} — pode usar de novo a partir de{" "}
@@ -162,7 +172,7 @@ export default async function V2AssinaturaPage() {
           </p>
         </div>
 
-        {empresa.planoEmpresa === "CONECTA" && (
+        {empresa.planoEmpresa === "CONECTA" && !empresa.desativadaEm && (
           <a
             href="/v2/upgrade"
             className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-700 font-medium text-center hover:bg-brand-100 transition-colors"
@@ -171,6 +181,7 @@ export default async function V2AssinaturaPage() {
           </a>
         )}
 
+        {!empresa.desativadaEm && (
         <GerarPixForm
           empresaId={sessao.empresaEfetivoId}
           proximoVencimentoLabel={empresa.assinaturaVenceEm ? formatarData(empresa.assinaturaVenceEm) : null}
@@ -190,6 +201,7 @@ export default async function V2AssinaturaPage() {
               : null
           }
         />
+        )}
       </div>
     </div>
   );
