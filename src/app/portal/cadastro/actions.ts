@@ -34,9 +34,12 @@ export async function criarCadastroPortal(
   const nome = String(formData.get("nome") ?? "").trim();
   const cpfBruto = String(formData.get("cpf") ?? "");
   const telefone = String(formData.get("telefone") ?? "").trim();
+  const cep = String(formData.get("cep") ?? "").trim();
   const endereco = String(formData.get("endereco") ?? "").trim();
   const numero = String(formData.get("numero") ?? "").trim();
   const complemento = String(formData.get("complemento") ?? "").trim();
+  const bairro = String(formData.get("bairro") ?? "").trim();
+  const cidade = String(formData.get("cidade") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fotoDataUrl = String(formData.get("fotoDataUrl") ?? "");
   const sexoBruto = String(formData.get("sexo") ?? "");
@@ -52,11 +55,14 @@ export async function criarCadastroPortal(
   if (!cpfValido(cpfBruto)) return { erro: "Informe um CPF válido." };
   if (!telefone) return { erro: "Informe um telefone de contato." };
   if (telefone.length > 30) return { erro: "Telefone inválido." };
+  if (!cep) return { erro: "Informe o CEP." };
   if (!endereco) return { erro: "Informe o endereço." };
   if (endereco.length > 200) return { erro: "Endereço muito longo." };
   if (!numero) return { erro: "Informe o número." };
   if (numero.length > 20) return { erro: "Número inválido." };
   if (complemento.length > 100) return { erro: "Complemento muito longo." };
+  if (!bairro) return { erro: "Informe o bairro." };
+  if (!cidade) return { erro: "Informe a cidade." };
   if (!EMAIL_REGEX.test(email)) return { erro: "Informe um e-mail válido." };
   if (email.length > 200) return { erro: "E-mail muito longo." };
   if (!SEXOS_VALIDOS.includes(sexoBruto as (typeof SEXOS_VALIDOS)[number])) {
@@ -98,9 +104,12 @@ export async function criarCadastroPortal(
       documento,
       tipoDocumento: "CPF",
       telefone,
+      cep,
       endereco,
       numero,
       complemento: complemento || null,
+      bairro,
+      cidade,
       email,
       fotoPerfilUrl,
       sexo: sexoBruto as (typeof SEXOS_VALIDOS)[number],

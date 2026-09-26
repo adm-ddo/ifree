@@ -53,6 +53,28 @@ export default async function VagasPortalPage() {
     );
   }
 
+  // Quem se cadastrou antes de cidade/CEP virarem obrigatórios (ou veio
+  // pelo totem, que nunca pede isso) fica sem dado nenhum pro filtro de
+  // localização — pede pra completar antes de mostrar o quadro, mesmo
+  // padrão do aviso de disponibilidade acima.
+  if (!pessoa.cidade?.trim()) {
+    return (
+      <div className="flex flex-col gap-3">
+        <h1 className="text-2xl font-semibold text-navy-900">Vagas</h1>
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm flex flex-col gap-2">
+          <p className="text-sm text-stone-600">
+            Complete seu endereço (CEP e cidade) no seu perfil pra ver o
+            quadro de vagas — usamos isso pra mostrar oportunidades perto de
+            você.
+          </p>
+          <Link href="/portal" className="text-brand-700 underline text-sm self-start">
+            Completar meu cadastro
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const [vagasAbertas, minhasCandidaturas, minhasConversas] = await Promise.all([
     prisma.vaga.findMany({
       where: { status: "ABERTA" },
@@ -61,13 +83,14 @@ export default async function VagasPortalPage() {
         id: true,
         empresaId: true,
         cargo: true,
+        categoria: true,
         descricao: true,
         localizacao: true,
         nomeFantasia: true,
         habilidadesProcuradas: true,
         turnoDia: true,
         turnoNoite: true,
-        empresa: { select: { nome: true, endereco: true } },
+        empresa: { select: { nome: true, endereco: true, cidade: true } },
       },
     }),
     prisma.candidatura.findMany({
@@ -118,7 +141,9 @@ export default async function VagasPortalPage() {
           return {
             id: vaga.id,
             cargo: vaga.cargo,
+            categoria: vaga.categoria,
             empresaNome: vaga.nomeFantasia || vaga.empresa.nome,
+            empresaCidade: vaga.empresa.cidade,
             descricao: vaga.descricao,
             localizacao: vaga.localizacao,
             turnoDia: vaga.turnoDia,

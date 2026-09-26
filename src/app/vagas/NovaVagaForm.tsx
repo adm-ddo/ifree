@@ -5,10 +5,18 @@ import { criarVaga } from "./actions";
 import { TODOS_OS_CARGOS } from "@/lib/habilidades";
 import HabilidadesPicker from "./HabilidadesPicker";
 import TurnoCheckboxes from "./TurnoCheckboxes";
+import type { CategoriaVaga } from "@/generated/prisma/enums";
+
+const CATEGORIAS: { valor: CategoriaVaga; label: string; emoji: string }[] = [
+  { valor: "RESTAURANTE", label: "Restaurante", emoji: "🍽️" },
+  { valor: "EVENTO", label: "Evento", emoji: "🎉" },
+  { valor: "OUTRO", label: "Outro", emoji: "💼" },
+];
 
 export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao: string }) {
   const [aberto, setAberto] = useState(false);
   const [state, formAction, pending] = useActionState(criarVaga, undefined);
+  const [categoria, setCategoria] = useState<CategoriaVaga>("OUTRO");
 
   if (!aberto) {
     return (
@@ -28,6 +36,27 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
     >
       <h2 className="font-semibold text-navy-900">Nova vaga</h2>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-stone-500">Categoria</label>
+        <input type="hidden" name="categoria" value={categoria} />
+        <div className="flex gap-2">
+          {CATEGORIAS.map((c) => (
+            <button
+              key={c.valor}
+              type="button"
+              onClick={() => setCategoria(c.valor)}
+              className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                categoria === c.valor
+                  ? "bg-brand-600 border-brand-600 text-white"
+                  : "border-stone-300 text-stone-600 hover:bg-stone-50"
+              }`}
+            >
+              {c.emoji} {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-1">
         <label className="text-xs text-stone-500">Cargo</label>

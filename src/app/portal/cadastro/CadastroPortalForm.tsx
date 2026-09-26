@@ -18,6 +18,8 @@ type Indicador = { id: number; nome: string } | null;
  * meio do caminho perderia esse valor. A câmera é a única parte
  * condicionalmente montada de propósito: não faz sentido pedir permissão
  * de câmera antes da pessoa sequer chegar nessa etapa. */
+type EnderecoAuto = { endereco: string; bairro: string; cidade: string };
+
 export default function CadastroPortalForm({ indicador }: { indicador: Indicador }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(criarCadastroPortal, undefined);
@@ -27,6 +29,37 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
   const [foiIndicado, setFoiIndicado] = useState(false);
   const [sexo, setSexo] = useState<"MASCULINO" | "FEMININO" | "PREFIRO_NAO_DIZER" | "">("");
   const [tentouAvancar, setTentouAvancar] = useState(false);
+  const [cep, setCep] = useState("");
+  const [enderecoAuto, setEnderecoAuto] = useState<EnderecoAuto>({ endereco: "", bairro: "", cidade: "" });
+  const [buscandoCep, setBuscandoCep] = useState(false);
+  const [erroCep, setErroCep] = useState<string | null>(null);
+
+  // Mesmo padrão de MeusDadosForm.tsx — busca ViaCEP no blur e preenche
+  // endereço/bairro/cidade automaticamente, deixando tudo editável depois.
+  async function buscarCep(valor: string) {
+    const digitos = valor.replace(/\D/g, "");
+    if (digitos.length !== 8) return;
+
+    setBuscandoCep(true);
+    setErroCep(null);
+    try {
+      const resposta = await fetch(`https://viacep.com.br/ws/${digitos}/json/`);
+      const dados = await resposta.json();
+      if (dados.erro) {
+        setErroCep("CEP não encontrado.");
+        return;
+      }
+      setEnderecoAuto({
+        endereco: dados.logradouro || enderecoAuto.endereco,
+        bairro: dados.bairro || enderecoAuto.bairro,
+        cidade: dados.localidade || enderecoAuto.cidade,
+      });
+    } catch {
+      setErroCep("Não foi possível consultar o CEP agora — preencha manualmente.");
+    } finally {
+      setBuscandoCep(false);
+    }
+  }
 
   if (state?.sucesso) {
     return (
@@ -112,11 +145,28 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
           />
         </label>
 
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          CEP
+          <input
+            name="cep"
+            value={cep}
+            onChange={(e) => setCep(e.target.value)}
+            onBlur={(e) => buscarCep(e.target.value)}
+            required
+            placeholder="00000-000"
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          {buscandoCep && <span className="text-xs text-stone-500">Buscando endereço...</span>}
+          {erroCep && <span className="text-xs text-amber-600">{erroCep}</span>}
+        </label>
+
         <div className="grid grid-cols-1 sm:grid-cols-[2fr_1fr] gap-3">
           <label className="flex flex-col gap-1 text-sm text-stone-700">
             Endereço (rua)
             <input
               name="endereco"
+              value={enderecoAuto.endereco}
+              onChange={(e) => setEnderecoAuto((a) => ({ ...a, endereco: e.target.value }))}
               required
               className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
@@ -131,10 +181,33 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
           </label>
         </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1 text-sm text-stone-700">
+            Complemento (opcional)
+            <input
+              name="complemento"
+              className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-stone-700">
+            Bairro
+            <input
+              name="bairro"
+              value={enderecoAuto.bairro}
+              onChange={(e) => setEnderecoAuto((a) => ({ ...a, bairro: e.target.value }))}
+              required
+              className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </label>
+        </div>
+
         <label className="flex flex-col gap-1 text-sm text-stone-700">
-          Complemento (opcional)
+          Cidade
           <input
-            name="complemento"
+            name="cidade"
+            value={enderecoAuto.cidade}
+            onChange={(e) => setEnderecoAuto((a) => ({ ...a, cidade: e.target.value }))}
+            required
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </label>

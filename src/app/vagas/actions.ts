@@ -7,12 +7,18 @@ import { revalidatePath } from "next/cache";
 
 export type NovaVagaState = { erro?: string } | undefined;
 
+const CATEGORIAS_VALIDAS = ["RESTAURANTE", "EVENTO", "OUTRO"] as const;
+
 export async function criarVaga(
   _prev: NovaVagaState,
   formData: FormData
 ): Promise<NovaVagaState> {
   const sessao = await requireModulo("vagas");
 
+  const categoriaBruta = String(formData.get("categoria") ?? "");
+  const categoria = CATEGORIAS_VALIDAS.includes(categoriaBruta as (typeof CATEGORIAS_VALIDAS)[number])
+    ? (categoriaBruta as (typeof CATEGORIAS_VALIDAS)[number])
+    : "OUTRO";
   const cargo = String(formData.get("cargo") ?? "").trim();
   const descricao = String(formData.get("descricao") ?? "").trim();
   const localizacao = String(formData.get("localizacao") ?? "").trim();
@@ -33,6 +39,7 @@ export async function criarVaga(
     data: {
       empresaId: sessao.empresaEfetivoId,
       cargo,
+      categoria,
       descricao,
       localizacao: localizacao || null,
       nomeFantasia: nomeFantasia || null,

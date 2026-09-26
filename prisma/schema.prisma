@@ -1359,10 +1359,21 @@ enum StatusVaga {
 /// perfil do freelancer (CATEGORIAS_CARGOS em src/lib/habilidades.ts), sem
 /// vínculo com Funcao — Funcao é escopada por empresa e só existe depois
 /// que a empresa já configurou o sistema; a vaga não deveria depender disso.
+enum CategoriaVaga {
+  RESTAURANTE
+  EVENTO
+  OUTRO
+}
+
 model Vaga {
   id             Int        @id @default(autoincrement())
   empresaId      Int
   cargo          String
+  /// Segmento do negócio, pras abas de filtro do quadro de vagas
+  /// (Todos/Restaurantes/Eventos/Outros em /portal/vagas) — diferente de
+  /// `cargo` (a função em si) e de `habilidadesProcuradas` (usado só pro
+  /// match), é sobre que TIPO de empresa é, não que função é a vaga.
+  categoria      CategoriaVaga @default(OUTRO)
   descricao      String     @db.Text
   localizacao    String?
   /// Nome que a empresa quer mostrar pro candidato nesta vaga específica,
