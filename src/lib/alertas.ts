@@ -228,6 +228,13 @@ export type DadosLayoutV2 = {
   /// mesmo raciocínio do resto deste cache (ver buscarDadosLayoutV2).
   modulosPermitidos: ModuloEquipe[];
   pgrAlerta: { nuncaFez: boolean; diasDesdeUltimoCiclo: number | null } | null;
+  /// CONECTA ou COMPLETO (ver Empresa.planoEmpresa) — usado só pra saber
+  /// se módulo fora de modulosPermitidos deve aparecer TRAVADO na nav
+  /// (vitrine do upsell, ver src/app/v2/layout.tsx) em vez de escondido.
+  /// Só empresa no plano Conecta usa isso — dono Completo que restringiu
+  /// módulo de um convidado via /equipe continua com o comportamento de
+  /// sempre (esconder), esse não é limite de plano.
+  planoEmpresa: "CONECTA" | "COMPLETO";
 };
 
 async function buscarDadosLayoutV2SemCache(
@@ -244,6 +251,7 @@ async function buscarDadosLayoutV2SemCache(
     candidaturasEConversas,
     experienciaAlerta,
     assinaturaAlerta,
+    empresaPlano,
   ] = await Promise.all([
     usuarioEhResponsavelEtica(usuarioId, empresaId, isMaster),
     usuarioEhResponsavelGed(usuarioId, empresaId, isMaster),
@@ -253,6 +261,7 @@ async function buscarDadosLayoutV2SemCache(
     buscarCandidaturasEConversasAlerta(empresaId),
     buscarExperienciaAlerta(empresaId),
     buscarAssinaturaAlerta(empresaId),
+    prisma.empresa.findUnique({ where: { id: empresaId }, select: { planoEmpresa: true } }),
   ]);
   // Mesmo motivo do v1: só busca depois de saber responsavelEtica/Pgr, pra
   // não vazar nem a existência de denúncia/PGR pra quem não tem acesso.
@@ -285,6 +294,7 @@ async function buscarDadosLayoutV2SemCache(
     denunciasNovas,
     pgrAlerta,
     modulosPermitidos,
+    planoEmpresa: empresaPlano?.planoEmpresa ?? "COMPLETO",
   };
 }
 

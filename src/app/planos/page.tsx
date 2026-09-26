@@ -178,7 +178,7 @@ export default function PlanosPage() {
               <div className="l">o extra vê quanto vai receber assim que bate a saída</div>
             </div>
             <div className="hero-stat">
-              <div className="n">14 dias</div>
+              <div className="n">7 dias</div>
               <div className="l">grátis pra testar, sem cartão</div>
             </div>
           </div>
@@ -186,15 +186,53 @@ export default function PlanosPage() {
       </div>
 
       <div className="wrap">
+        <section className="block" style={{ paddingBottom: 0 }}>
+          <div className="section-head">
+            <div className="kicker">Comece de graça</div>
+            <h2>7 dias grátis anunciando vaga — decida o resto depois</h2>
+            <p>
+              Todo cadastro começa igual: 7 dias grátis publicando vaga e conversando com freelancer no
+              iFREE Conecta, sem precisar de totem nem CNPJ complicado. Depois você escolhe: continuar só
+              no Conecta, ou migrar pro Gestão Completa quando quiser controlar ponto, CLT e o resto do
+              time.
+            </p>
+          </div>
+          <div className="plans" style={{ gridTemplateColumns: "repeat(2, 1fr)" }}>
+            <div className="plan">
+              <div className="plan-name">iFREE Conecta</div>
+              <div className="plan-range">vagas, candidatos e chat</div>
+              <div className="plan-price">
+                <span className="currency">R$</span>
+                <span className="value">49,90</span>
+                <span className="period">/mês</span>
+              </div>
+            </div>
+            <div className="plan">
+              <div className="plan-name">iFREE Completo</div>
+              <div className="plan-range">tudo — CLT, PGR, Ética, totem</div>
+              <div className="plan-price">
+                <span className="currency">R$</span>
+                <span className="value">129,90</span>
+                <span className="period">/mês no 1º ano</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ marginTop: 20 }}>
+            <a className="btn" href="/cadastro">
+              Cadastrar grátis →
+            </a>
+          </div>
+        </section>
+
         <section className="block" id="planos">
           <div className="section-head">
-            <div className="kicker">Plano único, sistema completo</div>
-            <h2>Um plano só — o que muda é o tamanho do seu time</h2>
+            <div className="kicker">Plano Completo por tamanho de time</div>
+            <h2>Quando crescer, o preço acompanha o tamanho do seu time</h2>
             <p>
-              Sistema completo, liberado sem limitações desde o primeiro dia — um único ecossistema
-              híbrido, atendendo extra e CLT juntos, no controle da sua empresa na palma da mão. Você
-              no comando, sem precisar abrir câmera nem perguntar pra ninguém quem está trabalhando e
-              que horas chegou. O preço muda só pelo tamanho do time: quantas pessoas{" "}
+              Sistema completo, liberado sem limitações — um único ecossistema híbrido, atendendo extra e
+              CLT juntos, no controle da sua empresa na palma da mão. Você no comando, sem precisar abrir
+              câmera nem perguntar pra ninguém quem está trabalhando e que horas chegou. Depois do 1º ano
+              promocional (R$129,90 fixo), o preço passa a variar pelo tamanho do time: quantas pessoas{" "}
               <strong>trabalharam pelo menos 1 turno/ponto no mês</strong>, extra e CLT somados — não
               importa quanta gente você tem cadastrada no total.
             </p>
@@ -328,8 +366,8 @@ export default function PlanosPage() {
       <div className="cta">
         <div className="cta-inner">
           <div>
-            <h2>14 dias grátis, sem cartão de crédito</h2>
-            <p>Cadastra sua empresa, liga o totem e testa com o time de verdade.</p>
+            <h2>7 dias grátis, sem cartão de crédito</h2>
+            <p>Cadastra sua empresa, anuncia a primeira vaga e decide o resto depois.</p>
           </div>
           <WhatsAppButton mensagem={MENSAGEM_PLANOS} className="btn">
             Falar com a gente →

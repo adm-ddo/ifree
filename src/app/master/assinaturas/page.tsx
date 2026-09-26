@@ -158,6 +158,8 @@ export default async function MasterAssinaturasPage({
       statusAssinatura: true,
       assinaturaVenceEm: true,
       valorMensalidade: true,
+      planoEmpresa: true,
+      planoCompletoDesde: true,
       splitPercentualAsaas: true,
       criadoEm: true,
       tabletFornecido: true,
@@ -275,6 +277,8 @@ export default async function MasterAssinaturasPage({
     empresas.map((e) => ({
       statusAssinatura: e.statusAssinatura,
       valorMensalidade: e.valorMensalidade !== null ? Number(e.valorMensalidade) : null,
+      planoEmpresa: e.planoEmpresa,
+      planoCompletoDesde: e.planoCompletoDesde,
     }))
   );
   const resumo = {
@@ -513,7 +517,11 @@ export default async function MasterAssinaturasPage({
             return (
               <AssinaturaCard
                 key={empresa.id}
-                valorMensalidadePadrao={valorMensalidadeEfetivo(null)}
+                valorMensalidadePadrao={valorMensalidadeEfetivo({
+                  valorMensalidade: null,
+                  planoEmpresa: empresa.planoEmpresa,
+                  planoCompletoDesde: empresa.planoCompletoDesde,
+                })}
                 vencimentoLabel={vencimentoLabel}
                 urgencia={urgencia}
                 totalTransacionadoAsaas={transacionadoPorEmpresa.get(empresa.id) ?? 0}
@@ -533,6 +541,7 @@ export default async function MasterAssinaturasPage({
                   funcoesCount: empresa._count.funcoes,
                   turnosCount: empresa._count.turnos,
                   statusAssinatura: empresa.statusAssinatura,
+                  planoEmpresa: empresa.planoEmpresa,
                   assinaturaVenceEm: empresa.assinaturaVenceEm
                     ? empresa.assinaturaVenceEm.toISOString().slice(0, 10)
                     : "",

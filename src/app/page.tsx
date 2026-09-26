@@ -62,9 +62,10 @@ const PONTOS_FREELANCER = [
 ];
 
 const PONTOS_EMPRESA_CONECTA = [
+  "7 dias grátis publicando vaga — sem CNPJ complicado, sem totem.",
   "Publique a vaga e receba candidatos com reputação real, não só currículo.",
   "Chat libera só quando dá match — sem perder tempo com quem não serve.",
-  "O mesmo freelancer já entra no ponto, contrato e pagamento automático.",
+  "Quando quiser, migre pro Gestão Completa: ponto, contrato e pagamento automático.",
 ];
 
 const LIBERDADE_PONTOS = [

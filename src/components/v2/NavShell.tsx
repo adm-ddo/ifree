@@ -7,7 +7,12 @@ import { IconeV2, type NomeIconeV2 } from "./Icons";
 import { logout } from "@/lib/auth-actions";
 import { voltarParaMaster } from "@/app/master/actions";
 
-export type ItemNavV2 = { href: string; label: string; icone: NomeIconeV2 };
+/// bloqueado: módulo que existe no catálogo mas fica fora do plano Conecta
+/// (ver src/app/v2/layout.tsx) — continua visível na nav pra funcionar
+/// como vitrine do plano Completo, só que sem navegar: clicar abre o
+/// modal de upsell (ver ModalUpsell abaixo) em vez de ir pra página (que
+/// redirecionaria mesmo assim, requireModulo barra no servidor).
+export type ItemNavV2 = { href: string; label: string; icone: NomeIconeV2; bloqueado?: boolean };
 
 /// Itens que aparecem nas abas fixas do celular — os outros só aparecem
 /// dentro de "Mais" (celular) ou na barra lateral inteira (computador).
@@ -45,6 +50,7 @@ export default function NavShell({
 }) {
   const pathname = usePathname() ?? "";
   const [maisAberto, setMaisAberto] = useState(false);
+  const [moduloBloqueado, setModuloBloqueado] = useState<ItemNavV2 | null>(null);
 
   const iniciais = nomeEmpresa
     .split(" ")
@@ -70,6 +76,20 @@ export default function NavShell({
         <div className="text-white font-extrabold text-lg px-2 pb-4">iFREE</div>
         <nav className="flex flex-col gap-0.5 overflow-y-auto">
           {itens.map((item) => {
+            if (item.bloqueado) {
+              return (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => setModuloBloqueado(item)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[13px] font-semibold text-white/45 hover:bg-white/10 transition-colors"
+                >
+                  <IconeV2 nome={item.icone} className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <IconeV2 nome="cadeado" className="w-3.5 h-3.5 shrink-0" />
+                </button>
+              );
+            }
             const ativo = estaAtivo(pathname, item.href);
             return (
               <Link
@@ -138,6 +158,20 @@ export default function NavShell({
       {/* Abas fixas — celular */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-stone-200 flex justify-around py-2 z-40">
         {itensPrincipais.map((item) => {
+          if (item.bloqueado) {
+            return (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => setModuloBloqueado(item)}
+                className="flex flex-col items-center gap-1 text-[10px] font-bold text-stone-300 relative"
+              >
+                <IconeV2 nome={item.icone} className="w-[18px] h-[18px]" />
+                <IconeV2 nome="cadeado" className="w-2.5 h-2.5 absolute -top-0.5 right-1.5 text-stone-400" />
+                {item.label}
+              </button>
+            );
+          }
           const ativo = estaAtivo(pathname, item.href);
           return (
             <Link
@@ -183,17 +217,33 @@ export default function NavShell({
               </button>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {itensResto.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMaisAberto(false)}
-                  className="flex flex-col items-center gap-1.5 text-center text-[11px] font-semibold text-navy-900 rounded-xl border border-stone-200 p-3"
-                >
-                  <IconeV2 nome={item.icone} className="w-5 h-5 text-brand-600" />
-                  {item.label}
-                </Link>
-              ))}
+              {itensResto.map((item) =>
+                item.bloqueado ? (
+                  <button
+                    key={item.href}
+                    type="button"
+                    onClick={() => {
+                      setMaisAberto(false);
+                      setModuloBloqueado(item);
+                    }}
+                    className="flex flex-col items-center gap-1.5 text-center text-[11px] font-semibold text-stone-400 rounded-xl border border-stone-200 p-3 relative"
+                  >
+                    <IconeV2 nome={item.icone} className="w-5 h-5 text-stone-300" />
+                    <IconeV2 nome="cadeado" className="w-3 h-3 absolute top-2 right-2 text-stone-400" />
+                    {item.label}
+                  </button>
+                ) : (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMaisAberto(false)}
+                    className="flex flex-col items-center gap-1.5 text-center text-[11px] font-semibold text-navy-900 rounded-xl border border-stone-200 p-3"
+                  >
+                    <IconeV2 nome={item.icone} className="w-5 h-5 text-brand-600" />
+                    {item.label}
+                  </Link>
+                )
+              )}
             </div>
             <div className="mt-3 pt-3 border-t border-stone-100 flex flex-col">
               {masterEmEmpresa && (
@@ -232,6 +282,47 @@ export default function NavShell({
                 </button>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de upsell — abre ao clicar num item travado do plano
+       * Conecta, nos 3 pontos acima. Pitch curto, sem foto (só o mesmo
+       * conjunto de ícones da nav), CTA pra /v2/upgrade. */}
+      {moduloBloqueado && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label="Fechar"
+            onClick={() => setModuloBloqueado(null)}
+            className="absolute inset-0 bg-black/50"
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-2xl p-6 flex flex-col items-center text-center gap-3">
+            <span className="flex items-center justify-center w-14 h-14 rounded-2xl bg-navy-50 text-navy-700">
+              <IconeV2 nome={moduloBloqueado.icone} className="w-7 h-7" />
+            </span>
+            <h2 className="font-bold text-navy-900 text-lg">
+              {moduloBloqueado.label} é do plano Completo
+            </h2>
+            <p className="text-stone-600 text-sm">
+              No plano Conecta você anuncia vagas e conversa com freelancers. Pra desbloquear{" "}
+              {moduloBloqueado.label.toLowerCase()} — e todo o resto (ponto CLT, PGR, Central de
+              Ética, documentos, totem) — é só migrar pro Gestão Completa.
+            </p>
+            <Link
+              href="/v2/upgrade"
+              onClick={() => setModuloBloqueado(null)}
+              className="w-full rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm py-2.5 mt-1"
+            >
+              Ver o que muda →
+            </Link>
+            <button
+              type="button"
+              onClick={() => setModuloBloqueado(null)}
+              className="text-stone-500 text-xs font-semibold"
+            >
+              Agora não
+            </button>
           </div>
         </div>
       )}

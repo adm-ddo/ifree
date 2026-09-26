@@ -55,27 +55,32 @@ export async function cadastrarNovaEmpresa(
         ...resultado.dados,
         statusAssinatura: "TRIAL",
         assinaturaVenceEm: trialVenceEm,
+        // Todo cadastro novo nasce no plano Conecta (só vagas/conversas,
+        // ver src/lib/assinatura.ts e o plano "iFREE Conecta") — vira
+        // Completo só via upgrade explícito (fazerUpgradeParaCompleto,
+        // src/app/v2/upgrade/actions.ts) ou ajuste manual do master.
+        planoEmpresa: "CONECTA",
         termosAceitosEm: new Date(),
       },
     });
-    // responsavelEtica/Ged/Pgr: true — quem cria a empresa é o dono, mantém
-    // acesso a todo módulo "responsável por X" por padrão (mesmo espírito
-    // do backfill da migração: ninguém fica sem acesso à própria empresa
-    // por padrão, só logins secundários criados depois em /equipe nascem
-    // sem a marcação). Sem isso o dono fica sem saída nenhuma pela própria
-    // UI quando é o único usuário da empresa: alternarResponsavelGed/Etica/
-    // Pgr bloqueia autoalternância (só dá pra habilitar pra OUTRO membro da
-    // equipe), e sem outro admin ninguém consegue ligar isso — bug real
-    // encontrado no caso do Bar Cabral em 2026-09-24 (GED faltando, sem
-    // nenhuma forma de habilitar sozinho). Regra pra qualquer módulo novo
-    // desse tipo que vier a existir: sempre nascer habilitado aqui também.
+    // Preenche modulosPermitidos do dono já na criação — sem isso
+    // requireModulo (src/lib/requireModulo.ts) bloqueia até o próprio
+    // dono de todo módulo, já que o campo nasce como array vazio (bug
+    // real encontrado ao planejar esta feature: nenhuma empresa
+    // cadastrada desde 23/09/2026, quando o campo modulosPermitidos
+    // nasceu, tinha módulo nenhum liberado pro próprio dono). Conecta
+    // ganha só vagas/conversas (o resto — funcionários, turnos, totens
+    // etc. — é exclusivo do plano Completo, ver upgrade). Mesmo raciocínio
+    // de responsavelEtica/Ged/Pgr abaixo: true só faz sentido pra quem já
+    // usa o restante das telas de RH/CLT, sem sentido no Conecta.
     await tx.usuarioEmpresa.create({
       data: {
         usuarioId: sessao.usuarioId,
         empresaId: novaEmpresa.id,
-        responsavelEtica: true,
-        responsavelGed: true,
-        responsavelPgr: true,
+        modulosPermitidos: ["vagas", "conversas"],
+        responsavelEtica: false,
+        responsavelGed: false,
+        responsavelPgr: false,
       },
     });
     return novaEmpresa;

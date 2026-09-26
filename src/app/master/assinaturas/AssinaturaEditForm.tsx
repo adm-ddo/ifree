@@ -4,7 +4,12 @@ import { useActionState, useState } from "react";
 import { atualizarAssinaturaEmpresa } from "../actions";
 import CampoValorReais from "@/components/CampoValorReais";
 import CampoPercentualBr from "@/components/CampoPercentualBr";
-import type { StatusAssinatura } from "@/generated/prisma/enums";
+import type { StatusAssinatura, PlanoEmpresa } from "@/generated/prisma/enums";
+
+const PLANO_LABEL: Record<PlanoEmpresa, string> = {
+  CONECTA: "Conecta",
+  COMPLETO: "Completo",
+};
 
 // Mesmo valor de TABLET_PARCELAS_MAXIMO em src/lib/assinatura.ts — não dá
 // pra importar direto aqui porque aquele arquivo é "server-only".
@@ -22,6 +27,7 @@ type Empresa = {
   nome: string;
   cnpj: string;
   statusAssinatura: StatusAssinatura;
+  planoEmpresa: PlanoEmpresa;
   assinaturaVenceEm: string;
   valorMensalidade: number | null;
   splitPercentualAsaas: number | null;
@@ -61,6 +67,21 @@ export default function AssinaturaEditForm({
           className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           {Object.entries(STATUS_LABEL).map(([valor, label]) => (
+            <option key={valor} value={valor}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-xs text-stone-500">
+        Plano
+        <select
+          name="planoEmpresa"
+          defaultValue={empresa.planoEmpresa}
+          className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        >
+          {Object.entries(PLANO_LABEL).map(([valor, label]) => (
             <option key={valor} value={valor}>
               {label}
             </option>

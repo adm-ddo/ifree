@@ -37,6 +37,8 @@ export async function gerarCobrancaMensalidade(empresaId: number): Promise<Gerar
     where: { id: empresaId },
     select: {
       valorMensalidade: true,
+      planoEmpresa: true,
+      planoCompletoDesde: true,
       tabletFornecido: true,
       tabletValorTotal: true,
       tabletParcelasTotal: true,
@@ -66,9 +68,11 @@ export async function gerarCobrancaMensalidade(empresaId: number): Promise<Gerar
     };
   }
 
-  const valorMensalidade = valorMensalidadeEfetivo(
-    empresa.valorMensalidade !== null ? Number(empresa.valorMensalidade) : null
-  );
+  const valorMensalidade = valorMensalidadeEfetivo({
+    valorMensalidade: empresa.valorMensalidade !== null ? Number(empresa.valorMensalidade) : null,
+    planoEmpresa: empresa.planoEmpresa,
+    planoCompletoDesde: empresa.planoCompletoDesde,
+  });
   // Soma a parcela do tablet (se a empresa tiver um ativo e ainda não
   // quitado) direto no valor do Pix — ver valorParcelaTabletPendente em
   // src/lib/assinatura.ts. valorTablet fica gravado à parte só pra

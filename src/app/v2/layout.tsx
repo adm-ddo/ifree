@@ -67,6 +67,7 @@ export default async function V2Layout({ children }: { children: React.ReactNode
           denunciasNovas: 0,
           pgrAlerta: null,
           modulosPermitidos: [],
+          planoEmpresa: "COMPLETO",
         }
       : await buscarDadosLayoutV2(sessao.usuarioId, empresaId, sessao.isMaster);
 
@@ -82,16 +83,22 @@ export default async function V2Layout({ children }: { children: React.ReactNode
     denunciasNovas,
     pgrAlerta,
     modulosPermitidos,
+    planoEmpresa,
   } = dadosLayout;
 
-  // Só cosmético (esconde item que ia dar redirect de qualquer jeito) — ver
-  // comentário de DadosLayoutV2.modulosPermitidos em src/lib/alertas.ts. O
-  // Painel nunca tem chave de módulo própria, fica sempre visível.
+  // Módulo fora de modulosPermitidos vira: TRAVADO (vitrine do upsell, ver
+  // UpsellModal em NavShell.tsx) quando é limite do plano Conecta, ou
+  // ESCONDIDO (comportamento de sempre) quando é o próprio dono Completo
+  // restringindo um convidado via /equipe — master nunca vê nada travado.
+  // Painel nunca tem chave de módulo própria, fica sempre visível liberado.
+  const bloqueiaPorPlano = !sessao.isMaster && planoEmpresa === "CONECTA";
   const hrefsLiberados = new Set<string>(
     MODULOS_EQUIPE.filter((m) => modulosPermitidos.includes(m.chave)).map((m) => m.hrefV2)
   );
   const itens: ItemNavV2[] = [
-    ...ITENS_BASE.filter((item) => item.href === "/v2/dashboard" || hrefsLiberados.has(item.href)),
+    ...ITENS_BASE.filter((item) => item.href === "/v2/dashboard" || hrefsLiberados.has(item.href) || bloqueiaPorPlano).map(
+      (item) => (hrefsLiberados.has(item.href) || item.href === "/v2/dashboard" ? item : { ...item, bloqueado: true })
+    ),
     ...(responsavelEtica ? [{ href: "/v2/etica", label: "Central de Ética", icone: "etica" as const }] : []),
     ...(responsavelGed ? [{ href: "/v2/ged", label: "GED", icone: "ged" as const }] : []),
     ...(responsavelPgr ? [{ href: "/v2/pgr", label: "PGR", icone: "pgr" as const }] : []),

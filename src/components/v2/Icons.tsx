@@ -21,7 +21,8 @@ export type NomeIconeV2 =
   | "ged"
   | "mais"
   | "sair"
-  | "pgr";
+  | "pgr"
+  | "cadeado";
 
 const CAMINHOS: Record<NomeIconeV2, React.ReactNode> = {
   dashboard: (
@@ -157,6 +158,15 @@ const CAMINHOS: Record<NomeIconeV2, React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
       <path d="M4 12h3l1.5-4 3 8 2-5.5 1.5 1.5H20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </>
+  ),
+  // Badge de "módulo travado do plano Conecta" (ver bloqueado em
+  // ItemNavV2, src/components/v2/NavShell.tsx) — cadeado simples, mesmo
+  // grid 24x24 dos demais ícones.
+  cadeado: (
+    <>
+      <rect x="5" y="11" width="14" height="9" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </>
   ),
 };

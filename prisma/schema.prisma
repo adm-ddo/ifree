@@ -367,6 +367,26 @@ model Empresa {
   /// pro freelancer. Null pras empresas que já existiam antes deste campo
   /// existir (cadastradas antes de o aceite formal existir).
   termosAceitosEm   DateTime?
+  /// Nível de acesso contratado — CONECTA (só vagas/conversas, trial de 7
+  /// dias e depois R$49,90/mês se continuar) ou COMPLETO (tudo: ponto
+  /// CLT, PGR, GED, Central de Ética, totem — R$129,90/mês promocional
+  /// no 1º ano, ver DIAS_PROMO_COMPLETO em src/lib/assinatura.ts).
+  /// Default COMPLETO só pra nunca mudar o comportamento de quem já
+  /// existia antes deste campo nascer (ver backfill de valorMensalidade
+  /// na migração, que congela o preço de quem já é cliente) — todo
+  /// cadastro NOVO a partir de agora nasce CONECTA (ver
+  /// cadastrarNovaEmpresa, src/app/empresas/actions.ts). Decide o preço
+  /// padrão (valorMensalidadeEfetivo) e os módulos que o dono ganha.
+  planoEmpresa      PlanoEmpresa @default(COMPLETO)
+  /// Quando esta empresa virou COMPLETO (upgrade vindo do Conecta, ver
+  /// fazerUpgradeParaCompleto em src/app/v2/upgrade/actions.ts) — só lido
+  /// quando valorMensalidade está null, pra saber se ainda está dentro
+  /// dos 12 meses de preço promocional (R$129,90) ou se já caiu pro
+  /// padrão (R$199,90, ver valorMensalidadeEfetivo em
+  /// src/lib/assinatura.ts). Null pras empresas que já existiam antes
+  /// desta feature — preço delas fica congelado no valorMensalidade
+  /// explícito setado no backfill da migração, nunca lê este campo.
+  planoCompletoDesde DateTime?
   criadoEm                   DateTime  @default(now())
 
   usuarios             UsuarioEmpresa[]
@@ -398,6 +418,12 @@ enum StatusAssinatura {
   ATIVA
   ATRASADA
   CANCELADA
+}
+
+/// Nível de acesso contratado pela empresa — ver planoEmpresa em Empresa.
+enum PlanoEmpresa {
+  CONECTA
+  COMPLETO
 }
 
 enum StatusCobranca {

@@ -60,6 +60,8 @@ export default async function AssinaturaPage() {
       statusAssinatura: true,
       assinaturaVenceEm: true,
       valorMensalidade: true,
+      planoEmpresa: true,
+      planoCompletoDesde: true,
       liberacaoConfiancaUsadaEm: true,
       liberacaoConfiancaAteEm: true,
       tabletFornecido: true,
@@ -86,9 +88,11 @@ export default async function AssinaturaPage() {
       ? ultimaCobranca
       : null;
 
-  const valor = valorMensalidadeEfetivo(
-    empresa.valorMensalidade !== null ? Number(empresa.valorMensalidade) : null
-  );
+  const valor = valorMensalidadeEfetivo({
+    valorMensalidade: empresa.valorMensalidade !== null ? Number(empresa.valorMensalidade) : null,
+    planoEmpresa: empresa.planoEmpresa,
+    planoCompletoDesde: empresa.planoCompletoDesde,
+  });
   const valorTablet = valorParcelaTabletPendente({
     tabletFornecido: empresa.tabletFornecido,
     tabletValorTotal: empresa.tabletValorTotal !== null ? Number(empresa.tabletValorTotal) : null,

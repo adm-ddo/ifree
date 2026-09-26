@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { requireTenant } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { buscarDadosDashboard, type ResumoPessoaTurno } from "@/lib/dashboard";
+import { diasParaVencer } from "@/lib/assinatura";
 import { formatarHora } from "@/lib/data";
 import AutoRefresh from "@/components/AutoRefresh";
 import AvatarPessoa from "@/components/AvatarPessoa";
@@ -24,7 +26,13 @@ import type { TipoTurno } from "@/lib/turno";
  * listas arredondadas) é novo. */
 export default async function V2DashboardPage() {
   const sessao = await requireTenant();
-  const dados = await buscarDadosDashboard(sessao.empresaEfetivoId);
+  const [dados, empresaPlano] = await Promise.all([
+    buscarDadosDashboard(sessao.empresaEfetivoId),
+    prisma.empresa.findUnique({
+      where: { id: sessao.empresaEfetivoId },
+      select: { planoEmpresa: true, statusAssinatura: true, assinaturaVenceEm: true },
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-4 max-w-3xl">
@@ -52,6 +60,27 @@ export default async function V2DashboardPage() {
           empresaAtivaId={sessao.empresaEfetivoId}
         />
       </div>
+
+      {!sessao.isMaster && empresaPlano?.planoEmpresa === "CONECTA" && (
+        <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-brand-800">
+              {empresaPlano.statusAssinatura === "TRIAL" && empresaPlano.assinaturaVenceEm
+                ? `🎯 Você está no teste grátis — restam ${Math.max(0, diasParaVencer(empresaPlano.assinaturaVenceEm))} dia(s)`
+                : "🎯 Você está no plano Conecta (só vagas e conversas)"}
+            </p>
+            <p className="text-xs text-brand-700 mt-0.5">
+              Desbloqueie ponto CLT, PGR, Central de Ética, documentos e totem físico no Gestão Completa.
+            </p>
+          </div>
+          <Link
+            href="/v2/upgrade"
+            className="shrink-0 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 text-center transition-colors"
+          >
+            Ver o Completo →
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-[1.3fr_1fr] gap-3">
         <div className="bg-navy-900 text-white rounded-2xl p-4 flex flex-col justify-between">

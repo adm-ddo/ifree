@@ -60,6 +60,8 @@ export default async function V2AssinaturaPage() {
       statusAssinatura: true,
       assinaturaVenceEm: true,
       valorMensalidade: true,
+      planoEmpresa: true,
+      planoCompletoDesde: true,
       liberacaoConfiancaUsadaEm: true,
       liberacaoConfiancaAteEm: true,
     },
@@ -78,9 +80,11 @@ export default async function V2AssinaturaPage() {
       ? ultimaCobranca
       : null;
 
-  const valor = valorMensalidadeEfetivo(
-    empresa.valorMensalidade !== null ? Number(empresa.valorMensalidade) : null
-  );
+  const valor = valorMensalidadeEfetivo({
+    valorMensalidade: empresa.valorMensalidade !== null ? Number(empresa.valorMensalidade) : null,
+    planoEmpresa: empresa.planoEmpresa,
+    planoCompletoDesde: empresa.planoCompletoDesde,
+  });
   const bloqueado = empresa.statusAssinatura === "ATRASADA" || empresa.statusAssinatura === "CANCELADA";
   const liberadoPorConfianca = !!empresa.liberacaoConfiancaAteEm && empresa.liberacaoConfiancaAteEm > new Date();
   const bloqueadoDeVerdade = bloqueado && !liberadoPorConfianca;
@@ -153,7 +157,19 @@ export default async function V2AssinaturaPage() {
             <p>Próximo vencimento: {formatarData(empresa.assinaturaVenceEm)}.</p>
           )}
           <p className="font-medium text-navy-900">Mensalidade: R$ {valor.toFixed(2)}</p>
+          <p className="text-xs text-stone-500">
+            Plano {empresa.planoEmpresa === "CONECTA" ? "Conecta (só vagas e conversas)" : "Completo"}
+          </p>
         </div>
+
+        {empresa.planoEmpresa === "CONECTA" && (
+          <a
+            href="/v2/upgrade"
+            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-700 font-medium text-center hover:bg-brand-100 transition-colors"
+          >
+            🚀 Ver o plano Completo (ponto CLT, PGR, Central de Ética e mais)
+          </a>
+        )}
 
         <GerarPixForm
           empresaId={sessao.empresaEfetivoId}

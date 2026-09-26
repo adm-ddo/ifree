@@ -1,14 +1,16 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { StatusAssinatura } from "@/generated/prisma/enums";
+import type { StatusAssinatura, PlanoEmpresa } from "@/generated/prisma/enums";
 
 /** Dias de teste grátis pra empresa nova — ver cadastrarNovaEmpresa em
  * src/app/empresas/actions.ts. Só constante em código de propósito, fácil
  * de ajustar sem migração. Master pode estender manualmente pra qualquer
  * empresa específica via assinaturaVenceEm em /master/assinaturas.
- * Subiu de 7 pra 14 dias em 2026-09-24 (decisão do Thiago, alinhado com o
- * card comercial de planos). */
-export const TRIAL_DIAS = 14;
+ * Voltou de 14 pra 7 dias em 2026-09-26: todo cadastro novo agora nasce
+ * no plano Conecta (ver Empresa.planoEmpresa) — 7 dias grátis só pra
+ * anunciar vaga e conversar, decide depois se continua no Conecta pago
+ * ou vira Completo (ver fazerUpgradeParaCompleto). */
+export const TRIAL_DIAS = 7;
 
 /** Tolerância depois do vencimento antes de bloquear o painel de verdade
  * (ver verificarAssinaturasAtrasadas abaixo) — decisão do Thiago em
@@ -40,13 +42,46 @@ export function podeUsarLiberacaoConfianca(usadaEm: Date | null, agora: Date = n
   return proxima === null || proxima <= agora;
 }
 
-/** Valor padrão da mensalidade quando a empresa não tem um valor próprio
- * combinado (Empresa.valorMensalidade null) — ajustável por empresa em
- * /master/assinaturas. */
-export const VALOR_MENSALIDADE_PADRAO = 99.9;
+/** Mensalidade do plano Conecta (só vagas/conversas) quando a empresa não
+ * tem valor próprio negociado (Empresa.valorMensalidade null) — ajustável
+ * por empresa em /master/assinaturas. */
+export const VALOR_MENSALIDADE_CONECTA = 49.9;
 
-export function valorMensalidadeEfetivo(valorMensalidade: number | null): number {
-  return valorMensalidade ?? VALOR_MENSALIDADE_PADRAO;
+/** Mensalidade do plano Completo no 1º ano depois do upgrade (R$70 de
+ * desconto sobre o valor padrão) — ver planoCompletoDesde no schema e
+ * DIAS_PROMO_COMPLETO abaixo. */
+export const VALOR_MENSALIDADE_COMPLETO_PROMO = 129.9;
+
+/** Mensalidade padrão do Completo depois de passado o 1º ano promocional
+ * — mesmo valor já usado como fallback antes desta feature existir
+ * (era VALOR_MENSALIDADE_PADRAO). Pra time maior, o master negocia à
+ * parte (ver a régua por tamanho de time em src/app/planos/page.tsx),
+ * setando Empresa.valorMensalidade na mão — este valor aqui é só o
+ * fallback de quem nunca teve preço negociado. */
+export const VALOR_MENSALIDADE_COMPLETO_PADRAO = 199.9;
+
+/** Duração do preço promocional do Completo, em dias, contados a partir
+ * de Empresa.planoCompletoDesde. */
+export const DIAS_PROMO_COMPLETO = 365;
+
+/** Mensalidade "efetiva" de uma empresa: usa o valor negociado
+ * (Empresa.valorMensalidade) quando existe — nunca muda pra quem já
+ * negocia preço próprio, inclusive todo mundo que já era cliente antes
+ * desta feature (congelado no backfill da migração que introduziu
+ * planoEmpresa). Sem valor negociado, cai no padrão por plano: Conecta é
+ * sempre R$49,90; Completo é R$129,90 enquanto dentro dos 365 dias de
+ * planoCompletoDesde, senão R$199,90. */
+export function valorMensalidadeEfetivo(empresa: {
+  valorMensalidade: number | null;
+  planoEmpresa: PlanoEmpresa;
+  planoCompletoDesde: Date | null;
+}): number {
+  if (empresa.valorMensalidade !== null) return empresa.valorMensalidade;
+  if (empresa.planoEmpresa === "CONECTA") return VALOR_MENSALIDADE_CONECTA;
+  const dentroDaPromo =
+    empresa.planoCompletoDesde !== null &&
+    Date.now() - empresa.planoCompletoDesde.getTime() < DIAS_PROMO_COMPLETO * 24 * 60 * 60 * 1000;
+  return dentroDaPromo ? VALOR_MENSALIDADE_COMPLETO_PROMO : VALOR_MENSALIDADE_COMPLETO_PADRAO;
 }
 
 /** MRR em dois números separados — nunca misturados num só, pra não
@@ -57,12 +92,17 @@ export function valorMensalidadeEfetivo(valorMensalidade: number | null): number
  * trial virasse pagante". ATRASADA/CANCELADA ficam de fora dos dois (mesma
  * regra de sempre pra ATRASADA: não é receita disponível agora). */
 export function calcularMrr(
-  empresas: { statusAssinatura: StatusAssinatura; valorMensalidade: number | null }[]
+  empresas: {
+    statusAssinatura: StatusAssinatura;
+    valorMensalidade: number | null;
+    planoEmpresa: PlanoEmpresa;
+    planoCompletoDesde: Date | null;
+  }[]
 ): { real: number; potencial: number } {
   const somaPorStatus = (status: StatusAssinatura) =>
     empresas
       .filter((e) => e.statusAssinatura === status)
-      .reduce((soma, e) => soma + valorMensalidadeEfetivo(e.valorMensalidade), 0);
+      .reduce((soma, e) => soma + valorMensalidadeEfetivo(e), 0);
 
   const real = somaPorStatus("ATIVA");
   const potencial = real + somaPorStatus("TRIAL");

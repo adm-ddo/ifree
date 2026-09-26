@@ -2,7 +2,17 @@
 
 import { useState } from "react";
 import AssinaturaEditForm from "./AssinaturaEditForm";
-import type { StatusAssinatura, StatusCobranca } from "@/generated/prisma/enums";
+import type { StatusAssinatura, StatusCobranca, PlanoEmpresa } from "@/generated/prisma/enums";
+
+const PLANO_LABEL: Record<PlanoEmpresa, string> = {
+  CONECTA: "Conecta",
+  COMPLETO: "Completo",
+};
+
+const PLANO_CLASSE: Record<PlanoEmpresa, string> = {
+  CONECTA: "bg-amber-50 text-amber-700 border-amber-200",
+  COMPLETO: "bg-navy-50 text-navy-700 border-navy-200",
+};
 
 const STATUS_LABEL: Record<StatusAssinatura, string> = {
   TRIAL: "Trial",
@@ -50,6 +60,7 @@ type Empresa = {
   nome: string;
   cnpj: string;
   statusAssinatura: StatusAssinatura;
+  planoEmpresa: PlanoEmpresa;
   assinaturaVenceEm: string;
   valorMensalidade: number | null;
   splitPercentualAsaas: number | null;
@@ -122,11 +133,16 @@ export default function AssinaturaCard({
           <p className="font-medium text-navy-900 truncate">{empresa.nome}</p>
           <p className="text-xs text-stone-500">{empresa.cnpj}</p>
         </div>
-        <span
-          className={`text-xs rounded-full border px-3 py-1.5 shrink-0 ${STATUS_CLASSE[empresa.statusAssinatura]}`}
-        >
-          {STATUS_LABEL[empresa.statusAssinatura]}
-        </span>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <span
+            className={`text-xs rounded-full border px-3 py-1.5 ${STATUS_CLASSE[empresa.statusAssinatura]}`}
+          >
+            {STATUS_LABEL[empresa.statusAssinatura]}
+          </span>
+          <span className={`text-[11px] rounded-full border px-2.5 py-1 ${PLANO_CLASSE[empresa.planoEmpresa]}`}>
+            {PLANO_LABEL[empresa.planoEmpresa]}
+          </span>
+        </div>
       </div>
 
       <p className={`text-xs rounded-lg border px-3 py-1.5 ${URGENCIA_CLASSE[urgencia]}`}>{vencimentoLabel}</p>
@@ -175,6 +191,7 @@ export default function AssinaturaCard({
               nome: empresa.nome,
               cnpj: empresa.cnpj,
               statusAssinatura: empresa.statusAssinatura,
+              planoEmpresa: empresa.planoEmpresa,
               assinaturaVenceEm: empresa.assinaturaVenceEm,
               valorMensalidade: empresa.valorMensalidade,
               splitPercentualAsaas: empresa.splitPercentualAsaas,

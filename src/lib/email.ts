@@ -535,3 +535,41 @@ export async function enviarEmailCandidatoCompativel(
     return { sucesso: false };
   }
 }
+
+/** Avisa o master que uma empresa fez upgrade do plano Conecta pro
+ * Completo (ver fazerUpgradeParaCompleto, src/app/v2/upgrade/actions.ts)
+ * — mesmo espírito/formato de enviarEmailNovoCadastro, evento comercial
+ * que vale acompanhar. */
+export async function enviarEmailUpgradeCompleto(
+  destinatarioMaster: string,
+  dados: { nomeEmpresa: string; cnpj: string }
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — aviso de upgrade não enviado.");
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: "Upgrade pro plano Completo 🚀",
+    paragrafos: [
+      `<strong>${escaparHtml(dados.nomeEmpresa)}</strong> (CNPJ ${escaparHtml(dados.cnpj)}) acabou de fazer upgrade do Conecta pro Gestão Completa.`,
+      "Preço promocional do 1º ano já aplicado automaticamente.",
+    ],
+    textoBotao: "Ver no painel master",
+    linkBotao: `${SITE_URL}/master/assinaturas`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatarioMaster,
+      subject: `Upgrade pro Completo — ${dados.nomeEmpresa}`,
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar aviso de upgrade:", err);
+    return { sucesso: false };
+  }
+}

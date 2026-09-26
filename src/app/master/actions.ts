@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireMaster, requireSessao, SESSAO_COOKIE } from "@/lib/auth";
-import type { StatusAssinatura } from "@/generated/prisma/enums";
+import type { StatusAssinatura, PlanoEmpresa } from "@/generated/prisma/enums";
 
 /** Acesso total do master a uma empresa: cria/edita/apaga como se fosse a
  * própria empresa, sem restrição — não é um modo "demonstração". */
@@ -64,6 +64,7 @@ export async function excluirUsuarioMaster(usuarioId: number) {
 export type AtualizarAssinaturaState = { erro?: string; sucesso?: boolean } | undefined;
 
 const STATUS_VALIDOS: StatusAssinatura[] = ["TRIAL", "ATIVA", "ATRASADA", "CANCELADA"];
+const PLANOS_VALIDOS: PlanoEmpresa[] = ["CONECTA", "COMPLETO"];
 
 /** Controle manual do master sobre a assinatura de qualquer empresa —
  * prorrogar, cancelar, reativar, ou ajustar o valor combinado. Sem essa
@@ -82,6 +83,11 @@ export async function atualizarAssinaturaEmpresa(
   const statusAssinatura = String(formData.get("statusAssinatura") ?? "");
   if (!STATUS_VALIDOS.includes(statusAssinatura as StatusAssinatura)) {
     return { erro: "Status inválido." };
+  }
+
+  const planoEmpresa = String(formData.get("planoEmpresa") ?? "");
+  if (!PLANOS_VALIDOS.includes(planoEmpresa as PlanoEmpresa)) {
+    return { erro: "Plano inválido." };
   }
 
   const vencimentoBruto = String(formData.get("assinaturaVenceEm") ?? "").trim();
@@ -137,10 +143,24 @@ export async function atualizarAssinaturaEmpresa(
     }
   }
 
+  // Se o master está forçando o plano pra Completo na mão (fora do fluxo
+  // de upgrade self-service, ver src/app/v2/upgrade/actions.ts) e essa
+  // empresa nunca teve planoCompletoDesde, marca agora — senão
+  // valorMensalidadeEfetivo (src/lib/assinatura.ts) não saberia quando
+  // começar a contar os 12 meses de preço promocional.
+  const empresaAtual = await prisma.empresa.findUnique({
+    where: { id: empresaId },
+    select: { planoCompletoDesde: true },
+  });
+
   await prisma.empresa.update({
     where: { id: empresaId },
     data: {
       statusAssinatura: statusAssinatura as StatusAssinatura,
+      planoEmpresa: planoEmpresa as PlanoEmpresa,
+      ...(planoEmpresa === "COMPLETO" && !empresaAtual?.planoCompletoDesde
+        ? { planoCompletoDesde: new Date() }
+        : {}),
       assinaturaVenceEm,
       valorMensalidade,
       splitPercentualAsaas,
