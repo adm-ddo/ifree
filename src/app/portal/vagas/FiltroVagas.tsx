@@ -22,11 +22,15 @@ type Item = {
   linkRota: string | null;
 };
 
-const ABAS_CATEGORIA: { valor: CategoriaVaga | "TODAS"; label: string }[] = [
-  { valor: "TODAS", label: "Todos" },
-  { valor: "RESTAURANTE", label: "Restaurantes" },
-  { valor: "EVENTO", label: "Eventos" },
-  { valor: "OUTRO", label: "Outros" },
+/// Mesmas cores/emoji de CATEGORIA_INFO em VagaCard.tsx (cada categoria já
+/// tem sua identidade visual lá no badge do card) — aqui só aplicadas no
+/// estado ATIVO da aba, pra bater o olho de qual filtro tá ligado sem
+/// precisar ler o texto.
+const ABAS_CATEGORIA: { valor: CategoriaVaga | "TODAS"; label: string; emoji: string; ativoClasse: string }[] = [
+  { valor: "TODAS", label: "Todos", emoji: "✨", ativoClasse: "bg-navy-900 border-navy-900 text-white" },
+  { valor: "RESTAURANTE", label: "Restaurantes", emoji: "🍽️", ativoClasse: "bg-amber-500 border-amber-500 text-white" },
+  { valor: "EVENTO", label: "Eventos", emoji: "🎉", ativoClasse: "bg-purple-500 border-purple-500 text-white" },
+  { valor: "OUTRO", label: "Outros", emoji: "💼", ativoClasse: "bg-stone-600 border-stone-600 text-white" },
 ];
 
 /** Por padrão só mostra vagas com match — não faz muito sentido pro
@@ -60,21 +64,25 @@ export default function FiltroVagas({ itens }: { itens: Item[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-        {ABAS_CATEGORIA.map((aba) => (
-          <button
-            key={aba.valor}
-            type="button"
-            onClick={() => setCategoria(aba.valor)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
-              categoria === aba.valor
-                ? "bg-navy-900 text-white"
-                : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-            }`}
-          >
-            {aba.label}
-          </button>
-        ))}
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+        {ABAS_CATEGORIA.map((aba) => {
+          const ativo = categoria === aba.valor;
+          return (
+            <button
+              key={aba.valor}
+              type="button"
+              onClick={() => setCategoria(aba.valor)}
+              className={`flex items-center justify-center sm:justify-start gap-2 rounded-2xl border px-4 py-2.5 text-sm font-semibold transition-all ${
+                ativo
+                  ? `${aba.ativoClasse} shadow-sm`
+                  : "bg-white border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
+              }`}
+            >
+              <span className="text-base leading-none">{aba.emoji}</span>
+              {aba.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

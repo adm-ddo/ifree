@@ -229,25 +229,37 @@ export default async function PortalHomePage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-1">
-        {completude.liberaCurriculo ? (
-          <Link
-            href="/portal/curriculo/pdf"
-            target="_blank"
-            className="rounded-lg bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium px-4 py-2.5 transition-colors self-start"
-          >
-            📄 Gerar meu currículo
-          </Link>
-        ) : (
-          <span className="rounded-lg bg-stone-200 text-stone-500 text-sm font-medium px-4 py-2.5 self-start cursor-not-allowed">
-            📄 Gerar meu currículo
-          </span>
-        )}
-        {!completude.liberaCurriculo && (
-          <p className="text-xs text-stone-500">
-            Complete pelo menos metade do perfil pra liberar o currículo.
-          </p>
-        )}
+      <div className="rounded-2xl border border-stone-200 bg-white p-4 flex flex-col gap-2">
+        <h2 className="font-semibold text-navy-900 text-sm">📄 Seu currículo em PDF</h2>
+        <p className="text-xs text-stone-600">
+          Geramos um currículo em PDF pronto com as informações do seu perfil — biografia,
+          habilidades, experiência e reputação. Baixe pra guardar, imprimir ou enviar pra outras
+          oportunidades de emprego, dentro ou fora do iFREE.
+        </p>
+        <p className="text-xs text-stone-600">
+          Ele é montado automaticamente a partir do que você preenche aqui: quanto mais completo o
+          seu perfil, mais completo (e mais forte) fica o currículo.
+        </p>
+        <div className="flex flex-col gap-1 mt-1">
+          {completude.liberaCurriculo ? (
+            <Link
+              href="/portal/curriculo/pdf"
+              target="_blank"
+              className="rounded-lg bg-navy-900 hover:bg-navy-800 text-white text-sm font-medium px-4 py-2.5 transition-colors self-start"
+            >
+              📄 Gerar meu currículo
+            </Link>
+          ) : (
+            <span className="rounded-lg bg-stone-200 text-stone-500 text-sm font-medium px-4 py-2.5 self-start cursor-not-allowed">
+              📄 Gerar meu currículo
+            </span>
+          )}
+          {!completude.liberaCurriculo && (
+            <p className="text-xs text-stone-500">
+              Complete pelo menos metade do perfil pra liberar o currículo.
+            </p>
+          )}
+        </div>
       </div>
 
       <TrocarEmailForm emailAtual={pessoa.email} />
