@@ -44,6 +44,17 @@ export default function TermosIndexPage() {
               pelo iFREE.
             </p>
           </Link>
+
+          <Link
+            href="/privacidade"
+            className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm hover:border-brand-400 transition-colors"
+          >
+            <h2 className="font-semibold text-navy-900">Política de Privacidade</h2>
+            <p className="text-sm text-stone-600 mt-1">
+              Documento único (empresa e freelancer) explicando em detalhe como tratamos dados pessoais na
+              Plataforma.
+            </p>
+          </Link>
         </div>
       </div>
     </div>

@@ -270,14 +270,13 @@ export default function TermosFreelancerPage() {
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold text-navy-900">16. Privacidade e proteção de dados</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
-            Tratamos os dados pessoais necessários para operar a plataforma (nome, CPF, telefone, endereço, chave
-            PIX, foto e assinatura digital, entre outros) com base na execução do contrato entre você e a empresa
-            Contratante, em conformidade com a Lei Geral de Proteção de Dados (LGPD, Lei nº 13.709/2018). O iFREE
-            não vende nem aluga seus dados pessoais — compartilhamos informações apenas quando necessário para
-            viabilizar o pagamento (com a Asaas), operar a infraestrutura técnica da plataforma, ou cumprir
-            obrigações legais. Você pode solicitar acesso, correção ou exclusão dos seus dados a qualquer
-            momento, pelo WhatsApp do iFREE, ressalvado o que precisar ser mantido por obrigação legal (ex.:
-            comprovantes de pagamento).
+            O tratamento dos seus dados pessoais — quais dados coletamos, com quem compartilhamos, por quanto
+            tempo guardamos e como exercer seus direitos como titular perante a Lei Geral de Proteção de Dados
+            (LGPD, Lei nº 13.709/2018) — está descrito em detalhe na nossa{" "}
+            <Link href="/privacidade" className="underline text-brand-700">
+              Política de Privacidade
+            </Link>
+            , que é parte integrante destes Termos.
           </p>
         </section>
 

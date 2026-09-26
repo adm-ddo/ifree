@@ -276,12 +276,13 @@ export default function TermosEmpresaPage() {
         <section className="flex flex-col gap-3">
           <h2 className="font-semibold text-navy-900">17. Privacidade e proteção de dados</h2>
           <p className="text-sm text-stone-700 leading-relaxed">
-            Tratamos os dados pessoais necessários para operar a plataforma (nome, CPF/CNPJ, telefone, endereço,
-            chave PIX, foto e assinatura digital, entre outros) com base na execução do contrato entre a empresa
-            e os freelancers que atuam nela, em conformidade com a Lei Geral de Proteção de Dados (LGPD, Lei nº
-            13.709/2018). Qualquer pessoa pode solicitar acesso, correção ou exclusão dos próprios dados a
-            qualquer momento, pelo WhatsApp do iFREE, ressalvado o que precisar ser mantido por obrigação legal
-            (ex.: comprovantes de pagamento).
+            O tratamento dos dados pessoais dentro da plataforma — quais dados coletamos, com quem
+            compartilhamos, por quanto tempo guardamos e como qualquer titular exerce os direitos previstos na
+            Lei Geral de Proteção de Dados (LGPD, Lei nº 13.709/2018) — está descrito em detalhe na nossa{" "}
+            <Link href="/privacidade" className="underline text-brand-700">
+              Política de Privacidade
+            </Link>
+            , que é parte integrante destes Termos.
           </p>
         </section>
 
