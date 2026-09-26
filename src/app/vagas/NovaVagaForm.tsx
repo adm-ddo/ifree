@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { criarVaga } from "./actions";
 import { TODOS_OS_CARGOS } from "@/lib/habilidades";
 import HabilidadesPicker from "./HabilidadesPicker";
@@ -13,10 +13,35 @@ const CATEGORIAS: { valor: CategoriaVaga; label: string; emoji: string }[] = [
   { valor: "OUTRO", label: "Outro", emoji: "💼" },
 ];
 
+// Card de vaga é pequeno (ícone/logo de ~44px) — 500px de lado já sobra de
+// resolução, mantém o payload do form leve. Mesmo espírito de
+// comprimirSeImagem em UploadAssinadoForm.tsx, só que sempre imagem (não
+// aceita PDF aqui).
+const LADO_MAXIMO_PX = 500;
+const QUALIDADE_JPEG = 0.85;
+
+async function comprimirImagem(arquivo: File): Promise<string> {
+  const bitmap = await createImageBitmap(arquivo);
+  const escala = Math.min(1, LADO_MAXIMO_PX / Math.max(bitmap.width, bitmap.height));
+  const largura = Math.round(bitmap.width * escala);
+  const altura = Math.round(bitmap.height * escala);
+  const canvas = document.createElement("canvas");
+  canvas.width = largura;
+  canvas.height = altura;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas indisponível.");
+  ctx.drawImage(bitmap, 0, 0, largura, altura);
+  return canvas.toDataURL("image/jpeg", QUALIDADE_JPEG);
+}
+
 export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao: string }) {
   const [aberto, setAberto] = useState(false);
   const [state, formAction, pending] = useActionState(criarVaga, undefined);
   const [categoria, setCategoria] = useState<CategoriaVaga>("OUTRO");
+  const [tipoImagem, setTipoImagem] = useState<"ICONE" | "LOGO">("ICONE");
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [erroLogo, setErroLogo] = useState<string | null>(null);
+  const inputLogoRef = useRef<HTMLInputElement>(null);
 
   if (!aberto) {
     return (
@@ -33,6 +58,12 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
   return (
     <form
       action={formAction}
+      onSubmit={(e) => {
+        if (tipoImagem === "LOGO" && !logoPreview) {
+          e.preventDefault();
+          setErroLogo("Escolha uma imagem ou volte pro ícone ilustrado.");
+        }
+      }}
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm"
     >
       <h2 className="font-semibold text-navy-900">Nova vaga</h2>
@@ -56,6 +87,80 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-xs text-stone-500">Imagem da vaga</label>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setTipoImagem("ICONE")}
+            className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+              tipoImagem === "ICONE"
+                ? "bg-brand-600 border-brand-600 text-white"
+                : "border-stone-300 text-stone-600 hover:bg-stone-50"
+            }`}
+          >
+            🎨 Ícone ilustrado
+          </button>
+          <button
+            type="button"
+            onClick={() => setTipoImagem("LOGO")}
+            className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+              tipoImagem === "LOGO"
+                ? "bg-brand-600 border-brand-600 text-white"
+                : "border-stone-300 text-stone-600 hover:bg-stone-50"
+            }`}
+          >
+            🖼️ Meu logo
+          </button>
+        </div>
+
+        {tipoImagem === "ICONE" && (
+          <p className="text-xs text-stone-500">
+            Mostra um ícone colorido de acordo com a categoria escolhida acima.
+          </p>
+        )}
+
+        {tipoImagem === "LOGO" && (
+          <div className="flex items-center gap-3">
+            <input
+              ref={inputLogoRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const arquivo = e.target.files?.[0];
+                e.target.value = "";
+                if (!arquivo) return;
+                setErroLogo(null);
+                try {
+                  const dataUrl = await comprimirImagem(arquivo);
+                  setLogoPreview(dataUrl);
+                } catch {
+                  setErroLogo("Não consegui ler essa imagem — tenta outro arquivo.");
+                }
+              }}
+            />
+            <input type="hidden" name="logoDataUrl" value={logoPreview ?? ""} />
+            {logoPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element -- preview de dataURL local, sem sentido usar next/image aqui
+              <img src={logoPreview} alt="" className="h-12 w-12 rounded-xl object-cover border border-stone-200" />
+            ) : (
+              <span className="h-12 w-12 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-300 text-xs">
+                Logo
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => inputLogoRef.current?.click()}
+              className="rounded-lg border border-stone-300 text-sm px-3 py-2 hover:bg-stone-50"
+            >
+              {logoPreview ? "Trocar imagem" : "Escolher imagem"}
+            </button>
+          </div>
+        )}
+        {erroLogo && <span className="text-xs text-red-600">{erroLogo}</span>}
       </div>
 
       <div className="flex flex-col gap-1">

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import { normalizarTags } from "@/lib/habilidades";
+import { uploadDataUrl } from "@/lib/blob";
 import { revalidatePath } from "next/cache";
 
 export type NovaVagaState = { erro?: string } | undefined;
@@ -26,6 +27,7 @@ export async function criarVaga(
   const habilidadesProcuradas = normalizarTags(formData.getAll("habilidadesProcuradas"));
   const turnoDia = formData.get("turnoDia") === "on";
   const turnoNoite = formData.get("turnoNoite") === "on";
+  const logoDataUrl = String(formData.get("logoDataUrl") ?? "").trim();
 
   if (!cargo) return { erro: "Informe o cargo da vaga." };
   if (cargo.length > 100) return { erro: "O cargo pode ter no máximo 100 caracteres." };
@@ -35,11 +37,19 @@ export async function criarVaga(
   if (nomeFantasia.length > 100) return { erro: "O nome fantasia pode ter no máximo 100 caracteres." };
   if (!turnoDia && !turnoNoite) return { erro: "Selecione pelo menos um turno (dia ou noite)." };
 
+  // logoDataUrl é opcional — vazio (padrão) usa o ícone ilustrado da
+  // categoria (ver CATEGORIA_INFO em VagaCard.tsx), nunca bloqueia a
+  // publicação por conta disso.
+  const logoUrl = logoDataUrl.startsWith("data:image/")
+    ? await uploadDataUrl(`vagas/logo-${Date.now()}.jpg`, logoDataUrl)
+    : null;
+
   await prisma.vaga.create({
     data: {
       empresaId: sessao.empresaEfetivoId,
       cargo,
       categoria,
+      logoUrl,
       descricao,
       localizacao: localizacao || null,
       nomeFantasia: nomeFantasia || null,

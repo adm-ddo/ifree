@@ -16,8 +16,9 @@ const CATEGORIA_INFO: Record<CategoriaVaga, { emoji: string; label: string; clas
  * antes (ver comentário em FiltroVagas.tsx), só a apresentação mudou:
  * mais respiro, badge de categoria colorido, CTA "Quero trabalhar" em vez
  * de "Candidatar-se" (tom mais convidativo, mesmo espírito do anúncio que
- * inspirou o redesign). Sem foto de capa por vaga — não existe esse dado
- * hoje — o emoji da categoria faz esse papel visual por enquanto. */
+ * inspirou o redesign). Sem banco de fotos de estoque pronto pra usar
+ * aqui — a empresa escolhe, ao publicar, entre o ícone ilustrado da
+ * categoria (padrão) ou o próprio logo (Vaga.logoUrl, ver NovaVagaForm.tsx). */
 export default function VagaCard({
   vaga,
   jaCandidatou,
@@ -29,6 +30,7 @@ export default function VagaCard({
     id: number;
     cargo: string;
     categoria: CategoriaVaga;
+    logoUrl: string | null;
     empresaNome: string;
     empresaCidade: string | null;
     descricao: string;
@@ -52,9 +54,18 @@ export default function VagaCard({
     <li className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="flex items-center justify-center h-11 w-11 rounded-2xl bg-stone-50 text-2xl shrink-0">
-            {categoriaInfo.emoji}
-          </span>
+          {vaga.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- blob privado de tamanho variável, sem otimização do next/image aqui
+            <img
+              src={vaga.logoUrl}
+              alt=""
+              className="h-11 w-11 rounded-2xl object-cover shrink-0 border border-stone-100"
+            />
+          ) : (
+            <span className="flex items-center justify-center h-11 w-11 rounded-2xl bg-stone-50 text-2xl shrink-0">
+              {categoriaInfo.emoji}
+            </span>
+          )}
           <div className="min-w-0">
             <p className="font-semibold text-navy-900 truncate">{vaga.cargo}</p>
             <p className="text-stone-500 text-sm truncate">{vaga.empresaNome}</p>

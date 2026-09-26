@@ -1374,6 +1374,13 @@ model Vaga {
   /// `cargo` (a função em si) e de `habilidadesProcuradas` (usado só pro
   /// match), é sobre que TIPO de empresa é, não que função é a vaga.
   categoria      CategoriaVaga @default(OUTRO)
+  /// Logo/foto que a empresa escolheu pra esta vaga, no lugar do ícone
+  /// ilustrado padrão da categoria — null usa o ícone (comportamento
+  /// padrão, ver CATEGORIA_INFO em VagaCard.tsx). Upload único no momento
+  /// de publicar, mesmo storage de blob privado já usado pra foto de
+  /// perfil (Pessoa.fotoPerfilUrl) — URL não listável funciona igual pra
+  /// exibição pública, mesmo padrão já validado ali.
+  logoUrl        String?
   descricao      String     @db.Text
   localizacao    String?
   /// Nome que a empresa quer mostrar pro candidato nesta vaga específica,
