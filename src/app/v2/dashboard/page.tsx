@@ -45,7 +45,7 @@ export default async function V2DashboardPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-extrabold text-navy-900">{sessao.empresaEfetivoNome}</h1>
-          <p className="text-stone-500 text-sm mt-0.5">Painel</p>
+          <p className="text-stone-500 text-sm mt-0.5">Dashboard</p>
         </div>
         <SeletorEmpresaV2
           // Mesma correção do v1 (src/app/dashboard/page.tsx) — só passa a

@@ -82,7 +82,15 @@ export default function NavShell({
        * própria só se a barra em si não couber na tela (muitos itens de
        * menu numa tela baixa). */}
       <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto scroll-sidebar-v2 bg-brand-500 px-3 py-4 gap-1">
-        <div className="text-white font-extrabold text-lg px-2 pb-4">iFREE</div>
+        <div className="px-2 pb-4">
+          <div className="text-white font-extrabold text-lg leading-tight">iFREE</div>
+          {/* Nome da empresa aberta no momento — pedido do Thiago em
+           * 2026-09-26: quem tem mais de uma empresa no login não tinha
+           * como saber qual estava aberta sem entrar no Dashboard. */}
+          <div className="text-white/80 text-[12px] font-semibold truncate" title={nomeEmpresa}>
+            {nomeEmpresa}
+          </div>
+        </div>
         <nav className="flex flex-col gap-0.5 overflow-y-auto">
           {itens.map((item) => {
             if (item.bloqueado) {
@@ -151,10 +159,18 @@ export default function NavShell({
         </div>
       </aside>
 
-      {/* Topo — celular */}
-      <div className="lg:hidden flex items-center justify-between bg-brand-500 px-4 py-3 rounded-b-2xl">
-        <span className="text-white font-extrabold text-[15px]">iFREE</span>
-        <span className="w-7 h-7 rounded-full bg-white text-brand-700 text-[11px] font-bold flex items-center justify-center">
+      {/* Topo — celular. Nome da empresa aberta no momento, não só as
+       * iniciais no círculo — mesmo motivo do bloco equivalente no menu
+       * lateral do computador (ver acima). */}
+      <div className="lg:hidden flex items-center justify-between gap-2 bg-brand-500 px-4 py-3 rounded-b-2xl">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-white font-extrabold text-[15px] shrink-0">iFREE</span>
+          <span className="text-white/50 shrink-0">·</span>
+          <span className="text-white text-[13px] font-semibold truncate" title={nomeEmpresa}>
+            {nomeEmpresa}
+          </span>
+        </div>
+        <span className="w-7 h-7 rounded-full bg-white text-brand-700 text-[11px] font-bold flex items-center justify-center shrink-0">
           {iniciais || "i"}
         </span>
       </div>

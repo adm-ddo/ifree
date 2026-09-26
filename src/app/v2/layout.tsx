@@ -11,7 +11,7 @@ const sora = Sora({ variable: "--font-sora", subsets: ["latin"] });
 /// ícone adicionado. Central de Ética/GED entram condicionalmente, igual
 /// ao v1.
 const ITENS_BASE: ItemNavV2[] = [
-  { href: "/v2/dashboard", label: "Painel", icone: "dashboard" },
+  { href: "/v2/dashboard", label: "Dashboard", icone: "dashboard" },
   { href: "/v2/funcoes", label: "Funções", icone: "funcoes" },
   { href: "/v2/freelancers", label: "Freelancers", icone: "freelancers" },
   { href: "/v2/vagas", label: "Vagas", icone: "vagas" },

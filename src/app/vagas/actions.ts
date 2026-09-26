@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/requireModulo";
 import { normalizarTags } from "@/lib/habilidades";
 import { uploadDataUrl } from "@/lib/blob";
 import { notificarPessoasSobreVagaNova } from "@/lib/match-passivo";
+import { enviarEmailConviteVaga } from "@/lib/email";
 import { revalidatePath } from "next/cache";
 
 export type NovaVagaState = { erro?: string; sucesso?: boolean } | undefined;
@@ -153,4 +154,38 @@ export async function encerrarVaga(vagaId: number) {
   await vagaDaEmpresa(vagaId);
   await prisma.vaga.update({ where: { id: vagaId }, data: { status: "ENCERRADA" } });
   revalidatePath("/vagas");
+}
+
+export type ConvidarParaVagaResultado = { sucesso: true } | { erro: string };
+
+/** Convite explícito pra um candidato de "match passivo" (perfil bate com
+ * a vaga, mas ele nunca se candidatou) — antes disso o banner
+ * (MatchesRecentesBanner.tsx) só mostrava o nome parado, sem nenhuma ação
+ * possível (reportado pelo Thiago em 2026-09-26: "não serve pra nada").
+ * Sem reenvio de propósito (convidadoEm marcado na hora) — clicar de novo
+ * não manda outro e-mail, pra não virar spam pro freelancer. */
+export async function convidarParaVaga(matchPassivoId: number): Promise<ConvidarParaVagaResultado> {
+  const sessao = await requireModulo("vagas");
+
+  const match = await prisma.vagaMatchPassivo.findUnique({
+    where: { id: matchPassivoId },
+    select: {
+      convidadoEm: true,
+      vaga: { select: { empresaId: true, cargo: true, nomeFantasia: true, empresa: { select: { nome: true } } } },
+      pessoa: { select: { nome: true, email: true } },
+    },
+  });
+  if (!match || match.vaga.empresaId !== sessao.empresaEfetivoId) {
+    return { erro: "Esse candidato não pertence a uma vaga desta empresa." };
+  }
+  if (match.convidadoEm) return { erro: "Convite já enviado." };
+  if (!match.pessoa.email) return { erro: "Esse freelancer não tem e-mail cadastrado." };
+
+  const empresaNome = match.vaga.nomeFantasia || match.vaga.empresa.nome;
+  const { sucesso } = await enviarEmailConviteVaga(match.pessoa.email, match.pessoa.nome, match.vaga.cargo, empresaNome);
+  if (!sucesso) return { erro: "Não foi possível enviar o convite agora — tenta de novo." };
+
+  await prisma.vagaMatchPassivo.update({ where: { id: matchPassivoId }, data: { convidadoEm: new Date() } });
+  revalidatePath("/vagas");
+  return { sucesso: true };
 }

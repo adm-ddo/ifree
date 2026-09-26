@@ -6,7 +6,23 @@ import { baixarComoDataUrl } from "@/lib/blob";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO } from "@/lib/documento";
 import { formatarEnderecoCompleto } from "@/lib/endereco";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
+import ConvidarParaVagaBotao from "@/app/vagas/ConvidarParaVagaBotao";
 
+/** Perfil do candidato — dois casos possíveis pra mesma URL
+ * (/vagas/:id/candidatos/:pessoaId):
+ *
+ * 1. Ela se CANDIDATOU (Candidatura existe): mostra tudo, incluindo
+ *    telefone/documento/endereço — ela deu esse consentimento ao se
+ *    candidatar pra ESTA empresa.
+ * 2. Ela é só um MATCH PASSIVO (perfil bate, nunca se candidatou — ver
+ *    VagaMatchPassivo/MatchesRecentesBanner.tsx): mostra só o que já é
+ *    visível num match (nome, foto, bio, habilidades, reputação), SEM
+ *    telefone/documento/endereço — ela nunca autorizou esta empresa
+ *    especificamente a ver esses dados. O botão aqui é "Convidar"
+ *    (mesmo ConvidarParaVagaBotao do banner), não "Conversar" — pedido
+ *    do Thiago em 2026-09-26: o convite só chama a atenção dela pra
+ *    vaga, quem decide se manifestar e procurar a empresa é ela, nunca
+ *    o contrário. */
 export default async function CandidatoPerfilPage({
   params,
 }: {
@@ -45,11 +61,39 @@ export default async function CandidatoPerfilPage({
       },
     },
   });
-  if (!candidatura || candidatura.vaga.empresaId !== sessao.empresaEfetivoId) notFound();
 
-  const { pessoa } = candidatura;
+  // Sem candidatura, tenta o caso 2 (match passivo) — mesma dupla
+  // (vagaId, pessoaId), só que ela nunca se candidatou.
+  const matchPassivo = candidatura
+    ? null
+    : await prisma.vagaMatchPassivo.findUnique({
+        where: { vagaId_pessoaId: { vagaId, pessoaId } },
+        select: {
+          id: true,
+          convidadoEm: true,
+          vaga: { select: { id: true, cargo: true, empresaId: true } },
+          pessoa: {
+            select: {
+              id: true,
+              nome: true,
+              fotoPerfilUrl: true,
+              biografia: true,
+              habilidades: true,
+              vagasDesejadas: true,
+              meiosTransporte: true,
+            },
+          },
+        },
+      });
 
-  const [fotoDataUrl, avaliacoesRecebidas, conversa] = await Promise.all([
+  if (!candidatura && !matchPassivo) notFound();
+  const empresaIdDaVaga = candidatura ? candidatura.vaga.empresaId : matchPassivo!.vaga.empresaId;
+  if (empresaIdDaVaga !== sessao.empresaEfetivoId) notFound();
+
+  const pessoa = candidatura ? candidatura.pessoa : matchPassivo!.pessoa;
+  const cargo = candidatura ? candidatura.vaga.cargo : matchPassivo!.vaga.cargo;
+
+  const [fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado, conversa] = await Promise.all([
     pessoa.fotoPerfilUrl ? baixarComoDataUrl(pessoa.fotoPerfilUrl) : Promise.resolve(null),
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: pessoa.id } },
@@ -61,10 +105,17 @@ export default async function CandidatoPerfilPage({
       },
       orderBy: { criadoEm: "desc" },
     }),
-    prisma.conversa.findUnique({
-      where: { empresaId_pessoaId: { empresaId: candidatura.vaga.empresaId, pessoaId: pessoa.id } },
-      select: { id: true },
+    prisma.extraMarcado.findMany({
+      where: { pessoaId: pessoa.id, status: "NAO_COMPARECEU" },
+      select: { data: true, empresa: { select: { nome: true } } },
+      orderBy: { data: "desc" },
     }),
+    candidatura
+      ? prisma.conversa.findUnique({
+          where: { empresaId_pessoaId: { empresaId: empresaIdDaVaga, pessoaId: pessoa.id } },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   return (
@@ -91,22 +142,38 @@ export default async function CandidatoPerfilPage({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-semibold text-navy-900">{pessoa.nome}</h1>
-              {candidatura.match && (
+              {candidatura?.match && (
                 <span className="rounded-full border border-brand-500 bg-brand-50 text-brand-700 text-[11px] font-bold px-2 py-0.5">
                   🎯 Match
                 </span>
               )}
+              {matchPassivo && (
+                <span className="rounded-full border border-stone-300 bg-stone-50 text-stone-600 text-[11px] font-medium px-2 py-0.5">
+                  Perfil compatível — ainda não se candidatou
+                </span>
+              )}
             </div>
             <p className="text-sm text-stone-500 mt-0.5">
-              Candidatou-se pra {candidatura.vaga.cargo}
+              {candidatura ? `Candidatou-se pra ${cargo}` : `Perfil bate com a vaga de ${cargo}`}
             </p>
-            <p className="text-sm text-stone-600 mt-1">
-              {LABEL_TIPO_DOCUMENTO[pessoa.tipoDocumento]}{" "}
-              {formatarDocumento(pessoa.tipoDocumento, pessoa.documento)} · {pessoa.telefone}
-            </p>
-            <p className="text-sm text-stone-600 mt-0.5">
-              📍 {formatarEnderecoCompleto(pessoa)}
-            </p>
+            {candidatura && (
+              <>
+                <p className="text-sm text-stone-600 mt-1">
+                  {LABEL_TIPO_DOCUMENTO[candidatura.pessoa.tipoDocumento]}{" "}
+                  {formatarDocumento(candidatura.pessoa.tipoDocumento, candidatura.pessoa.documento)} ·{" "}
+                  {candidatura.pessoa.telefone}
+                </p>
+                <p className="text-sm text-stone-600 mt-0.5">
+                  📍 {formatarEnderecoCompleto(candidatura.pessoa)}
+                </p>
+              </>
+            )}
+            {matchPassivo && (
+              <p className="text-xs text-stone-400 mt-1">
+                Telefone e endereço só aparecem depois que ela se candidatar — ela ainda não deu esse
+                consentimento pra esta empresa.
+              </p>
+            )}
           </div>
         </div>
 
@@ -142,13 +209,19 @@ export default async function CandidatoPerfilPage({
           <p className="text-sm text-stone-500">Transporte: {pessoa.meiosTransporte.join(", ")}</p>
         )}
 
-        {candidatura.match && conversa && (
+        {candidatura?.match && conversa && (
           <Link
             href={`/conversas/${conversa.id}`}
             className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 self-start transition-colors"
           >
             💬 Conversar
           </Link>
+        )}
+
+        {matchPassivo && (
+          <div className="self-start">
+            <ConvidarParaVagaBotao matchPassivoId={matchPassivo.id} jaConvidado={matchPassivo.convidadoEm !== null} />
+          </div>
         )}
       </div>
 
@@ -159,6 +232,7 @@ export default async function CandidatoPerfilPage({
           criadoEm: a.criadoEm,
           empresaNome: a.turno.empresa.nome,
         }))}
+        faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
       />
     </div>
   );

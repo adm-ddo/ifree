@@ -5,6 +5,7 @@ import { formatarDataHora } from "@/lib/data";
 import { calcularMatch } from "@/lib/match";
 import { formatarEnderecoCompleto, linkGoogleMapsTransit } from "@/lib/endereco";
 import FiltroVagas from "./FiltroVagas";
+import VagaCard from "./VagaCard";
 import ExtraMarcadoPessoa from "./ExtraMarcadoPessoa";
 
 const LABEL_STATUS_CANDIDATURA: Record<string, string> = {
@@ -76,7 +77,7 @@ export default async function VagasPortalPage() {
     );
   }
 
-  const [vagasAbertas, minhasCandidaturas, minhasConversas, meusExtrasMarcados] = await Promise.all([
+  const [vagasAbertas, minhasCandidaturas, minhasConversas, meusExtrasMarcados, convitesRecebidos] = await Promise.all([
     prisma.vaga.findMany({
       where: { status: "ABERTA" },
       orderBy: { criadoEm: "desc" },
@@ -141,10 +142,62 @@ export default async function VagasPortalPage() {
         empresa: { select: { nome: true } },
       },
     }),
+    // Convites de verdade (clicados pela empresa em ConvidarParaVagaBotao,
+    // ver convidarParaVaga em src/app/vagas/actions.ts) — diferente de
+    // ehMatch (calculado por habilidade), este é um "chamar atenção"
+    // deliberado de uma empresa específica. Só o convite JÁ ENVIADO conta
+    // aqui (convidadoEm not null); o match passivo sozinho não aparece pra
+    // ela, só dispara e-mail pra empresa (ver notificarEmpresasSobreNovoPerfil).
+    prisma.vagaMatchPassivo.findMany({
+      where: { pessoaId: sessao.pessoaId, convidadoEm: { not: null } },
+      select: {
+        vagaId: true,
+        vaga: { select: { nomeFantasia: true, empresa: { select: { nome: true } } } },
+      },
+    }),
   ]);
 
   const vagaIdsComCandidatura = new Set(minhasCandidaturas.map((c) => c.vagaId));
   const conversaIdPorEmpresa = new Map(minhasConversas.map((c) => [c.empresaId, c.id]));
+  const empresaConviteNomePorVaga = new Map(
+    convitesRecebidos.map((c) => [c.vagaId, c.vaga.nomeFantasia || c.vaga.empresa.nome])
+  );
+
+  const itensVagas = vagasAbertas.map((vaga) => {
+    const enderecoDestino = vaga.localizacao?.trim() || vaga.empresa.endereco?.trim() || null;
+    return {
+      id: vaga.id,
+      cargo: vaga.cargo,
+      valorHora: vaga.valorHora !== null ? Number(vaga.valorHora) : null,
+      categoria: vaga.categoria,
+      logoUrl: vaga.logoUrl,
+      possibilidadeEfetivacao: vaga.possibilidadeEfetivacao,
+      empresaNome: vaga.nomeFantasia || vaga.empresa.nome,
+      empresaCidade: vaga.empresa.cidade,
+      descricao: vaga.descricao,
+      localizacao: vaga.localizacao,
+      turnoDia: vaga.turnoDia,
+      turnoNoite: vaga.turnoNoite,
+      horarios: {
+        inicioDiaMin: vaga.empresa.horarioInicioDiaMin,
+        fechamentoDiaMin: vaga.empresa.horarioFechamentoDiaMin,
+        inicioNoiteMin: vaga.empresa.horarioInicioNoiteMin,
+        fechamentoNoiteMin: vaga.empresa.horarioFechamentoNoiteMin,
+      },
+      jaCandidatou: vagaIdsComCandidatura.has(vaga.id),
+      ehMatch: calcularMatch(vaga.habilidadesProcuradas, pessoa.habilidades),
+      conversaId: conversaIdPorEmpresa.get(vaga.empresaId) ?? null,
+      linkRota:
+        enderecoOrigem && enderecoDestino ? linkGoogleMapsTransit(enderecoOrigem, enderecoDestino) : null,
+    };
+  });
+
+  // Só vagas com convite JÁ enviado e ainda não candidatadas — depois que
+  // ela se candidata, o convite cumpriu seu papel (chamar a atenção) e a
+  // vaga já aparece normal em "Minhas candidaturas" logo abaixo.
+  const itensConvites = itensVagas
+    .filter((item) => empresaConviteNomePorVaga.has(item.id) && !item.jaCandidatou)
+    .map((item) => ({ ...item, empresaConviteNome: empresaConviteNomePorVaga.get(item.id)! }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -180,38 +233,29 @@ export default async function VagasPortalPage() {
         </div>
       )}
 
-      <FiltroVagas
-        itens={vagasAbertas.map((vaga) => {
-          const enderecoDestino = vaga.localizacao?.trim() || vaga.empresa.endereco?.trim() || null;
-          return {
-            id: vaga.id,
-            cargo: vaga.cargo,
-            valorHora: vaga.valorHora !== null ? Number(vaga.valorHora) : null,
-            categoria: vaga.categoria,
-            logoUrl: vaga.logoUrl,
-            possibilidadeEfetivacao: vaga.possibilidadeEfetivacao,
-            empresaNome: vaga.nomeFantasia || vaga.empresa.nome,
-            empresaCidade: vaga.empresa.cidade,
-            descricao: vaga.descricao,
-            localizacao: vaga.localizacao,
-            turnoDia: vaga.turnoDia,
-            turnoNoite: vaga.turnoNoite,
-            horarios: {
-              inicioDiaMin: vaga.empresa.horarioInicioDiaMin,
-              fechamentoDiaMin: vaga.empresa.horarioFechamentoDiaMin,
-              inicioNoiteMin: vaga.empresa.horarioInicioNoiteMin,
-              fechamentoNoiteMin: vaga.empresa.horarioFechamentoNoiteMin,
-            },
-            jaCandidatou: vagaIdsComCandidatura.has(vaga.id),
-            ehMatch: calcularMatch(vaga.habilidadesProcuradas, pessoa.habilidades),
-            conversaId: conversaIdPorEmpresa.get(vaga.empresaId) ?? null,
-            linkRota:
-              enderecoOrigem && enderecoDestino
-                ? linkGoogleMapsTransit(enderecoOrigem, enderecoDestino)
-                : null,
-          };
-        })}
-      />
+      {itensConvites.length > 0 && (
+        <div>
+          <h2 className="font-semibold text-navy-900 text-sm mb-3">🤝 Convites pra você</h2>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {itensConvites.map((vaga) => (
+              <li key={vaga.id} className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-brand-700">
+                  🤝 {vaga.empresaConviteNome} quer te chamar a atenção pra essa vaga
+                </span>
+                <VagaCard
+                  vaga={vaga}
+                  jaCandidatou={vaga.jaCandidatou}
+                  ehMatch={vaga.ehMatch}
+                  conversaId={vaga.conversaId}
+                  linkRota={vaga.linkRota}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <FiltroVagas itens={itensVagas} />
 
       {minhasCandidaturas.length > 0 && (
         <div>

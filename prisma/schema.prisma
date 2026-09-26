@@ -1608,6 +1608,14 @@ model VagaMatchPassivo {
   vagaId   Int
   pessoaId Int
   criadoEm DateTime @default(now())
+  /// Empresa clicou em "Convidar" pra essa dupla específica (ver
+  /// convidarParaVaga, src/app/vagas/actions.ts) — null enquanto nunca
+  /// convidou. Sem isso o banner de match passivo (MatchesRecentesBanner)
+  /// só mostrava nome parado sem nenhuma ação possível (reportado pelo
+  /// Thiago em 2026-09-26: "fica ali, mas não serve pra nada"). Uma vez
+  /// convidado, o botão vira só um registro — sem reenvio, pra não virar
+  /// spam pro freelancer.
+  convidadoEm DateTime?
 
   vaga   Vaga   @relation(fields: [vagaId], references: [id], onDelete: Cascade)
   pessoa Pessoa @relation(fields: [pessoaId], references: [id], onDelete: Cascade)

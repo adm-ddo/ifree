@@ -495,6 +495,50 @@ export async function enviarEmailVagaCompativel(
   }
 }
 
+/** Convite explícito da empresa pra um candidato de match passivo (perfil
+ * bate com a vaga, mas ele nunca se candidatou) — ver convidarParaVaga em
+ * src/app/vagas/actions.ts. Diferente de enviarEmailVagaCompativel (aviso
+ * automático, "seu perfil bate com uma vaga nova"), este é sempre
+ * disparado por um clique manual do dono, então o texto deixa claro que
+ * foi a EMPRESA que pediu esse convite especificamente — pedido do
+ * Thiago em 2026-09-26: o banner de matches passivos só mostrava nome
+ * parado, sem nenhuma ação possível, então virou este convite de verdade. */
+export async function enviarEmailConviteVaga(
+  destinatario: string,
+  pessoaNomeCompleto: string,
+  cargo: string,
+  empresaNome: string
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — convite de vaga não enviado.");
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: `🤝 Oi, ${escaparHtml(pessoaNomeCompleto.split(" ")[0])}! ${escaparHtml(empresaNome)} quer te chamar`,
+    paragrafos: [
+      `A empresa <strong>${escaparHtml(empresaNome)}</strong> viu seu perfil no iFREE Conecta e quer te convidar pra vaga de <strong>${escaparHtml(cargo)}</strong> — não é um aviso automático, foi ela mesma que pediu.`,
+      "Dá uma olhada e, se topar, é só se candidatar.",
+    ],
+    textoBotao: "Ver vaga no Portal",
+    linkBotao: `${SITE_URL}/portal/vagas`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: `🤝 ${empresaNome} quer te chamar pra uma vaga`,
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar convite de vaga:", err);
+    return { sucesso: false };
+  }
+}
+
 /** Avisa uma empresa que um freelancer atualizou o perfil e passou a
  * combinar com uma vaga aberta dela (match passivo, sem candidatura) —
  * ver notificarEmpresasSobreNovoPerfil em src/lib/match-passivo.ts,

@@ -49,7 +49,7 @@ export default async function VagasPage() {
         </p>
       </div>
 
-      <MatchesRecentesBanner empresaId={sessao.empresaEfetivoId} />
+      <MatchesRecentesBanner empresaId={sessao.empresaEfetivoId} perfilHrefBase="/vagas" />
 
       {vagas.length === 0 && (
         <p className="text-stone-500 text-sm">Nenhuma vaga publicada ainda.</p>

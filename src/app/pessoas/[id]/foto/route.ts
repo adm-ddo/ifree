@@ -8,22 +8,29 @@ import { servirComoImagem } from "@/lib/blob";
  * servida sob demanda pros avatares em /freelancers e no Painel — o blob
  * é privado, então não dá pra apontar <img src> direto pra ele; esta rota
  * baixa e repassa, verificando que a pessoa tem (ou já teve) vínculo com
- * a empresa da sessão, OU se candidatou a alguma vaga dela, pra não vazar
- * foto de gente sem relação nenhuma com a empresa mudando o id na URL.
+ * a empresa da sessão, se candidatou a alguma vaga dela, OU apareceu como
+ * match passivo numa vaga dela, pra não vazar foto de gente sem relação
+ * nenhuma com a empresa mudando o id na URL.
  *
  * Candidatura conta de propósito (bug real reportado pelo Thiago em
  * 2026-09-26): a lista de candidatos de uma vaga (CandidaturaCardV2, via
  * AvatarPessoa) mostra a foto de quem se candidatou, e antes do aceite
  * ainda não existe VinculoPessoaEmpresa nenhum — só passava a aparecer
  * depois de aceitar a candidatura, que é tarde demais (é justo na hora de
- * avaliar o candidato que a foto mais importa). */
+ * avaliar o candidato que a foto mais importa).
+ *
+ * Match passivo conta desde a mesma conversa (o "Ver perfil" do banner de
+ * matches, /vagas/[id]/candidatos/[pessoaId]/page.tsx) — foto é bem menos
+ * sensível que telefone/documento/endereço (que aquela tela continua
+ * escondendo pra match passivo), e é justamente o que a empresa quer ver
+ * antes de decidir convidar. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const sessao = await requireTenant();
   const { id } = await params;
   const pessoaId = Number(id);
   if (!Number.isInteger(pessoaId)) notFound();
 
-  const [vinculo, candidatura] = await Promise.all([
+  const [vinculo, candidatura, matchPassivo] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findFirst({
       where: { pessoaId, empresaId: sessao.empresaEfetivoId },
       select: { id: true },
@@ -32,8 +39,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       where: { pessoaId, vaga: { empresaId: sessao.empresaEfetivoId } },
       select: { id: true },
     }),
+    prisma.vagaMatchPassivo.findFirst({
+      where: { pessoaId, vaga: { empresaId: sessao.empresaEfetivoId } },
+      select: { id: true },
+    }),
   ]);
-  if (!vinculo && !candidatura) notFound();
+  if (!vinculo && !candidatura && !matchPassivo) notFound();
 
   const pessoa = await prisma.pessoa.findUnique({
     where: { id: pessoaId },
