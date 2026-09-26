@@ -41,7 +41,23 @@ export const metadata = { title: "Termos de Uso — Freelancers — iFREE" };
  * freelancer, sem ameaca de suspensao: diferente da empresa, ele nao paga
  * nada pro iFREE, entao nao tem o mesmo incentivo de burlar a plataforma;
  * a versao com consequencia de verdade fica do lado da empresa, ver
- * [[termos/empresa/page.tsx]] item 7). Rota pública,
+ * [[termos/empresa/page.tsx]] item 7).
+ *
+ * Item 8 ganhou um paragrafo a mais depois de ver a pagina inteira que o
+ * mesmo concorrente dedica a previdencia do freelancer: mantivemos leve
+ * (pedido explicito do Thiago, "sem se aprofundar muito" - nao criamos
+ * uma pagina dedicada tipo a deles), so reforcando em linguagem simples
+ * que o freelancer e contribuinte individual do INSS. De propósito NAO
+ * mexemos na frase já existente sobre a empresa Contratante não reter
+ * nada (achado durante a comparação: o art. 4º da Lei 10.666/2003 pode
+ * obrigar a empresa que contrata autônomo/contribuinte individual a
+ * reter e recolher, cenário que é justamente o único que existe no
+ * iFREE já que todo contratante aqui é PJ - diferente do concorrente,
+ * que também atende contratante pessoa física, daí a página deles tratar
+ * dos dois casos) - decisão explícita do Thiago de jogar essa
+ * responsabilidade toda pro freelancer mesmo assim, mas fica pendente
+ * confirmação com contador antes de tratar isso como resolvido de
+ * verdade. Rota pública,
  * sem autenticação; linkada a partir de /portal/termos e do índice em
  * /termos. */
 export default function TermosFreelancerPage() {
@@ -181,6 +197,16 @@ export default function TermosFreelancerPage() {
             empregador). Durante o turno, a responsabilidade pelos próprios cuidados de segurança é sua — vale
             avaliar, por conta própria, a contratação de um seguro pessoal ou a contribuição ao INSS como
             contribuinte individual, que pode dar direito a benefícios da Previdência em caso de incapacidade.
+          </p>
+          <p className="text-sm text-stone-700 leading-relaxed">
+            Na prática, isso te coloca no mesmo enquadramento previdenciário de qualquer profissional autônomo:
+            contribuinte individual perante o INSS. Recolher em dia é o que garante acesso a benefícios como
+            tempo de contribuição para a aposentadoria, auxílio por incapacidade temporária (caso você adoeça ou
+            se machuque) e salário-maternidade — cada um com suas próprias regras de carência definidas pelo
+            INSS; sem recolhimento, esses meses simplesmente não contam. O iFREE não calcula, não retém nem paga
+            essa contribuição por você em nenhuma hipótese — a emissão da guia (GPS) e o recolhimento são feitos
+            diretamente por você, pelo Meu INSS (com sua conta gov.br). Vale conversar com um contador para
+            confirmar o código de recolhimento adequado ao seu caso.
           </p>
         </section>
 
