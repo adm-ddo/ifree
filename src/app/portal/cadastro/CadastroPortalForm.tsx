@@ -28,6 +28,10 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
   const [etapa, setEtapa] = useState<"dados" | "foto">("dados");
   const [foiIndicado, setFoiIndicado] = useState(false);
   const [sexo, setSexo] = useState<"MASCULINO" | "FEMININO" | "PREFIRO_NAO_DIZER" | "">("");
+  // Diferente de sexo, não é obrigatório pra avançar (ver tentouAvancar
+  // abaixo) — dado de saúde é categoria sensível pela LGPD, não faz
+  // sentido travar o cadastro por causa disso. null = não respondeu.
+  const [pcd, setPcd] = useState<boolean | null>(null);
   const [tentouAvancar, setTentouAvancar] = useState(false);
   const [cep, setCep] = useState("");
   const [enderecoAuto, setEnderecoAuto] = useState<EnderecoAuto>({ endereco: "", bairro: "", cidade: "" });
@@ -91,6 +95,7 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
     const fd = new FormData(formRef.current);
     fd.set("fotoDataUrl", dataUrl);
     fd.set("sexo", sexo);
+    if (pcd !== null) fd.set("pcd", pcd ? "sim" : "nao");
     if (indicador) fd.set("indicadoPorPessoaId", String(indicador.id));
     startTransition(() => formAction(fd));
   }
@@ -252,6 +257,34 @@ export default function CadastroPortalForm({ indicador }: { indicador: Indicador
           {tentouAvancar && !sexo && (
             <span className="text-xs text-red-600">Escolha uma opção pra continuar.</span>
           )}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-stone-700">
+            Possui alguma necessidade especial? (PCD){" "}
+            <span className="text-stone-400 font-normal">(opcional)</span>
+          </span>
+          <div className="flex gap-2 flex-wrap">
+            {(
+              [
+                [true, "Sim"],
+                [false, "Não"],
+              ] as const
+            ).map(([valor, label]) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setPcd(valor)}
+                className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
+                  pcd === valor
+                    ? "bg-brand-600 border-brand-600 text-white"
+                    : "border-stone-300 text-stone-600 hover:bg-stone-50"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {indicador ? (

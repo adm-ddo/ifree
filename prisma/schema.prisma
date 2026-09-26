@@ -697,6 +697,13 @@ model Pessoa {
   /// Conecta (extra que só usa o totem, sem conta no Portal) — nesse caso
   /// o avatar cai no mesmo cinza neutro de "prefiro não dizer".
   sexo          Sexo?
+  /// Possui alguma necessidade especial (PCD)? Respondido no cadastro do
+  /// Portal (pedido do Thiago em 2026-09-26), mas opcional de propósito —
+  /// dado de saúde é categoria sensível pela LGPD (art. 5º, II), então
+  /// nunca trava o cadastro igual sexo trava (ver tentouAvancar em
+  /// CadastroPortalForm.tsx: sexo é obrigatório pra avançar, pcd não).
+  /// Null = nunca respondeu (não é o mesmo que "não é PCD" = false).
+  pcd           Boolean?
   /// Campos de contato adicionais, opcionais, preenchidos manualmente pelo
   /// dono em /freelancers/[id] ou /funcionarios/[id] — não fazem parte do
   /// autocadastro pelo totem.

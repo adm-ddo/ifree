@@ -82,12 +82,12 @@ const CATEGORIAS_CARGOS: readonly CategoriaSugestoes[] = [
     ],
   },
   {
-    categoria: "Shows e eventos",
+    categoria: "Shows, eventos, feiras, congressos e exposições",
     itens: [
       "Montagem",
       "Desmontagem",
       "Carregamento",
-      "Segurança",
+      "Segurança (não armado)",
       "Vigia",
       "Fiscal de portaria",
       "Fiscal de bar",
@@ -105,6 +105,21 @@ const CATEGORIAS_CARGOS: readonly CategoriaSugestoes[] = [
       "Fotógrafo(a)",
       "Auxiliar de copa",
       "Motorista",
+      "Recepcionista",
+      "Modelo",
+      "Organizador(a) de filas",
+    ],
+  },
+  {
+    categoria: "Festas, buffets e eventos em geral",
+    itens: [
+      "Garçom/Garçonete",
+      "Monitor(a) infantil",
+      "Recreacionista infantil",
+      "Cuidador(a) infantil",
+      "Animador(a) de festas",
+      "Balonista",
+      "Bombeiro(a) civil",
     ],
   },
   {

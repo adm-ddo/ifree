@@ -43,6 +43,8 @@ export async function criarCadastroPortal(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const fotoDataUrl = String(formData.get("fotoDataUrl") ?? "");
   const sexoBruto = String(formData.get("sexo") ?? "");
+  const pcdBruto = String(formData.get("pcd") ?? "");
+  const pcd = pcdBruto === "sim" ? true : pcdBruto === "nao" ? false : null;
   const indicadoPorNomeTexto = String(formData.get("indicadoPorNomeTexto") ?? "").trim();
   const indicadoPorPessoaIdBruto = String(formData.get("indicadoPorPessoaId") ?? "");
 
@@ -113,6 +115,7 @@ export async function criarCadastroPortal(
       email,
       fotoPerfilUrl,
       sexo: sexoBruto as (typeof SEXOS_VALIDOS)[number],
+      pcd,
       indicadoPorPessoaId,
       // Guarda o texto só quando NÃO veio por link (indicação confiável já
       // resolvida acima) — evita os dois ficarem preenchidos e confundindo
