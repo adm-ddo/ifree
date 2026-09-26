@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { criarVaga } from "./actions";
 import HabilidadesPicker from "./HabilidadesPicker";
-import TurnoCheckboxes from "./TurnoCheckboxes";
+import TurnoCheckboxes, { type HorariosTurnoEmpresa } from "./TurnoCheckboxes";
 import type { CategoriaVaga } from "@/generated/prisma/enums";
 
 export type FuncaoParaVaga = { id: number; nome: string; valorHoraPadrao: number };
@@ -40,6 +40,7 @@ export default function NovaVagaForm({
   localizacaoPadrao,
   funcoes,
   funcoesHref,
+  horarios,
 }: {
   localizacaoPadrao: string;
   /// Funções ativas da empresa (Funcao, mesmo catálogo usado pro turno
@@ -52,6 +53,10 @@ export default function NovaVagaForm({
   /// versões desta tela, mesmo padrão de link já usado em outros forms
   /// compartilhados v1/v2 deste projeto.
   funcoesHref: string;
+  /// Horário de dia/noite já configurado pela empresa (ver
+  /// TurnoCheckboxes.tsx) — repassado direto pra lá, puramente
+  /// informativo.
+  horarios: HorariosTurnoEmpresa;
 }) {
   const [aberto, setAberto] = useState(false);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
@@ -289,7 +294,7 @@ export default function NovaVagaForm({
         </p>
       </div>
 
-      <TurnoCheckboxes />
+      <TurnoCheckboxes horarios={horarios} />
 
       <label className="flex items-center gap-2 text-sm text-stone-700">
         <input

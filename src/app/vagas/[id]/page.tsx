@@ -57,6 +57,16 @@ export default async function VagaDetalhePage({
   });
   if (!vaga || vaga.empresaId !== sessao.empresaEfetivoId) notFound();
 
+  const empresa = await prisma.empresa.findUniqueOrThrow({
+    where: { id: vaga.empresaId },
+    select: {
+      horarioInicioDiaMin: true,
+      horarioFechamentoDiaMin: true,
+      horarioInicioNoiteMin: true,
+      horarioFechamentoNoiteMin: true,
+    },
+  });
+
   const conversas = await prisma.conversa.findMany({
     where: {
       empresaId: vaga.empresaId,
@@ -103,6 +113,12 @@ export default async function VagaDetalhePage({
               habilidadesProcuradas: vaga.habilidadesProcuradas,
               turnoDia: vaga.turnoDia,
               turnoNoite: vaga.turnoNoite,
+            }}
+            horarios={{
+              inicioDiaMin: empresa.horarioInicioDiaMin,
+              fechamentoDiaMin: empresa.horarioFechamentoDiaMin,
+              inicioNoiteMin: empresa.horarioInicioNoiteMin,
+              fechamentoNoiteMin: empresa.horarioFechamentoNoiteMin,
             }}
           />
         </div>

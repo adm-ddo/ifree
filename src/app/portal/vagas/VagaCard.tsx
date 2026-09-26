@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { candidatarSe } from "./actions";
 import type { CategoriaVaga } from "@/generated/prisma/enums";
+import type { HorariosTurnoEmpresa } from "@/app/vagas/TurnoCheckboxes";
+import { minutosParaHorario } from "@/lib/ponto";
 
 const CATEGORIA_INFO: Record<CategoriaVaga, { emoji: string; label: string; classe: string }> = {
   RESTAURANTE: { emoji: "🍽️", label: "Restaurante", classe: "bg-amber-50 text-amber-700 border-amber-200" },
@@ -39,6 +41,7 @@ export default function VagaCard({
     localizacao: string | null;
     turnoDia: boolean;
     turnoNoite: boolean;
+    horarios: HorariosTurnoEmpresa;
   };
   jaCandidatou: boolean;
   ehMatch: boolean;
@@ -96,12 +99,12 @@ export default function VagaCard({
         </span>
         {vaga.turnoDia && (
           <span className="rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] px-2.5 py-1">
-            ☀️ Dia
+            ☀️ Dia · {minutosParaHorario(vaga.horarios.inicioDiaMin)}–{minutosParaHorario(vaga.horarios.fechamentoDiaMin)}
           </span>
         )}
         {vaga.turnoNoite && (
           <span className="rounded-full bg-navy-50 border border-navy-200 text-navy-700 text-[11px] px-2.5 py-1">
-            🌙 Noite
+            🌙 Noite · {minutosParaHorario(vaga.horarios.inicioNoiteMin)}–{minutosParaHorario(vaga.horarios.fechamentoNoiteMin)}
           </span>
         )}
         {vaga.possibilidadeEfetivacao && (

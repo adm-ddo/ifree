@@ -27,7 +27,16 @@ export default async function V2VagasPage() {
         candidaturas: { where: { status: "ENVIADA" }, select: { id: true } },
       },
     }),
-    prisma.empresa.findUniqueOrThrow({ where: { id: sessao.empresaEfetivoId }, select: { endereco: true } }),
+    prisma.empresa.findUniqueOrThrow({
+      where: { id: sessao.empresaEfetivoId },
+      select: {
+        endereco: true,
+        horarioInicioDiaMin: true,
+        horarioFechamentoDiaMin: true,
+        horarioInicioNoiteMin: true,
+        horarioFechamentoNoiteMin: true,
+      },
+    }),
     prisma.funcao.findMany({
       where: { empresaId: sessao.empresaEfetivoId, ativo: true },
       orderBy: { nome: "asc" },
@@ -70,6 +79,12 @@ export default async function V2VagasPage() {
         localizacaoPadrao={empresa.endereco ?? ""}
         funcoes={funcoes.map((f) => ({ id: f.id, nome: f.nome, valorHoraPadrao: Number(f.valorHoraPadrao) }))}
         funcoesHref="/v2/funcoes"
+        horarios={{
+          inicioDiaMin: empresa.horarioInicioDiaMin,
+          fechamentoDiaMin: empresa.horarioFechamentoDiaMin,
+          inicioNoiteMin: empresa.horarioInicioNoiteMin,
+          fechamentoNoiteMin: empresa.horarioFechamentoNoiteMin,
+        }}
       />
     </div>
   );

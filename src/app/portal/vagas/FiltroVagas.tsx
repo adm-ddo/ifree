@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import VagaCard from "./VagaCard";
 import type { CategoriaVaga } from "@/generated/prisma/enums";
+import type { HorariosTurnoEmpresa } from "@/app/vagas/TurnoCheckboxes";
 
 type Item = {
   id: number;
@@ -17,6 +18,7 @@ type Item = {
   localizacao: string | null;
   turnoDia: boolean;
   turnoNoite: boolean;
+  horarios: HorariosTurnoEmpresa;
   jaCandidatou: boolean;
   ehMatch: boolean;
   conversaId: number | null;
@@ -141,6 +143,7 @@ export default function FiltroVagas({ itens }: { itens: Item[] }) {
                 localizacao: vaga.localizacao,
                 turnoDia: vaga.turnoDia,
                 turnoNoite: vaga.turnoNoite,
+                horarios: vaga.horarios,
               }}
               jaCandidatou={vaga.jaCandidatou}
               ehMatch={vaga.ehMatch}

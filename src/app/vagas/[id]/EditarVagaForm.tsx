@@ -2,8 +2,9 @@
 
 import { useActionState, useState } from "react";
 import { atualizarVaga } from "../actions";
+import { minutosParaHorario } from "@/lib/ponto";
 import HabilidadesPicker from "../HabilidadesPicker";
-import TurnoCheckboxes from "../TurnoCheckboxes";
+import TurnoCheckboxes, { type HorariosTurnoEmpresa } from "../TurnoCheckboxes";
 
 type Vaga = {
   id: number;
@@ -27,7 +28,13 @@ type Vaga = {
  * criarVaga em ../actions.ts) — trocar de função é publicar uma vaga
  * nova, não editar o cargo desta em texto livre (o que deixaria o
  * cargo dessincronizado do valor/hora mostrado). */
-export default function EditarVagaForm({ vaga }: { vaga: Vaga }) {
+export default function EditarVagaForm({
+  vaga,
+  horarios,
+}: {
+  vaga: Vaga;
+  horarios: HorariosTurnoEmpresa;
+}) {
   const [editando, setEditando] = useState(false);
   const [state, formAction, pending] = useActionState(atualizarVaga.bind(null, vaga.id), undefined);
 
@@ -59,12 +66,12 @@ export default function EditarVagaForm({ vaga }: { vaga: Vaga }) {
         <div className="flex gap-1.5">
           {vaga.turnoDia && (
             <span className="rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-xs px-2.5 py-1">
-              ☀️ Dia
+              ☀️ Dia · {minutosParaHorario(horarios.inicioDiaMin)}–{minutosParaHorario(horarios.fechamentoDiaMin)}
             </span>
           )}
           {vaga.turnoNoite && (
             <span className="rounded-full bg-navy-50 border border-navy-200 text-navy-700 text-xs px-2.5 py-1">
-              🌙 Noite
+              🌙 Noite · {minutosParaHorario(horarios.inicioNoiteMin)}–{minutosParaHorario(horarios.fechamentoNoiteMin)}
             </span>
           )}
         </div>
@@ -134,7 +141,7 @@ export default function EditarVagaForm({ vaga }: { vaga: Vaga }) {
         />
       </div>
 
-      <TurnoCheckboxes turnoDiaInicial={vaga.turnoDia} turnoNoiteInicial={vaga.turnoNoite} />
+      <TurnoCheckboxes turnoDiaInicial={vaga.turnoDia} turnoNoiteInicial={vaga.turnoNoite} horarios={horarios} />
 
       <HabilidadesPicker nome="habilidadesProcuradas" valorInicial={vaga.habilidadesProcuradas} />
 

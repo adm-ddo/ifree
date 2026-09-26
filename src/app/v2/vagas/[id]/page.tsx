@@ -59,6 +59,16 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
   });
   if (!vaga || vaga.empresaId !== sessao.empresaEfetivoId) notFound();
 
+  const empresa = await prisma.empresa.findUniqueOrThrow({
+    where: { id: vaga.empresaId },
+    select: {
+      horarioInicioDiaMin: true,
+      horarioFechamentoDiaMin: true,
+      horarioInicioNoiteMin: true,
+      horarioFechamentoNoiteMin: true,
+    },
+  });
+
   const conversas = await prisma.conversa.findMany({
     where: { empresaId: vaga.empresaId, pessoaId: { in: vaga.candidaturas.map((c) => c.pessoa.id) } },
     select: { id: true, pessoaId: true },
@@ -93,6 +103,12 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
               habilidadesProcuradas: vaga.habilidadesProcuradas,
               turnoDia: vaga.turnoDia,
               turnoNoite: vaga.turnoNoite,
+            }}
+            horarios={{
+              inicioDiaMin: empresa.horarioInicioDiaMin,
+              fechamentoDiaMin: empresa.horarioFechamentoDiaMin,
+              inicioNoiteMin: empresa.horarioInicioNoiteMin,
+              fechamentoNoiteMin: empresa.horarioFechamentoNoiteMin,
             }}
           />
         </div>

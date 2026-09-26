@@ -93,7 +93,17 @@ export default async function VagasPortalPage() {
         habilidadesProcuradas: true,
         turnoDia: true,
         turnoNoite: true,
-        empresa: { select: { nome: true, endereco: true, cidade: true } },
+        empresa: {
+          select: {
+            nome: true,
+            endereco: true,
+            cidade: true,
+            horarioInicioDiaMin: true,
+            horarioFechamentoDiaMin: true,
+            horarioInicioNoiteMin: true,
+            horarioFechamentoNoiteMin: true,
+          },
+        },
       },
     }),
     prisma.candidatura.findMany({
@@ -154,6 +164,12 @@ export default async function VagasPortalPage() {
             localizacao: vaga.localizacao,
             turnoDia: vaga.turnoDia,
             turnoNoite: vaga.turnoNoite,
+            horarios: {
+              inicioDiaMin: vaga.empresa.horarioInicioDiaMin,
+              fechamentoDiaMin: vaga.empresa.horarioFechamentoDiaMin,
+              inicioNoiteMin: vaga.empresa.horarioInicioNoiteMin,
+              fechamentoNoiteMin: vaga.empresa.horarioFechamentoNoiteMin,
+            },
             jaCandidatou: vagaIdsComCandidatura.has(vaga.id),
             ehMatch: calcularMatch(vaga.habilidadesProcuradas, pessoa.habilidades),
             conversaId: conversaIdPorEmpresa.get(vaga.empresaId) ?? null,
