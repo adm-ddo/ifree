@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import VagaRow from "./VagaRow";
 import NovaVagaForm from "./NovaVagaForm";
+import MatchesRecentesBanner from "./MatchesRecentesBanner";
 
 export default async function VagasPage() {
   const sessao = await requireModulo("vagas");
@@ -35,6 +36,8 @@ export default async function VagasPage() {
           candidatar.
         </p>
       </div>
+
+      <MatchesRecentesBanner empresaId={sessao.empresaEfetivoId} />
 
       {vagas.length === 0 && (
         <p className="text-stone-500 text-sm">Nenhuma vaga publicada ainda.</p>

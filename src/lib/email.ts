@@ -454,3 +454,84 @@ export async function enviarEmailSaldoBaixoSextaFeira(
     return { sucesso: false };
   }
 }
+
+/** Avisa um freelancer que uma vaga RECÉM-publicada combina com o perfil
+ * dele (match passivo, sem ele ter se candidatado) — ver
+ * notificarPessoasSobreVagaNova em src/lib/match-passivo.ts, chamada logo
+ * depois de criarVaga (src/app/vagas/actions.ts). */
+export async function enviarEmailVagaCompativel(
+  destinatario: string,
+  pessoaNomeCompleto: string,
+  cargo: string,
+  empresaNome: string
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — aviso de vaga compatível não enviado.");
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: `🎯 Oi, ${escaparHtml(pessoaNomeCompleto.split(" ")[0])}! Tem vaga nova pra você`,
+    paragrafos: [
+      `A empresa <strong>${escaparHtml(empresaNome)}</strong> acabou de publicar uma vaga de <strong>${escaparHtml(cargo)}</strong> que combina com o seu perfil no iFREE Conecta.`,
+      "Dá uma olhada e, se topar, é só se candidatar.",
+    ],
+    textoBotao: "Ver vaga no Portal",
+    linkBotao: `${SITE_URL}/portal/vagas`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "🎯 Tem vaga nova que combina com você!",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar aviso de vaga compatível:", err);
+    return { sucesso: false };
+  }
+}
+
+/** Avisa uma empresa que um freelancer atualizou o perfil e passou a
+ * combinar com uma vaga aberta dela (match passivo, sem candidatura) —
+ * ver notificarEmpresasSobreNovoPerfil em src/lib/match-passivo.ts,
+ * chamada logo depois de atualizarPerfilProfissional
+ * (src/app/portal/actions.ts). Manda pra TODO usuário com acesso à
+ * empresa, mesmo espírito de enviarEmailContaAsaasAprovada. */
+export async function enviarEmailCandidatoCompativel(
+  destinatario: string,
+  empresaNome: string,
+  cargo: string
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn("RESEND_API_KEY não configurada — aviso de candidato compatível não enviado.");
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: "🎯 Novo candidato compatível com sua vaga",
+    paragrafos: [
+      `Um freelancer atualizou o perfil no iFREE Conecta e o perfil dele combina com a vaga de <strong>${escaparHtml(cargo)}</strong> de <strong>${escaparHtml(empresaNome)}</strong>.`,
+      "Dá uma olhada no seu painel de vagas.",
+    ],
+    textoBotao: "Ver minhas vagas",
+    linkBotao: `${SITE_URL}/vagas`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "🎯 Novo candidato compatível com sua vaga",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error("Falha ao enviar aviso de candidato compatível:", err);
+    return { sucesso: false };
+  }
+}

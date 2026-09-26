@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import VagaRowV2 from "@/components/v2/VagaRowV2";
 import NovaVagaForm from "@/app/vagas/NovaVagaForm";
+import MatchesRecentesBanner from "@/app/vagas/MatchesRecentesBanner";
 
 /** Espelho completo de src/app/vagas/page.tsx (v1, não tocado) — mesma
  * query; NovaVagaForm reaproveitado sem alteração, VagaRowV2 é cópia do
@@ -35,6 +36,8 @@ export default async function V2VagasPage() {
           disponíveis podem se candidatar.
         </p>
       </div>
+
+      <MatchesRecentesBanner empresaId={sessao.empresaEfetivoId} />
 
       {vagas.length === 0 && <p className="text-stone-500 text-sm">Nenhuma vaga publicada ainda.</p>}
 

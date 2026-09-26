@@ -720,6 +720,7 @@ model Pessoa {
   sessoes                  SessaoPessoa[]
   tokensAutenticacao       TokenAutenticacaoPessoa[]
   candidaturas             Candidatura[]
+  matchesPassivos          VagaMatchPassivo[]
   conversas                Conversa[]
   denuncias                Denuncia[]
   gruposPagamento          GrupoPagamento[]
@@ -1406,6 +1407,7 @@ model Vaga {
 
   empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   candidaturas Candidatura[]
+  matchesPassivos VagaMatchPassivo[]
 
   @@index([status])
   /// Sem isso, toda navegação do painel (layout raiz conta candidaturas
@@ -1440,6 +1442,27 @@ model Candidatura {
   pessoa Pessoa @relation(fields: [pessoaId], references: [id])
 
   @@unique([vagaId, pessoaId])
+}
+
+/// Registra que uma Pessoa e uma Vaga já foram identificadas como match
+/// "passivo" (perfil compatível, calcularMatch, sem a pessoa ter se
+/// candidatado) — evita avisar a mesma dupla duas vezes por e-mail, tanto
+/// pro freelancer (vaga nova compatível, ver notificarPessoasSobreVagaNova)
+/// quanto pra empresa (candidato novo compatível, ver
+/// notificarEmpresasSobreNovoPerfil), ambas em src/lib/match-passivo.ts.
+/// @@unique garante isso mesmo se os dois gatilhos dispararem quase juntos
+/// pro mesmo par. Também alimenta o aviso no painel da empresa (/vagas).
+model VagaMatchPassivo {
+  id       Int      @id @default(autoincrement())
+  vagaId   Int
+  pessoaId Int
+  criadoEm DateTime @default(now())
+
+  vaga   Vaga   @relation(fields: [vagaId], references: [id], onDelete: Cascade)
+  pessoa Pessoa @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@unique([vagaId, pessoaId])
+  @@index([vagaId])
 }
 
 /// Conversa entre uma Empresa e uma Pessoa — por par, não por

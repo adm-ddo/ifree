@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import { normalizarTags } from "@/lib/habilidades";
 import { uploadDataUrl } from "@/lib/blob";
+import { notificarPessoasSobreVagaNova } from "@/lib/match-passivo";
 import { revalidatePath } from "next/cache";
 
 export type NovaVagaState = { erro?: string; sucesso?: boolean } | undefined;
@@ -45,7 +46,7 @@ export async function criarVaga(
     ? await uploadDataUrl(`vagas/logo-${Date.now()}.jpg`, logoDataUrl)
     : null;
 
-  await prisma.vaga.create({
+  const novaVaga = await prisma.vaga.create({
     data: {
       empresaId: sessao.empresaEfetivoId,
       cargo,
@@ -61,6 +62,16 @@ export async function criarVaga(
       criadoPorEmail: sessao.email,
     },
   });
+
+  // Avisa por e-mail quem já tem perfil compatível com essa vaga nova,
+  // antes mesmo de alguém se candidatar (ver src/lib/match-passivo.ts) —
+  // a vaga já foi criada com sucesso acima, então isso nunca pode travar
+  // a publicação nem devolver erro pra quem publicou.
+  try {
+    await notificarPessoasSobreVagaNova(novaVaga.id);
+  } catch (err) {
+    console.error("Falha ao notificar pessoas sobre vaga nova:", err);
+  }
 
   revalidatePath("/vagas");
   return { sucesso: true };

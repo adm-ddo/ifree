@@ -9,6 +9,7 @@ import { meiosTransporteValidos } from "@/lib/transporte";
 import { uploadDataUrl } from "@/lib/blob";
 import { criarTokenAutenticacaoPessoa, tokenRecenteExistePessoa } from "@/lib/tokenAutenticacaoPessoa";
 import { enviarEmailTrocaEmailPessoa } from "@/lib/email";
+import { notificarEmpresasSobreNovoPerfil } from "@/lib/match-passivo";
 import { revalidatePath } from "next/cache";
 
 export type AtualizarMeusDadosState = { erro?: string; sucesso?: boolean } | undefined;
@@ -160,10 +161,28 @@ export async function atualizarPerfilProfissional(
     };
   }
 
+  const pessoaAntes = await prisma.pessoa.findUnique({
+    where: { id: sessao.pessoaId },
+    select: { habilidades: true },
+  });
+
   await prisma.pessoa.update({
     where: { id: sessao.pessoaId },
     data: { biografia, habilidades, vagasDesejadas, sexo },
   });
+
+  // Só varre vagas abertas em busca de match novo quando as habilidades de
+  // fato mudaram (evita escanear tudo de novo a cada edição de biografia).
+  // Ver src/lib/match-passivo.ts — nunca pode travar o salvamento do perfil.
+  const habilidadesMudaram =
+    JSON.stringify([...(pessoaAntes?.habilidades ?? [])].sort()) !== JSON.stringify([...habilidades].sort());
+  if (habilidadesMudaram) {
+    try {
+      await notificarEmpresasSobreNovoPerfil(sessao.pessoaId);
+    } catch (err) {
+      console.error("Falha ao notificar empresas sobre novo perfil:", err);
+    }
+  }
 
   revalidatePath("/portal");
   return { sucesso: true };
