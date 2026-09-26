@@ -18,8 +18,16 @@ export type ItemNavV2 = { href: string; label: string; icone: NomeIconeV2; bloqu
 /// dentro de "Mais" (celular) ou na barra lateral inteira (computador).
 const HREFS_ABA_PRINCIPAL = ["/v2/dashboard", "/v2/turnos", "/v2/pagamentos", "/v2/funcionarios"];
 
-function estaAtivo(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
+/// Entre todos os hrefs da nav que "batem" com a rota atual (exato ou
+/// prefixo, ex.: /v2/vagas continua ativo em /v2/vagas/42), escolhe o mais
+/// específico (string mais longa) — sem isso, um item "raiz" cujo href é
+/// prefixo literal de outro item-irmão (caso novo do painel master:
+/// "/master" é prefixo de "/master/assinaturas") ficava marcado ativo
+/// junto com o item certo ao mesmo tempo.
+function hrefMaisEspecificoAtivo(pathname: string, hrefs: string[]): string | null {
+  const candidatos = hrefs.filter((href) => pathname === href || pathname.startsWith(`${href}/`));
+  if (candidatos.length === 0) return null;
+  return candidatos.reduce((a, b) => (b.length > a.length ? b : a));
 }
 
 export default function NavShell({
@@ -51,6 +59,7 @@ export default function NavShell({
   const pathname = usePathname() ?? "";
   const [maisAberto, setMaisAberto] = useState(false);
   const [moduloBloqueado, setModuloBloqueado] = useState<ItemNavV2 | null>(null);
+  const hrefAtivo = hrefMaisEspecificoAtivo(pathname, itens.map((i) => i.href));
 
   const iniciais = nomeEmpresa
     .split(" ")
@@ -90,7 +99,7 @@ export default function NavShell({
                 </button>
               );
             }
-            const ativo = estaAtivo(pathname, item.href);
+            const ativo = item.href === hrefAtivo;
             return (
               <Link
                 key={item.href}
@@ -172,7 +181,7 @@ export default function NavShell({
               </button>
             );
           }
-          const ativo = estaAtivo(pathname, item.href);
+          const ativo = item.href === hrefAtivo;
           return (
             <Link
               key={item.href}

@@ -293,11 +293,8 @@ export default async function MasterAssinaturasPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/master" className="text-sm text-brand-700 hover:underline">
-          ← Painel Master
-        </Link>
-        <h1 className="text-2xl font-semibold text-navy-900 mt-1">Assinaturas</h1>
-        <p className="text-stone-600 mt-1 text-sm">
+        <h1 className="text-xl font-extrabold text-navy-900">Assinaturas</h1>
+        <p className="text-stone-500 text-sm mt-0.5">
           Status de cobrança de cada empresa cadastrada no sistema.
         </p>
       </div>

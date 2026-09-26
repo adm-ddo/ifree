@@ -30,9 +30,15 @@ const STATUS_CLASSE: Record<StatusAssinatura, string> = {
 
 export default function EmpresaMasterRow({
   empresa,
+  vinculadoEm,
   jaMinha,
 }: {
   empresa: Empresa;
+  /// UsuarioEmpresa.criadoEm já formatado (dd/mm/aaaa, fuso de Brasília) —
+  /// quando ESTE login virou dono desta empresa (pode ser bem depois da
+  /// própria empresa ter sido criada, ex.: convite/transferência). Null
+  /// pras empresas "sem dono vinculado", que não têm esse vínculo.
+  vinculadoEm: string | null;
   jaMinha: boolean;
 }) {
   const [pending, startTransition] = useTransition();
@@ -56,6 +62,7 @@ export default function EmpresaMasterRow({
           {empresa.counts.funcoes} funções · {empresa.counts.totens} totens ·{" "}
           {empresa.counts.turnos} turnos
         </p>
+        {vinculadoEm && <p className="text-xs text-stone-400 mt-1">Vinculada em {vinculadoEm}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2 shrink-0">
         {jaMinha ? (

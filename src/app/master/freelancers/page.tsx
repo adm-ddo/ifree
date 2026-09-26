@@ -77,11 +77,8 @@ export default async function MasterFreelancersPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/master" className="text-sm text-brand-700 hover:underline">
-          ← Painel Master
-        </Link>
-        <h1 className="text-2xl font-semibold text-navy-900 mt-1">Freelancers</h1>
-        <p className="text-stone-600 mt-1 text-sm">
+        <h1 className="text-xl font-extrabold text-navy-900">Freelancers</h1>
+        <p className="text-stone-500 text-sm mt-0.5">
           Todo cadastro global de freelancer (CPF/CNPJ), de todas as
           empresas, mais recém-cadastrados primeiro. Clique no nome pra ver
           o perfil completo (foto, bio, habilidades, reputação). Só é

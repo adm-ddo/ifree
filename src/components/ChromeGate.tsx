@@ -21,7 +21,8 @@ export default function ChromeGate({ children }: { children: React.ReactNode }) 
     pathname?.startsWith("/conecta") ||
     pathname?.startsWith("/pitch") ||
     pathname?.startsWith("/portal") ||
-    pathname?.startsWith("/v2")
+    pathname?.startsWith("/v2") ||
+    pathname?.startsWith("/master")
   ) {
     return null;
   }

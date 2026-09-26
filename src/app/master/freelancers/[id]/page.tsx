@@ -82,9 +82,6 @@ export default async function PessoaMasterPerfilPage({
         <Link href="/master/freelancers" className="text-brand-700 hover:underline">
           ← Freelancers
         </Link>
-        <Link href="/master" className="text-brand-700 hover:underline">
-          Painel Master
-        </Link>
       </div>
 
       <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm flex flex-col gap-4">

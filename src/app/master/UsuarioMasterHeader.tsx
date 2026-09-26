@@ -7,10 +7,15 @@ export default function UsuarioMasterHeader({
   usuarioId,
   nomeCompleto,
   email,
+  cadastradoEm,
 }: {
   usuarioId: number;
   nomeCompleto: string | null;
   email: string;
+  /// Usuario.criadoEm já formatado (dd/mm/aaaa, fuso de Brasília) — quando
+  /// esse login se cadastrou no iFREE, pedido do Thiago em 2026-09-26 pra
+  /// acompanhar quem entrou e quando.
+  cadastradoEm: string;
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -19,6 +24,7 @@ export default function UsuarioMasterHeader({
       <div>
         <p className="font-semibold text-navy-900">{nomeCompleto || email}</p>
         {nomeCompleto && <p className="text-xs text-stone-500">{email}</p>}
+        <p className="text-xs text-stone-400 mt-0.5">Cadastrado em {cadastradoEm}</p>
       </div>
       <button
         disabled={pending}
