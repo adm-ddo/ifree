@@ -156,6 +156,28 @@ export default async function PortalHomePage() {
         </div>
       </div>
 
+      <div className="flex flex-col gap-2">
+        <TrocarEmailForm emailAtual={pessoa.email} />
+
+        <MeusDadosForm
+          dadosIniciais={{
+            telefone: pessoa.telefone,
+            endereco: pessoa.endereco,
+            numero: pessoa.numero ?? "",
+            complemento: pessoa.complemento ?? "",
+            bairro: pessoa.bairro ?? "",
+            cep: pessoa.cep ?? "",
+            cidade: pessoa.cidade ?? "",
+            chavePix: pessoa.chavePix ?? "",
+            rg: pessoa.rg ?? "",
+            dataNascimento: pessoa.dataNascimento ? pessoa.dataNascimento.toISOString().slice(0, 10) : "",
+            contatoEmergenciaNome: pessoa.contatoEmergenciaNome ?? "",
+            contatoEmergenciaTelefone: pessoa.contatoEmergenciaTelefone ?? "",
+            meiosTransporte: pessoa.meiosTransporte,
+          }}
+        />
+      </div>
+
       <SugestaoInstalarApp />
 
       {conversas.length > 0 && (
@@ -268,26 +290,6 @@ export default async function PortalHomePage() {
           )}
         </div>
       </div>
-
-      <TrocarEmailForm emailAtual={pessoa.email} />
-
-      <MeusDadosForm
-        dadosIniciais={{
-          telefone: pessoa.telefone,
-          endereco: pessoa.endereco,
-          numero: pessoa.numero ?? "",
-          complemento: pessoa.complemento ?? "",
-          bairro: pessoa.bairro ?? "",
-          cep: pessoa.cep ?? "",
-          cidade: pessoa.cidade ?? "",
-          chavePix: pessoa.chavePix ?? "",
-          rg: pessoa.rg ?? "",
-          dataNascimento: pessoa.dataNascimento ? pessoa.dataNascimento.toISOString().slice(0, 10) : "",
-          contatoEmergenciaNome: pessoa.contatoEmergenciaNome ?? "",
-          contatoEmergenciaTelefone: pessoa.contatoEmergenciaTelefone ?? "",
-          meiosTransporte: pessoa.meiosTransporte,
-        }}
-      />
 
       <PerfilProfissionalForm
         dadosIniciais={{

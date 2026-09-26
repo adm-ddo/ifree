@@ -7,13 +7,14 @@ import MatchesRecentesBanner from "./MatchesRecentesBanner";
 export default async function VagasPage() {
   const sessao = await requireModulo("vagas");
 
-  const [vagas, empresa] = await Promise.all([
+  const [vagas, empresa, funcoes] = await Promise.all([
     prisma.vaga.findMany({
       where: { empresaId: sessao.empresaEfetivoId },
       orderBy: { criadoEm: "desc" },
       select: {
         id: true,
         cargo: true,
+        valorHora: true,
         status: true,
         criadoEm: true,
         _count: { select: { candidaturas: true } },
@@ -23,6 +24,11 @@ export default async function VagasPage() {
     prisma.empresa.findUniqueOrThrow({
       where: { id: sessao.empresaEfetivoId },
       select: { endereco: true },
+    }),
+    prisma.funcao.findMany({
+      where: { empresaId: sessao.empresaEfetivoId, ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true, valorHoraPadrao: true },
     }),
   ]);
 
@@ -50,6 +56,7 @@ export default async function VagasPage() {
             vaga={{
               id: vaga.id,
               cargo: vaga.cargo,
+              valorHora: vaga.valorHora !== null ? Number(vaga.valorHora) : null,
               status: vaga.status,
               criadoEm: vaga.criadoEm,
               candidaturas: vaga._count.candidaturas,
@@ -59,7 +66,11 @@ export default async function VagasPage() {
         ))}
       </ul>
 
-      <NovaVagaForm localizacaoPadrao={empresa.endereco ?? ""} />
+      <NovaVagaForm
+        localizacaoPadrao={empresa.endereco ?? ""}
+        funcoes={funcoes.map((f) => ({ id: f.id, nome: f.nome, valorHoraPadrao: Number(f.valorHoraPadrao) }))}
+        funcoesHref="/funcoes"
+      />
     </div>
   );
 }

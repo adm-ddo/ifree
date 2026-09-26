@@ -20,6 +20,7 @@ const COR_STATUS: Record<string, string> = {
 type Vaga = {
   id: number;
   cargo: string;
+  valorHora: number | null;
   status: "ABERTA" | "PAUSADA" | "ENCERRADA";
   criadoEm: Date;
   candidaturas: number;
@@ -38,6 +39,11 @@ export default function VagaRowV2({ vaga }: { vaga: Vaga }) {
           <Link href={`/v2/vagas/${vaga.id}`} className="font-bold text-[13px] text-navy-900">
             {vaga.cargo}
           </Link>
+          {vaga.valorHora !== null && (
+            <span className="text-[11px] text-brand-700 font-bold">
+              R$ {vaga.valorHora.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/hora
+            </span>
+          )}
           {vaga.candidaturasPendentes > 0 && (
             <Link
               href={`/v2/vagas/${vaga.id}`}

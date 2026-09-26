@@ -83,6 +83,7 @@ export default async function VagasPortalPage() {
         id: true,
         empresaId: true,
         cargo: true,
+        valorHora: true,
         categoria: true,
         logoUrl: true,
         possibilidadeEfetivacao: true,
@@ -143,6 +144,7 @@ export default async function VagasPortalPage() {
           return {
             id: vaga.id,
             cargo: vaga.cargo,
+            valorHora: vaga.valorHora !== null ? Number(vaga.valorHora) : null,
             categoria: vaga.categoria,
             logoUrl: vaga.logoUrl,
             possibilidadeEfetivacao: vaga.possibilidadeEfetivacao,

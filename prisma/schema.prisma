@@ -1057,6 +1057,7 @@ model Funcao {
 
   empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   turnos  Turno[]
+  vagas   Vaga[]
 
   @@unique([empresaId, nome])
 }
@@ -1421,7 +1422,27 @@ enum CategoriaVaga {
 model Vaga {
   id             Int        @id @default(autoincrement())
   empresaId      Int
+  /// Nome exibido da vaga — herdado do nome da Funcao selecionada no
+  /// momento da publicação (ver funcaoId abaixo), não editável direto.
+  /// Continua String solta (em vez de só usar funcao.nome) pelo mesmo
+  /// motivo de valorHora: preservar o que valia quando a vaga foi
+  /// publicada, mesmo que a empresa renomeie ou apague a função depois.
   cargo          String
+  /// Função (catálogo já usado pro turno EXTRA, ver Funcao/Turno.funcaoId)
+  /// escolhida pela empresa ao publicar — obrigatório desde 2026-09-26
+  /// (pedido do Thiago: antes "cargo" era texto livre, agora precisa
+  /// vir de uma função de verdade, pra poder mostrar o valor/hora pro
+  /// freelancer). Null só nas vagas publicadas ANTES dessa mudança
+  /// (nunca tiveram função vinculada) — onDelete SetNull pra não travar
+  /// a empresa de apagar uma função só porque uma vaga antiga aponta pra
+  /// ela (cargo/valorHora já estão congelados na própria Vaga de qualquer
+  /// forma).
+  funcaoId       Int?
+  /// Valor/hora da função no momento em que a vaga foi publicada —
+  /// snapshot (mesmo espírito de Turno.valorHoraAplicado), nunca
+  /// recalculado se a empresa editar o valor da função depois. Null nas
+  /// vagas antigas, que nunca tiveram valor associado.
+  valorHora      Decimal?   @db.Decimal(10, 2)
   /// Segmento do negócio, pras abas de filtro do quadro de vagas
   /// (Todos/Restaurantes/Eventos/Outros em /portal/vagas) — diferente de
   /// `cargo` (a função em si) e de `habilidadesProcuradas` (usado só pro
@@ -1458,6 +1479,7 @@ model Vaga {
   criadoEm       DateTime   @default(now())
 
   empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  funcao       Funcao?       @relation(fields: [funcaoId], references: [id], onDelete: SetNull)
   candidaturas Candidatura[]
   matchesPassivos VagaMatchPassivo[]
 

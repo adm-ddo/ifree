@@ -5,19 +5,22 @@ import NovaVagaForm from "@/app/vagas/NovaVagaForm";
 import MatchesRecentesBanner from "@/app/vagas/MatchesRecentesBanner";
 
 /** Espelho completo de src/app/vagas/page.tsx (v1, não tocado) — mesma
- * query; NovaVagaForm reaproveitado sem alteração, VagaRowV2 é cópia do
- * VagaRow do v1 com o link atualizado pro /v2/vagas/[id] (detalhe +
- * candidatos já têm versão v2). */
+ * query (agora incluindo as funções ativas da empresa, pro select de
+ * função em NovaVagaForm — mesmo componente compartilhado, só o
+ * funcoesHref muda entre v1/v2), VagaRowV2 é cópia do VagaRow do v1 com o
+ * link atualizado pro /v2/vagas/[id] (detalhe + candidatos já têm versão
+ * v2). */
 export default async function V2VagasPage() {
   const sessao = await requireModulo("vagas");
 
-  const [vagas, empresa] = await Promise.all([
+  const [vagas, empresa, funcoes] = await Promise.all([
     prisma.vaga.findMany({
       where: { empresaId: sessao.empresaEfetivoId },
       orderBy: { criadoEm: "desc" },
       select: {
         id: true,
         cargo: true,
+        valorHora: true,
         status: true,
         criadoEm: true,
         _count: { select: { candidaturas: true } },
@@ -25,6 +28,11 @@ export default async function V2VagasPage() {
       },
     }),
     prisma.empresa.findUniqueOrThrow({ where: { id: sessao.empresaEfetivoId }, select: { endereco: true } }),
+    prisma.funcao.findMany({
+      where: { empresaId: sessao.empresaEfetivoId, ativo: true },
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true, valorHoraPadrao: true },
+    }),
   ]);
 
   return (
@@ -48,6 +56,7 @@ export default async function V2VagasPage() {
             vaga={{
               id: vaga.id,
               cargo: vaga.cargo,
+              valorHora: vaga.valorHora !== null ? Number(vaga.valorHora) : null,
               status: vaga.status,
               criadoEm: vaga.criadoEm,
               candidaturas: vaga._count.candidaturas,
@@ -57,7 +66,11 @@ export default async function V2VagasPage() {
         ))}
       </ul>
 
-      <NovaVagaForm localizacaoPadrao={empresa.endereco ?? ""} />
+      <NovaVagaForm
+        localizacaoPadrao={empresa.endereco ?? ""}
+        funcoes={funcoes.map((f) => ({ id: f.id, nome: f.nome, valorHoraPadrao: Number(f.valorHoraPadrao) }))}
+        funcoesHref="/v2/funcoes"
+      />
     </div>
   );
 }

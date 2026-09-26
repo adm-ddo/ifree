@@ -21,7 +21,7 @@ export async function criarVaga(
   const categoria = CATEGORIAS_VALIDAS.includes(categoriaBruta as (typeof CATEGORIAS_VALIDAS)[number])
     ? (categoriaBruta as (typeof CATEGORIAS_VALIDAS)[number])
     : "OUTRO";
-  const cargo = String(formData.get("cargo") ?? "").trim();
+  const funcaoId = Number(formData.get("funcaoId"));
   const descricao = String(formData.get("descricao") ?? "").trim();
   const localizacao = String(formData.get("localizacao") ?? "").trim();
   const nomeFantasia = String(formData.get("nomeFantasia") ?? "").trim();
@@ -31,13 +31,23 @@ export async function criarVaga(
   const logoDataUrl = String(formData.get("logoDataUrl") ?? "").trim();
   const possibilidadeEfetivacao = formData.get("possibilidadeEfetivacao") === "on";
 
-  if (!cargo) return { erro: "Informe o cargo da vaga." };
-  if (cargo.length > 100) return { erro: "O cargo pode ter no máximo 100 caracteres." };
+  if (!Number.isInteger(funcaoId)) return { erro: "Escolha a função da vaga." };
   if (!descricao) return { erro: "Descreva a vaga." };
   if (descricao.length > 4000) return { erro: "A descrição pode ter no máximo 4000 caracteres." };
   if (localizacao.length > 150) return { erro: "A localização pode ter no máximo 150 caracteres." };
   if (nomeFantasia.length > 100) return { erro: "O nome fantasia pode ter no máximo 100 caracteres." };
   if (!turnoDia && !turnoNoite) return { erro: "Selecione pelo menos um turno (dia ou noite)." };
+
+  // Nunca confia no cargo/valor vindo do client — sempre deriva da própria
+  // Funcao no servidor (ela já garante empresaId+ativo), e congela os dois
+  // na Vaga como retrato do momento da publicação (mesmo espírito de
+  // Turno.valorHoraAplicado): se a empresa editar o valor da função depois,
+  // vagas já publicadas continuam mostrando o valor combinado na hora.
+  const funcao = await prisma.funcao.findFirst({
+    where: { id: funcaoId, empresaId: sessao.empresaEfetivoId, ativo: true },
+    select: { nome: true, valorHoraPadrao: true },
+  });
+  if (!funcao) return { erro: "Função inválida — escolha uma das funções cadastradas." };
 
   // logoDataUrl é opcional — vazio (padrão) usa o ícone ilustrado da
   // categoria (ver CATEGORIA_INFO em VagaCard.tsx), nunca bloqueia a
@@ -49,7 +59,9 @@ export async function criarVaga(
   const novaVaga = await prisma.vaga.create({
     data: {
       empresaId: sessao.empresaEfetivoId,
-      cargo,
+      cargo: funcao.nome,
+      funcaoId,
+      valorHora: funcao.valorHoraPadrao,
       categoria,
       logoUrl,
       possibilidadeEfetivacao,
@@ -95,7 +107,6 @@ export async function atualizarVaga(
 ): Promise<EditarVagaState> {
   await vagaDaEmpresa(vagaId);
 
-  const cargo = String(formData.get("cargo") ?? "").trim();
   const descricao = String(formData.get("descricao") ?? "").trim();
   const localizacao = String(formData.get("localizacao") ?? "").trim();
   const nomeFantasia = String(formData.get("nomeFantasia") ?? "").trim();
@@ -103,8 +114,6 @@ export async function atualizarVaga(
   const turnoDia = formData.get("turnoDia") === "on";
   const turnoNoite = formData.get("turnoNoite") === "on";
 
-  if (!cargo) return { erro: "Informe o cargo da vaga." };
-  if (cargo.length > 100) return { erro: "O cargo pode ter no máximo 100 caracteres." };
   if (!descricao) return { erro: "Descreva a vaga." };
   if (descricao.length > 4000) return { erro: "A descrição pode ter no máximo 4000 caracteres." };
   if (localizacao.length > 150) return { erro: "A localização pode ter no máximo 150 caracteres." };
@@ -114,7 +123,6 @@ export async function atualizarVaga(
   await prisma.vaga.update({
     where: { id: vagaId },
     data: {
-      cargo,
       descricao,
       localizacao: localizacao || null,
       nomeFantasia: nomeFantasia || null,

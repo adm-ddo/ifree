@@ -7,6 +7,7 @@ import type { CategoriaVaga } from "@/generated/prisma/enums";
 type Item = {
   id: number;
   cargo: string;
+  valorHora: number | null;
   categoria: CategoriaVaga;
   logoUrl: string | null;
   possibilidadeEfetivacao: boolean;
@@ -115,16 +116,22 @@ export default function FiltroVagas({ itens }: { itens: Item[] }) {
         )}
       </div>
 
+      {/* Só 2 colunas mesmo em telas largas — o Portal roda dentro de um
+       * container max-w-3xl (portal/layout.tsx), então 3 colunas
+       * espremiam cada card a ~230px, cortando cargo/nome da empresa no
+       * truncate (reportado pelo Thiago em 2026-09-26: "cortando a vaga
+       * em si" no navegador do computador). */}
       {visiveis.length === 0 ? (
         <p className="text-stone-500 text-sm">Nenhuma vaga encontrada com esse filtro.</p>
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {visiveis.map((vaga) => (
             <VagaCard
               key={vaga.id}
               vaga={{
                 id: vaga.id,
                 cargo: vaga.cargo,
+                valorHora: vaga.valorHora,
                 categoria: vaga.categoria,
                 logoUrl: vaga.logoUrl,
                 possibilidadeEfetivacao: vaga.possibilidadeEfetivacao,

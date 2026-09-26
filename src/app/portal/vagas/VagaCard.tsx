@@ -29,6 +29,7 @@ export default function VagaCard({
   vaga: {
     id: number;
     cargo: string;
+    valorHora: number | null;
     categoria: CategoriaVaga;
     logoUrl: string | null;
     possibilidadeEfetivacao: boolean;
@@ -72,11 +73,18 @@ export default function VagaCard({
             <p className="text-stone-500 text-sm truncate">{vaga.empresaNome}</p>
           </div>
         </div>
-        {ehMatch && (
-          <span className="rounded-full border border-brand-500 bg-brand-50 text-brand-700 text-[11px] font-bold px-2.5 py-1 shrink-0">
-            🎯 Match
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {ehMatch && (
+            <span className="rounded-full border border-brand-500 bg-brand-50 text-brand-700 text-[11px] font-bold px-2.5 py-1">
+              🎯 Match
+            </span>
+          )}
+          {vaga.valorHora !== null && (
+            <span className="rounded-full bg-navy-900 text-white text-[11px] font-bold px-2.5 py-1 whitespace-nowrap">
+              R$ {vaga.valorHora.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/hora
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap">

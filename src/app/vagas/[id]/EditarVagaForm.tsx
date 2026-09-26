@@ -2,13 +2,13 @@
 
 import { useActionState, useState } from "react";
 import { atualizarVaga } from "../actions";
-import { TODOS_OS_CARGOS } from "@/lib/habilidades";
 import HabilidadesPicker from "../HabilidadesPicker";
 import TurnoCheckboxes from "../TurnoCheckboxes";
 
 type Vaga = {
   id: number;
   cargo: string;
+  valorHora: number | null;
   descricao: string;
   localizacao: string | null;
   nomeFantasia: string | null;
@@ -21,7 +21,12 @@ type Vaga = {
  * criação, incluindo os que a tela de detalhe não exibia antes:
  * nomeFantasia e habilidadesProcuradas) e deixa editar tudo — mesmos
  * campos e mesmas regras de NovaVagaForm, agora reaproveitados via
- * HabilidadesPicker. Funciona com a vaga aberta, pausada ou encerrada. */
+ * HabilidadesPicker. Funciona com a vaga aberta, pausada ou encerrada.
+ * Cargo/valorHora NÃO são editáveis aqui de propósito (desde 2026-09-26):
+ * são um retrato da Funcao escolhida no momento da publicação (ver
+ * criarVaga em ../actions.ts) — trocar de função é publicar uma vaga
+ * nova, não editar o cargo desta em texto livre (o que deixaria o
+ * cargo dessincronizado do valor/hora mostrado). */
 export default function EditarVagaForm({ vaga }: { vaga: Vaga }) {
   const [editando, setEditando] = useState(false);
   const [state, formAction, pending] = useActionState(atualizarVaga.bind(null, vaga.id), undefined);
@@ -30,7 +35,14 @@ export default function EditarVagaForm({ vaga }: { vaga: Vaga }) {
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-2xl font-semibold text-navy-900">{vaga.cargo}</h1>
+          <div>
+            <h1 className="text-2xl font-semibold text-navy-900">{vaga.cargo}</h1>
+            {vaga.valorHora !== null && (
+              <p className="text-brand-700 text-sm font-medium">
+                R$ {vaga.valorHora.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/hora
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => setEditando(true)}
@@ -85,21 +97,12 @@ export default function EditarVagaForm({ vaga }: { vaga: Vaga }) {
     >
       <h2 className="font-semibold text-navy-900">Editar vaga</h2>
 
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-stone-500">Cargo</label>
-        <input
-          name="cargo"
-          list="cargos-sugeridos"
-          required
-          defaultValue={vaga.cargo}
-          className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <datalist id="cargos-sugeridos">
-          {TODOS_OS_CARGOS.map((cargo) => (
-            <option key={cargo} value={cargo} />
-          ))}
-        </datalist>
-      </div>
+      <p className="text-xs text-stone-500 -mt-1">
+        Função: <span className="font-medium text-stone-700">{vaga.cargo}</span>
+        {vaga.valorHora !== null &&
+          ` · R$ ${vaga.valorHora.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/hora`}{" "}
+        — pra trocar de função, publique uma vaga nova.
+      </p>
 
       <div className="flex flex-col gap-1">
         <label className="text-xs text-stone-500">Descrição da vaga</label>

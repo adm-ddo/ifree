@@ -1,11 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 import { criarVaga } from "./actions";
-import { TODOS_OS_CARGOS } from "@/lib/habilidades";
 import HabilidadesPicker from "./HabilidadesPicker";
 import TurnoCheckboxes from "./TurnoCheckboxes";
 import type { CategoriaVaga } from "@/generated/prisma/enums";
+
+export type FuncaoParaVaga = { id: number; nome: string; valorHoraPadrao: number };
 
 const CATEGORIAS: { valor: CategoriaVaga; label: string; emoji: string }[] = [
   { valor: "RESTAURANTE", label: "Restaurante", emoji: "🍽️" },
@@ -34,7 +36,23 @@ async function comprimirImagem(arquivo: File): Promise<string> {
   return canvas.toDataURL("image/jpeg", QUALIDADE_JPEG);
 }
 
-export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao: string }) {
+export default function NovaVagaForm({
+  localizacaoPadrao,
+  funcoes,
+  funcoesHref,
+}: {
+  localizacaoPadrao: string;
+  /// Funções ativas da empresa (Funcao, mesmo catálogo usado pro turno
+  /// EXTRA) — a empresa escolhe uma pra vaga em vez de digitar o cargo
+  /// livre, pra dar pra mostrar o valor/hora pro freelancer (pedido do
+  /// Thiago em 2026-09-26). Lista vazia = empresa nunca cadastrou nenhuma
+  /// função ainda, mostra aviso em vez do formulário (ver abaixo).
+  funcoes: FuncaoParaVaga[];
+  /// /funcoes (v1) ou /v2/funcoes (v2) — só isso muda entre as duas
+  /// versões desta tela, mesmo padrão de link já usado em outros forms
+  /// compartilhados v1/v2 deste projeto.
+  funcoesHref: string;
+}) {
   const [aberto, setAberto] = useState(false);
   const [mostrarSucesso, setMostrarSucesso] = useState(false);
   const [state, formAction, pending] = useActionState(criarVaga, undefined);
@@ -42,7 +60,10 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
   const [tipoImagem, setTipoImagem] = useState<"ICONE" | "LOGO">("ICONE");
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [erroLogo, setErroLogo] = useState<string | null>(null);
+  const [funcaoId, setFuncaoId] = useState<string>("");
   const inputLogoRef = useRef<HTMLInputElement>(null);
+
+  const funcaoSelecionada = funcoes.find((f) => String(f.id) === funcaoId) ?? null;
 
   // Antes disso, depois de publicar a tela "travava" — o form ficava
   // aberto do mesmo jeito, sem nenhum sinal de que funcionou. Reage à
@@ -59,7 +80,20 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
       setCategoria("OUTRO");
       setTipoImagem("ICONE");
       setLogoPreview(null);
+      setFuncaoId("");
     }
+  }
+
+  if (funcoes.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-stone-300 text-stone-600 text-sm px-4 py-3 text-center">
+        Cadastre pelo menos uma função antes de publicar uma vaga — é dela que sai o cargo e o valor/hora
+        mostrados pro freelancer.{" "}
+        <Link href={funcoesHref} className="text-brand-700 underline font-medium">
+          Cadastrar função
+        </Link>
+      </div>
+    );
   }
 
   if (!aberto) {
@@ -193,20 +227,33 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
       </div>
 
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-stone-500">Cargo</label>
-        <input
-          name="cargo"
-          list="cargos-sugeridos"
+        <label className="text-xs text-stone-500">Função</label>
+        <select
+          name="funcaoId"
+          value={funcaoId}
+          onChange={(e) => setFuncaoId(e.target.value)}
           required
           autoFocus
-          placeholder="Ex: Garçom/Garçonete, Cozinheiro(a)..."
           className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        <datalist id="cargos-sugeridos">
-          {TODOS_OS_CARGOS.map((cargo) => (
-            <option key={cargo} value={cargo} />
+        >
+          <option value="" disabled>
+            Escolha uma função
+          </option>
+          {funcoes.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.nome}
+            </option>
           ))}
-        </datalist>
+        </select>
+        {funcaoSelecionada && (
+          <p className="text-xs text-stone-500">
+            O freelancer vai ver o valor/hora desta função:{" "}
+            <span className="font-medium text-brand-700">
+              R$ {funcaoSelecionada.valorHoraPadrao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}/hora
+            </span>
+            .
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1">

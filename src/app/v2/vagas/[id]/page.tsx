@@ -23,6 +23,7 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
     select: {
       id: true,
       cargo: true,
+      valorHora: true,
       descricao: true,
       localizacao: true,
       nomeFantasia: true,
@@ -85,6 +86,7 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
             vaga={{
               id: vaga.id,
               cargo: vaga.cargo,
+              valorHora: vaga.valorHora !== null ? Number(vaga.valorHora) : null,
               descricao: vaga.descricao,
               localizacao: vaga.localizacao,
               nomeFantasia: vaga.nomeFantasia,
