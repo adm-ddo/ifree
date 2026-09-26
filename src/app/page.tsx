@@ -55,6 +55,18 @@ const DORES = [
   "Chega de extra desconfiando se o pagamento bateu certo.",
 ];
 
+const PONTOS_FREELANCER = [
+  "Escolha os turnos que topa — sem escala fixa, sem vínculo empregatício.",
+  "Cadastro único: documentos e reputação valem em qualquer empresa do iFREE.",
+  "Pix direto pra você assim que o turno termina, sem esperar.",
+];
+
+const PONTOS_EMPRESA_CONECTA = [
+  "Publique a vaga e receba candidatos com reputação real, não só currículo.",
+  "Chat libera só quando dá match — sem perder tempo com quem não serve.",
+  "O mesmo freelancer já entra no ponto, contrato e pagamento automático.",
+];
+
 const LIBERDADE_PONTOS = [
   "Paga só o que foi trabalhado, em blocos de 5 minutos — nada de arredondar a hora pra cima ou pra baixo.",
   "Sem escala fixa e sem vínculo empregatício: cada turno é um combinado novo, o extra decide se topa.",
@@ -191,6 +203,12 @@ export default async function Home() {
               Já é cliente? Acessar o sistema →
             </Link>
           </div>
+          <Link
+            href="#quero-ser-freelancer"
+            className="inline-flex items-center gap-2 rounded-full border border-brand-400/40 bg-brand-400/10 hover:bg-brand-400/20 text-brand-300 text-sm lg:text-base font-semibold px-4 py-2 transition-colors mt-1"
+          >
+            🧑‍🍳 É freelancer? Essa página é pra empresa — veja como funciona pra você →
+          </Link>
         </div>
       </section>
 
@@ -427,41 +445,79 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* iFREE Conecta */}
-      <section className="relative overflow-hidden bg-navy-900">
-        <LogoIcon
-          size={380}
-          className="pointer-events-none absolute -right-24 -bottom-24 opacity-[0.08] hidden sm:block"
-        />
-        <div className="relative mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 flex flex-col items-center text-center gap-6 lg:gap-8">
-          <p className="text-brand-400 font-semibold text-sm lg:text-base tracking-wide uppercase">
-            iFREE Conecta
-          </p>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white max-w-2xl">
-            Freelancers e empresas, no mesmo lugar
-          </h2>
-          <p className="text-navy-200 max-w-xl lg:max-w-2xl text-base lg:text-lg">
-            Um cadastro só, reputação que atravessa empresas, vagas
-            publicadas e um chat direto no app quando rola match. Sem
-            perder um bom freelancer no WhatsApp de outra pessoa.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3 lg:gap-4 mt-2">
-            <Link
-              href="/portal/entrar"
-              className="rounded-xl bg-brand-500 hover:bg-brand-400 text-navy-900 text-base lg:text-lg font-bold px-7 py-4 lg:px-9 lg:py-5 transition-colors shadow-lg shadow-brand-500/20"
-            >
-              🧑‍🍳 Sou freelancer
-            </Link>
-            <Link
-              href="/login"
-              className="rounded-xl border border-white/20 text-white hover:bg-white/10 text-base lg:text-lg font-bold px-7 py-4 lg:px-9 lg:py-5 transition-colors"
-            >
-              🏢 Sou empresa
-            </Link>
+      {/* iFREE Conecta — fork de audiência */}
+      <section id="quero-ser-freelancer" className="bg-stone-50 border-y border-stone-200 scroll-mt-20">
+        <div className="mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 flex flex-col items-center gap-10 lg:gap-14">
+          <div className="flex flex-col items-center text-center gap-3 max-w-2xl">
+            <p className="text-brand-700 font-semibold text-sm lg:text-base tracking-wide uppercase">
+              iFREE Conecta
+            </p>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-navy-900">
+              Você chegou aqui de qual lado?
+            </h2>
+            <p className="text-stone-600 text-base lg:text-lg">
+              Um cadastro só, reputação que atravessa empresas, e um chat que
+              só abre quando dá match de verdade.
+            </p>
           </div>
+
+          <div className="grid sm:grid-cols-2 gap-5 lg:gap-6 w-full">
+            <div className="rounded-3xl border-2 border-brand-500 bg-white p-7 lg:p-8 flex flex-col gap-5 shadow-lg shadow-brand-500/10">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center justify-center h-12 w-12 rounded-2xl bg-brand-50 text-2xl shrink-0">
+                  🧑‍🍳
+                </span>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700">Pra você</p>
+                  <h3 className="text-xl lg:text-2xl font-black text-navy-900">Sou freelancer</h3>
+                </div>
+              </div>
+              <ul className="flex flex-col gap-2.5">
+                {PONTOS_FREELANCER.map((p) => (
+                  <li key={p} className="flex items-start gap-2.5 text-sm lg:text-base text-stone-600">
+                    <span className="text-brand-600 font-bold shrink-0 mt-0.5">✓</span>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/portal/entrar"
+                className="mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-navy-900 text-base lg:text-lg font-bold px-6 py-4 transition-colors shadow-lg shadow-brand-500/20"
+              >
+                Quero ser freelancer →
+              </Link>
+            </div>
+
+            <div className="rounded-3xl border-2 border-navy-900 bg-white p-7 lg:p-8 flex flex-col gap-5">
+              <div className="flex items-center gap-3">
+                <span className="flex items-center justify-center h-12 w-12 rounded-2xl bg-navy-50 text-2xl shrink-0">
+                  🏢
+                </span>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-navy-700">Pra sua empresa</p>
+                  <h3 className="text-xl lg:text-2xl font-black text-navy-900">Sou empresa</h3>
+                </div>
+              </div>
+              <ul className="flex flex-col gap-2.5">
+                {PONTOS_EMPRESA_CONECTA.map((p) => (
+                  <li key={p} className="flex items-start gap-2.5 text-sm lg:text-base text-stone-600">
+                    <span className="text-navy-700 font-bold shrink-0 mt-0.5">✓</span>
+                    {p}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/cadastro"
+                className="mt-auto inline-flex items-center justify-center gap-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white text-base lg:text-lg font-bold px-6 py-4 transition-colors"
+              >
+                Cadastrar minha empresa →
+              </Link>
+            </div>
+          </div>
+
           <Link
             href="/conecta"
-            className="text-navy-300 hover:text-white text-sm lg:text-base underline underline-offset-4 mt-1"
+            className="text-stone-500 hover:text-navy-900 text-sm lg:text-base underline underline-offset-4"
           >
             Saiba mais sobre o Conecta →
           </Link>
