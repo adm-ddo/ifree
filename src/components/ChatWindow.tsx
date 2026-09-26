@@ -9,7 +9,10 @@ export type MensagemChat = {
   criadoEm: string;
 };
 
-const INTERVALO_POLL_MS = 5000;
+/// Baixado de 5000 pra 2000 (pedido do Thiago em 2026-09-26) — mensagem
+/// nova demorava até 5s pra aparecer do outro lado, parecia "travado" pra
+/// quem já está acostumado com chat de verdade (WhatsApp etc.).
+const INTERVALO_POLL_MS = 2000;
 
 export type ResultadoBusca = { mensagens: MensagemChat[]; outraLeituraEm: string | null };
 

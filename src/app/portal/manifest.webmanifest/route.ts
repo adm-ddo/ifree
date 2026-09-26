@@ -7,7 +7,11 @@ import { NextResponse } from "next/server";
  * a partir do Portal quer um atalho rápido pra entrar, não necessariamente
  * já está logado no aparelho que vai instalar. `scope` fica em todo
  * `/portal` (mais amplo que start_url) pra continuar em modo app depois
- * do login, quando o freelancer navega pro resto do Portal. */
+ * do login, quando o freelancer navega pro resto do Portal. Ícone próprio
+ * (arte mandada pelo Thiago em 2026-09-26, gerado em 3 tamanhos + versão
+ * maskable com fundo preto sólido via sharp — Android aplica a própria
+ * máscara de forma por cima, não pode ter transparência), diferente do
+ * ícone genérico do resto do site. */
 export async function GET() {
   const manifest = {
     name: "iFREE Conecta",
@@ -20,10 +24,14 @@ export async function GET() {
     background_color: "#ffffff",
     theme_color: "#00C896",
     icons: [
-      { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
-      { src: "/brand/icones-app/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/brand/icones-app/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/brand/icones-app/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/brand/icones-app/icon-conecta-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/brand/icones-app/icon-conecta-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      {
+        src: "/brand/icones-app/icon-conecta-512-maskable.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
     ],
   };
 
