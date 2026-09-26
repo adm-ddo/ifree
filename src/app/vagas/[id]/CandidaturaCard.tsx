@@ -4,6 +4,7 @@ import { useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { aceitarCandidatura, recusarCandidatura } from "./actions";
 import { formatarDataHora } from "@/lib/data";
+import ExtraMarcadoEmpresa, { type ExtraMarcadoItem } from "./ExtraMarcadoEmpresa";
 
 const LABEL_STATUS: Record<string, string> = {
   ENVIADA: "Aguardando resposta",
@@ -31,12 +32,20 @@ type Pessoa = {
 export default function CandidaturaCard({
   vagaId,
   candidatura,
+  vaga,
   pessoa,
   reputacaoCard,
   conversaId,
 }: {
   vagaId: number;
-  candidatura: { id: number; status: "ENVIADA" | "ACEITA" | "RECUSADA"; match: boolean; criadoEm: Date };
+  candidatura: {
+    id: number;
+    status: "ENVIADA" | "ACEITA" | "RECUSADA";
+    match: boolean;
+    criadoEm: Date;
+    extrasMarcados: ExtraMarcadoItem[];
+  };
+  vaga: { turnoDia: boolean; turnoNoite: boolean };
   pessoa: Pessoa;
   reputacaoCard: ReactNode;
   conversaId: number | null;
@@ -94,6 +103,15 @@ export default function CandidaturaCard({
       )}
 
       {reputacaoCard}
+
+      {candidatura.status === "ACEITA" && (
+        <ExtraMarcadoEmpresa
+          candidaturaId={candidatura.id}
+          turnoDiaPermitido={vaga.turnoDia}
+          turnoNoitePermitido={vaga.turnoNoite}
+          extrasMarcados={candidatura.extrasMarcados}
+        />
+      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         {candidatura.status === "ENVIADA" && (

@@ -37,7 +37,7 @@ export default async function FreelancerDetalhePage({
   // inteiras) evita over-fetch de campos que essa tela de EXTRA nunca usa
   // (ex.: os ~20 campos só de CLT: salarioMensal, escalaTrabalho,
   // experienciaDias1/2, dataRescisao, benefícios etc.).
-  const [vinculo, avaliacoesRecebidas, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
+  const [vinculo, avaliacoesRecebidas, faltasExtraMarcado, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findUnique({
       where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
       select: {
@@ -79,6 +79,11 @@ export default async function FreelancerDetalhePage({
         turno: { select: { empresa: { select: { nome: true } } } },
       },
       orderBy: { criadoEm: "desc" },
+    }),
+    prisma.extraMarcado.findMany({
+      where: { pessoaId, status: "NAO_COMPARECEU" },
+      select: { data: true, empresa: { select: { nome: true } } },
+      orderBy: { data: "desc" },
     }),
     prisma.pessoa.count({ where: { indicadoPorPessoaId: pessoaId } }),
     prisma.turno.findMany({
@@ -189,6 +194,7 @@ export default async function FreelancerDetalhePage({
           criadoEm: a.criadoEm,
           empresaNome: a.turno.empresa.nome,
         }))}
+        faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
         totalIndicacoes={totalIndicacoes}
       />
 

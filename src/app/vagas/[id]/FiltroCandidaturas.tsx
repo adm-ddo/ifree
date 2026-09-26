@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import CandidaturaCard from "./CandidaturaCard";
+import type { ExtraMarcadoItem } from "./ExtraMarcadoEmpresa";
 
 type Item = {
   id: number;
@@ -9,6 +10,7 @@ type Item = {
   match: boolean;
   criadoEm: Date;
   conversaId: number | null;
+  extrasMarcados: ExtraMarcadoItem[];
   pessoa: {
     id: number;
     nome: string;
@@ -26,7 +28,15 @@ type Item = {
  * cara os candidatos mais aderentes. O toggle revela todo mundo que se
  * candidatou, já que nem todo candidato bom necessariamente preencheu
  * habilidades suficientes pro match bater. */
-export default function FiltroCandidaturas({ vagaId, itens }: { vagaId: number; itens: Item[] }) {
+export default function FiltroCandidaturas({
+  vagaId,
+  vaga,
+  itens,
+}: {
+  vagaId: number;
+  vaga: { turnoDia: boolean; turnoNoite: boolean };
+  itens: Item[];
+}) {
   const [mostrarTodas, setMostrarTodas] = useState(false);
 
   const temMatch = itens.some((i) => i.match);
@@ -54,7 +64,14 @@ export default function FiltroCandidaturas({ vagaId, itens }: { vagaId: number; 
             <CandidaturaCard
               key={c.id}
               vagaId={vagaId}
-              candidatura={{ id: c.id, status: c.status, match: c.match, criadoEm: c.criadoEm }}
+              vaga={vaga}
+              candidatura={{
+                id: c.id,
+                status: c.status,
+                match: c.match,
+                criadoEm: c.criadoEm,
+                extrasMarcados: c.extrasMarcados,
+              }}
               conversaId={c.conversaId}
               pessoa={c.pessoa}
               reputacaoCard={c.reputacaoCard}

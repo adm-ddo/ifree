@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import CandidaturaCardV2 from "./CandidaturaCardV2";
 import type { Sexo } from "@/generated/prisma/enums";
+import type { ExtraMarcadoItem } from "@/app/vagas/[id]/ExtraMarcadoEmpresa";
 
 type Item = {
   id: number;
@@ -10,6 +11,7 @@ type Item = {
   match: boolean;
   criadoEm: Date;
   conversaId: number | null;
+  extrasMarcados: ExtraMarcadoItem[];
   pessoa: {
     id: number;
     nome: string;
@@ -26,7 +28,15 @@ type Item = {
 
 /** Mesma lógica de src/app/vagas/[id]/FiltroCandidaturas.tsx (v1, não
  * tocado), usando CandidaturaCardV2 em vez do card do v1. */
-export default function FiltroCandidaturasV2({ vagaId, itens }: { vagaId: number; itens: Item[] }) {
+export default function FiltroCandidaturasV2({
+  vagaId,
+  vaga,
+  itens,
+}: {
+  vagaId: number;
+  vaga: { turnoDia: boolean; turnoNoite: boolean };
+  itens: Item[];
+}) {
   const [mostrarTodas, setMostrarTodas] = useState(false);
 
   const temMatch = itens.some((i) => i.match);
@@ -54,7 +64,14 @@ export default function FiltroCandidaturasV2({ vagaId, itens }: { vagaId: number
             <CandidaturaCardV2
               key={c.id}
               vagaId={vagaId}
-              candidatura={{ id: c.id, status: c.status, match: c.match, criadoEm: c.criadoEm }}
+              vaga={vaga}
+              candidatura={{
+                id: c.id,
+                status: c.status,
+                match: c.match,
+                criadoEm: c.criadoEm,
+                extrasMarcados: c.extrasMarcados,
+              }}
               conversaId={c.conversaId}
               pessoa={c.pessoa}
               reputacaoCard={c.reputacaoCard}

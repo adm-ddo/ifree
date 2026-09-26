@@ -32,7 +32,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
   const pessoaId = Number(id);
   if (!Number.isInteger(pessoaId)) notFound();
 
-  const [vinculo, avaliacoesRecebidas, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
+  const [vinculo, avaliacoesRecebidas, faltasExtraMarcado, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findUnique({
       where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
       select: {
@@ -69,6 +69,11 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
       where: { autor: "EMPRESA", turno: { pessoaId } },
       select: { nota: true, tags: true, criadoEm: true, turno: { select: { empresa: { select: { nome: true } } } } },
       orderBy: { criadoEm: "desc" },
+    }),
+    prisma.extraMarcado.findMany({
+      where: { pessoaId, status: "NAO_COMPARECEU" },
+      select: { data: true, empresa: { select: { nome: true } } },
+      orderBy: { data: "desc" },
     }),
     prisma.pessoa.count({ where: { indicadoPorPessoaId: pessoaId } }),
     prisma.turno.findMany({
@@ -152,6 +157,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
 
       <ReputacaoCard
         avaliacoes={avaliacoesRecebidas.map((a) => ({ nota: a.nota, tags: a.tags, criadoEm: a.criadoEm, empresaNome: a.turno.empresa.nome }))}
+        faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
         totalIndicacoes={totalIndicacoes}
       />
 

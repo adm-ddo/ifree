@@ -5,6 +5,7 @@ import { formatarDataHora } from "@/lib/data";
 import { calcularMatch } from "@/lib/match";
 import { formatarEnderecoCompleto, linkGoogleMapsTransit } from "@/lib/endereco";
 import FiltroVagas from "./FiltroVagas";
+import ExtraMarcadoPessoa from "./ExtraMarcadoPessoa";
 
 const LABEL_STATUS_CANDIDATURA: Record<string, string> = {
   ENVIADA: "Aguardando resposta",
@@ -75,7 +76,7 @@ export default async function VagasPortalPage() {
     );
   }
 
-  const [vagasAbertas, minhasCandidaturas, minhasConversas] = await Promise.all([
+  const [vagasAbertas, minhasCandidaturas, minhasConversas, meusExtrasMarcados] = await Promise.all([
     prisma.vaga.findMany({
       where: { status: "ABERTA" },
       orderBy: { criadoEm: "desc" },
@@ -129,6 +130,17 @@ export default async function VagasPortalPage() {
       where: { pessoaId: sessao.pessoaId },
       select: { id: true, empresaId: true },
     }),
+    prisma.extraMarcado.findMany({
+      where: { pessoaId: sessao.pessoaId, status: { in: ["AGUARDANDO_PESSOA", "CONFIRMADO"] } },
+      orderBy: { data: "asc" },
+      select: {
+        id: true,
+        data: true,
+        turnoTipo: true,
+        status: true,
+        empresa: { select: { nome: true } },
+      },
+    }),
   ]);
 
   const vagaIdsComCandidatura = new Set(minhasCandidaturas.map((c) => c.vagaId));
@@ -147,6 +159,26 @@ export default async function VagasPortalPage() {
           resto do seu Portal.
         </p>
       </div>
+
+      {meusExtrasMarcados.length > 0 && (
+        <div>
+          <h2 className="font-semibold text-navy-900 text-sm mb-3">🤝 Meus extras marcados</h2>
+          <ul className="flex flex-col gap-2">
+            {meusExtrasMarcados.map((e) => (
+              <ExtraMarcadoPessoa
+                key={e.id}
+                extra={{
+                  id: e.id,
+                  data: e.data,
+                  turnoTipo: e.turnoTipo,
+                  status: e.status as "AGUARDANDO_PESSOA" | "CONFIRMADO",
+                  empresaNome: e.empresa.nome,
+                }}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
 
       <FiltroVagas
         itens={vagasAbertas.map((vaga) => {

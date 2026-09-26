@@ -40,6 +40,11 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
           status: true,
           match: true,
           criadoEm: true,
+          extrasMarcados: {
+            where: { status: { not: "CANCELADO" } },
+            orderBy: { data: "desc" },
+            select: { id: true, data: true, turnoTipo: true, status: true },
+          },
           pessoa: {
             select: {
               id: true,
@@ -123,11 +128,13 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
         </h2>
         <FiltroCandidaturasV2
           vagaId={vaga.id}
+          vaga={{ turnoDia: vaga.turnoDia, turnoNoite: vaga.turnoNoite }}
           itens={vaga.candidaturas.map((c, i) => ({
             id: c.id,
             status: c.status,
             match: c.match,
             criadoEm: c.criadoEm,
+            extrasMarcados: c.extrasMarcados,
             conversaId: conversaIdPorPessoa.get(c.pessoa.id) ?? null,
             pessoa: {
               id: c.pessoa.id,

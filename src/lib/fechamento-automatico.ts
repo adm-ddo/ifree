@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { dataISOBrasil, inicioDoDiaBrasil, instanteBrasil } from "@/lib/data";
+import { dataISOBrasil, dataISODoDbDate, inicioDoDiaBrasil, instanteBrasil } from "@/lib/data";
 import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
 import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
 import type { TurnoPredefinido } from "@/generated/prisma/enums";
@@ -157,4 +157,43 @@ export async function sinalizarRegistrosPontoPendentes(
   });
 
   return { sinalizados: resultado.count };
+}
+
+/** Marca falta automática 🚫 nos Extras Marcados confirmados cujo prazo já
+ * passou sem a pessoa aparecer — chamada pelo mesmo cron de
+ * fecharTurnosAtrasados (ver src/app/api/cron/fechar-turnos/route.ts).
+ * turnoId ainda null significa que iniciarTurno (src/app/t/[token]/
+ * actions.ts) nunca casou nenhum check-in com este combinado; o prazo é o
+ * horário de FECHAMENTO daquele turno (dia ou noite) no dia combinado —
+ * mesmo horário que fecharTurnosAtrasados usa pra encerrar turno aberto
+ * sem saída (Empresa.horarioFechamentoDiaMin/NoiteMin). Pedido do Thiago
+ * em 2026-09-26: falta em Extra Marcado pesa na reputação (ver
+ * ReputacaoCard.tsx), é o principal fator de credibilidade do freelancer
+ * perante as empresas — por isso precisa ser automático, sem depender de
+ * ninguém lembrar de marcar manualmente. */
+export async function marcarFaltasExtraMarcado(agora: Date = new Date()): Promise<{ faltas: number }> {
+  const pendentes = await prisma.extraMarcado.findMany({
+    where: { status: "CONFIRMADO", turnoId: null },
+    include: {
+      empresa: { select: { horarioFechamentoDiaMin: true, horarioFechamentoNoiteMin: true } },
+    },
+  });
+
+  const idsParaFalta = pendentes
+    .filter((e) => {
+      const cutoffMin =
+        e.turnoTipo === "DIA" ? e.empresa.horarioFechamentoDiaMin : e.empresa.horarioFechamentoNoiteMin;
+      const cutoff = instanteBrasil(dataISODoDbDate(e.data), cutoffMin);
+      return cutoff < agora;
+    })
+    .map((e) => e.id);
+
+  if (idsParaFalta.length === 0) return { faltas: 0 };
+
+  const resultado = await prisma.extraMarcado.updateMany({
+    where: { id: { in: idsParaFalta } },
+    data: { status: "NAO_COMPARECEU" },
+  });
+
+  return { faltas: resultado.count };
 }

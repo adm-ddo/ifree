@@ -17,6 +17,7 @@ type Pessoa = {
   disponivelParaOportunidades: boolean;
   totalTurnos: number;
   totalEmpresas: number;
+  fotoDataUrl: string | null;
 };
 
 export default function PessoaMasterRow({ pessoa }: { pessoa: Pessoa }) {
@@ -26,7 +27,16 @@ export default function PessoaMasterRow({ pessoa }: { pessoa: Pessoa }) {
 
   return (
     <li className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+      <div className="flex items-start gap-3">
+        <div className="h-11 w-11 rounded-full bg-stone-100 border border-stone-200 overflow-hidden flex items-center justify-center shrink-0">
+          {pessoa.fotoDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- data URL vindo do servidor, não faz sentido pelo next/image
+            <img src={pessoa.fotoDataUrl} alt={pessoa.nome} className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-xl text-stone-300">👤</span>
+          )}
+        </div>
+        <div>
         <Link
           href={`/master/freelancers/${pessoa.id}`}
           className="font-medium text-navy-900 hover:text-brand-700 hover:underline"
@@ -52,6 +62,7 @@ export default function PessoaMasterRow({ pessoa }: { pessoa: Pessoa }) {
           )}
         </div>
         {erro && <p className="text-xs text-red-600 mt-1">{erro}</p>}
+        </div>
       </div>
       <button
         disabled={pending || !podeExcluir}

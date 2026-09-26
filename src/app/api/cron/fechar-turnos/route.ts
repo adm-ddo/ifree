@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { fecharTurnosAtrasados, sinalizarRegistrosPontoPendentes } from "@/lib/fechamento-automatico";
+import {
+  fecharTurnosAtrasados,
+  sinalizarRegistrosPontoPendentes,
+  marcarFaltasExtraMarcado,
+} from "@/lib/fechamento-automatico";
 
 /** Chamada pelo Vercel Cron (ver vercel.json) DUAS vezes por dia — 01:00 e
  * 07:00 de Brasília. A segunda chamada é rede de segurança: se a das 01:00
@@ -22,6 +26,7 @@ export async function GET(req: Request) {
 
   const resultado = await fecharTurnosAtrasados();
   const pontoClt = await sinalizarRegistrosPontoPendentes();
+  const faltasExtraMarcado = await marcarFaltasExtraMarcado();
 
-  return NextResponse.json({ ok: true, ...resultado, ...pontoClt });
+  return NextResponse.json({ ok: true, ...resultado, ...pontoClt, ...faltasExtraMarcado });
 }

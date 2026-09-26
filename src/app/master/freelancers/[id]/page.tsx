@@ -68,7 +68,7 @@ export default async function PessoaMasterPerfilPage({
   // Thiago em 2026-09-26: esta tela buscava só fotoUrl, então freelancer
   // com foto do Conecta aparecia sem foto nenhuma aqui.
   const fotoParaExibir = pessoa.fotoPerfilUrl ?? pessoa.fotoUrl;
-  const [fotoDataUrl, avaliacoesRecebidas] = await Promise.all([
+  const [fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado] = await Promise.all([
     fotoParaExibir ? baixarComoDataUrl(fotoParaExibir) : Promise.resolve(null),
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: pessoa.id } },
@@ -79,6 +79,11 @@ export default async function PessoaMasterPerfilPage({
         turno: { select: { empresa: { select: { nome: true } } } },
       },
       orderBy: { criadoEm: "desc" },
+    }),
+    prisma.extraMarcado.findMany({
+      where: { pessoaId: pessoa.id, status: "NAO_COMPARECEU" },
+      select: { data: true, empresa: { select: { nome: true } } },
+      orderBy: { data: "desc" },
     }),
   ]);
 
@@ -188,7 +193,7 @@ export default async function PessoaMasterPerfilPage({
           Empresas · {pessoa._count.turnos} turno(s) · {pessoa._count.candidaturas} candidatura(s)
         </h2>
         {pessoa.vinculos.length === 0 ? (
-          <p className="text-sm text-stone-500">Nenhum vínculo com empresa ainda.</p>
+          <p className="text-sm text-stone-500">Não conectada com nenhuma empresa ainda.</p>
         ) : (
           <ul className="flex flex-col gap-1.5">
             {pessoa.vinculos.map((v) => (
@@ -214,6 +219,7 @@ export default async function PessoaMasterPerfilPage({
           criadoEm: a.criadoEm,
           empresaNome: a.turno.empresa.nome,
         }))}
+        faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
         totalIndicacoes={pessoa._count.indicados}
       />
     </div>

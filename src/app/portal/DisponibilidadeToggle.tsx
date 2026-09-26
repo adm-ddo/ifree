@@ -43,22 +43,27 @@ export default function DisponibilidadeToggle({ inicial }: { inicial: boolean })
       </label>
 
       {disponivel ? (
-        <Link
-          href="/portal/vagas"
-          className="group flex items-center justify-between gap-3 rounded-2xl bg-navy-900 hover:bg-navy-800 p-4 sm:p-5 transition-colors"
-        >
-          <span className="flex flex-col">
-            <span className="text-white font-black text-base sm:text-lg leading-tight">
-              👉 É aqui que você vê as vagas anunciadas!
+        <>
+          <Link
+            href="/portal/vagas"
+            className="group flex items-center justify-between gap-3 rounded-2xl bg-navy-900 hover:bg-navy-800 p-4 sm:p-5 transition-colors"
+          >
+            <span className="flex flex-col">
+              <span className="text-white font-black text-base sm:text-lg leading-tight">
+                👉 É aqui que você vê as vagas anunciadas!
+              </span>
+              <span className="text-navy-300 text-xs sm:text-sm mt-0.5">
+                Empresas publicando vaga agora — dá uma olhada
+              </span>
             </span>
-            <span className="text-navy-300 text-xs sm:text-sm mt-0.5">
-              Empresas publicando vaga agora — dá uma olhada
+            <span className="shrink-0 rounded-full bg-brand-500 group-hover:bg-brand-400 text-navy-900 font-bold text-sm sm:text-base px-4 py-2.5 transition-colors whitespace-nowrap">
+              Ver vagas →
             </span>
-          </span>
-          <span className="shrink-0 rounded-full bg-brand-500 group-hover:bg-brand-400 text-navy-900 font-bold text-sm sm:text-base px-4 py-2.5 transition-colors whitespace-nowrap">
-            Ver vagas →
-          </span>
-        </Link>
+          </Link>
+          <p className="text-navy-900/70 text-xs">
+            Não quer aparecer pras empresas? Desative no interruptor acima.
+          </p>
+        </>
       ) : (
         <p className="text-navy-900/80 text-sm">
           Ative pra ver e se candidatar às vagas publicadas por empresas no iFREE.

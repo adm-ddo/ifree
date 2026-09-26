@@ -127,6 +127,20 @@ export function formatarDataSemHora(data: Date): string {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" }).format(data);
 }
 
+/** Mesma ideia de formatarDataSemHora (uma coluna `@db.Date` volta como
+ * meia-noite UTC), só que devolvendo "YYYY-MM-DD" em vez de formatar pra
+ * exibição — usado quando precisa recombinar com instanteBrasil (ex.:
+ * ExtraMarcado.data + o horário de fechamento daquele turno, ver
+ * marcarFaltasExtraMarcado em src/lib/fechamento-automatico.ts). */
+export function dataISODoDbDate(data: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(data);
+}
+
 /** Mesma ideia de formatarDataSemHora, só que por extenso ("9 de setembro
  * de 2026") — pra documentos formais do GED. */
 export function formatarDataSemHoraExtenso(data: Date): string {

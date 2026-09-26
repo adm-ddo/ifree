@@ -6,6 +6,7 @@ import { aceitarCandidatura, recusarCandidatura } from "@/app/vagas/[id]/actions
 import { formatarDataHora } from "@/lib/data";
 import AvatarPessoa from "@/components/AvatarPessoa";
 import type { Sexo } from "@/generated/prisma/enums";
+import ExtraMarcadoEmpresa, { type ExtraMarcadoItem } from "@/app/vagas/[id]/ExtraMarcadoEmpresa";
 
 const LABEL_STATUS: Record<string, string> = {
   ENVIADA: "Aguardando resposta",
@@ -38,12 +39,20 @@ type Pessoa = {
 export default function CandidaturaCardV2({
   vagaId,
   candidatura,
+  vaga,
   pessoa,
   reputacaoCard,
   conversaId,
 }: {
   vagaId: number;
-  candidatura: { id: number; status: "ENVIADA" | "ACEITA" | "RECUSADA"; match: boolean; criadoEm: Date };
+  candidatura: {
+    id: number;
+    status: "ENVIADA" | "ACEITA" | "RECUSADA";
+    match: boolean;
+    criadoEm: Date;
+    extrasMarcados: ExtraMarcadoItem[];
+  };
+  vaga: { turnoDia: boolean; turnoNoite: boolean };
   pessoa: Pessoa;
   reputacaoCard: ReactNode;
   conversaId: number | null;
@@ -94,6 +103,15 @@ export default function CandidaturaCardV2({
       )}
 
       {reputacaoCard}
+
+      {candidatura.status === "ACEITA" && (
+        <ExtraMarcadoEmpresa
+          candidaturaId={candidatura.id}
+          turnoDiaPermitido={vaga.turnoDia}
+          turnoNoitePermitido={vaga.turnoNoite}
+          extrasMarcados={candidatura.extrasMarcados}
+        />
+      )}
 
       <div className="flex items-center gap-3 flex-wrap">
         {candidatura.status === "ENVIADA" && (

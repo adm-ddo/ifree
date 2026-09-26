@@ -13,6 +13,7 @@ import {
 } from "@/lib/documento";
 import { uploadDataUrl } from "@/lib/blob";
 import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
+import { dataISOBrasil, dataISODoDbDate } from "@/lib/data";
 import { calcularMinutosPonto, acoesPossiveisPonto, resolverModoPausaClt, type AcaoPonto } from "@/lib/ponto";
 import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
 import { notaValida, tagsValidadas } from "@/lib/avaliacao";
@@ -882,6 +883,36 @@ export async function iniciarTurno(
   // Também guarda a foto mais recente no cadastro global, pra conferência
   // rápida na hora do CPF em visitas futuras.
   await prisma.pessoa.update({ where: { id: pessoa.id }, data: { fotoUrl } });
+
+  // Casa esse check-in com um Extra Marcado 🤝 pendente pra hoje, se
+  // existir — vira CUMPRIDO em vez de ficar parado até o cron de
+  // fechamento marcar falta (ver marcarFaltasExtraMarcado,
+  // src/lib/fechamento-automatico.ts). Sem isso, TODO Extra Marcado
+  // confirmado viraria falta mesmo quando a pessoa realmente aparece.
+  const empresaHorarios = await prisma.empresa.findUnique({
+    where: { id: totem.empresaId },
+    select: { horarioInicioDiaMin: true, horarioInicioNoiteMin: true },
+  });
+  if (empresaHorarios) {
+    const tipoTurno = classificarTurno(
+      turno.horaEntrada,
+      vinculo?.turnoPredefinido ?? "LIVRE",
+      empresaHorarios.horarioInicioDiaMin,
+      empresaHorarios.horarioInicioNoiteMin
+    );
+    const hojeISO = dataISOBrasil(turno.horaEntrada);
+    const pendentes = await prisma.extraMarcado.findMany({
+      where: { pessoaId: pessoa.id, empresaId: totem.empresaId, status: "CONFIRMADO", turnoId: null },
+      select: { id: true, data: true, turnoTipo: true },
+    });
+    const combinado = pendentes.find((e) => dataISODoDbDate(e.data) === hojeISO && e.turnoTipo === tipoTurno);
+    if (combinado) {
+      await prisma.extraMarcado.update({
+        where: { id: combinado.id },
+        data: { status: "CUMPRIDO", turnoId: turno.id },
+      });
+    }
+  }
 
   return { turnoId: turno.id };
 }

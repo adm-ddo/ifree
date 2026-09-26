@@ -39,6 +39,11 @@ export default async function VagaDetalhePage({
           status: true,
           match: true,
           criadoEm: true,
+          extrasMarcados: {
+            where: { status: { not: "CANCELADO" } },
+            orderBy: { data: "desc" },
+            select: { id: true, data: true, turnoTipo: true, status: true },
+          },
           pessoa: {
             select: {
               id: true,
@@ -133,11 +138,13 @@ export default async function VagaDetalhePage({
         </h2>
         <FiltroCandidaturas
           vagaId={vaga.id}
+          vaga={{ turnoDia: vaga.turnoDia, turnoNoite: vaga.turnoNoite }}
           itens={candidaturasComDados.map((c) => ({
             id: c.id,
             status: c.status,
             match: c.match,
             criadoEm: c.criadoEm,
+            extrasMarcados: c.extrasMarcados,
             conversaId: conversaIdPorPessoa.get(c.pessoa.id) ?? null,
             pessoa: {
               id: c.pessoa.id,

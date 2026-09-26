@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Logo } from "@/components/Logo";
 import { getSessaoPessoa } from "@/lib/auth-pessoa";
 import { logoutPessoa } from "@/lib/auth-pessoa-actions";
 
@@ -37,12 +36,18 @@ export default async function PortalLayout({
     <div className="min-h-full flex flex-col bg-stone-50">
       <header className="border-b border-stone-200 bg-white sticky top-0 z-10">
         <div className="mx-auto max-w-3xl px-4 py-3 flex items-center gap-3">
-          <Link href={sessao ? "/portal" : "/"} className="flex items-center gap-2 shrink-0">
-            <Logo size={30} />
+          <Link href={sessao ? "/portal" : "/"} className="flex items-center gap-2 shrink-0 min-w-0">
+            {/* eslint-disable-next-line @next/next/no-img-element -- ícone estático pequeno do public/, next/image não compensa aqui */}
+            <img
+              src="/brand/icones-app/icon-conecta-192.png"
+              alt="iFREE Conecta"
+              className="h-9 w-9 rounded-xl shrink-0"
+            />
+            <span className="flex flex-col leading-tight min-w-0">
+              <span className="font-bold text-navy-900 text-sm truncate">iFREE Conecta</span>
+              <span className="text-[10px] text-stone-500 truncate">Entrou, trabalhou, recebeu.</span>
+            </span>
           </Link>
-          <span className="hidden sm:inline text-[11px] font-semibold uppercase tracking-wide text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-2.5 py-1">
-            Portal do freelancer
-          </span>
           {sessao && (
             <div className="ml-auto flex items-center gap-3 text-sm">
               <span className="text-stone-500 hidden sm:inline truncate max-w-[10rem]">

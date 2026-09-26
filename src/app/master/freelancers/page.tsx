@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireMaster } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { baixarComoDataUrl } from "@/lib/blob";
 import {
   formatarDataHora,
   inicioDoDiaBrasil,
@@ -66,6 +67,7 @@ export default async function MasterFreelancersPage({
       criadoEm: true,
       senhaHash: true,
       disponivelParaOportunidades: true,
+      fotoPerfilUrl: true,
       _count: { select: { turnos: true, vinculos: true } },
     },
   });
@@ -73,6 +75,16 @@ export default async function MasterFreelancersPage({
   const totalComPortal = soPortalAtivo
     ? pessoas.length
     : await prisma.pessoa.count({ where: { senhaHash: { not: null }, ...filtroPeriodo } });
+
+  // Mesma prioridade de sempre: fotoPerfilUrl (cadastro do Portal/iFREE
+  // Conecta) é a foto "de verdade" — fotoUrl (totem) nunca entra aqui de
+  // propósito. baixarComoDataUrl em vez do proxy /pessoas/[id]/foto (que
+  // AvatarPessoa usa) porque aquela rota exige requireTenant() — sessão de
+  // empresa, que o master não tem; mesmo padrão já usado no perfil
+  // individual (master/freelancers/[id]/page.tsx).
+  const fotosDataUrl = await Promise.all(
+    pessoas.map((p) => (p.fotoPerfilUrl ? baixarComoDataUrl(p.fotoPerfilUrl) : Promise.resolve(null)))
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -180,7 +192,7 @@ export default async function MasterFreelancersPage({
       )}
 
       <ul className="flex flex-col gap-2">
-        {pessoas.map((p) => (
+        {pessoas.map((p, i) => (
           <PessoaMasterRow
             key={p.id}
             pessoa={{
@@ -194,6 +206,7 @@ export default async function MasterFreelancersPage({
               disponivelParaOportunidades: p.disponivelParaOportunidades,
               totalTurnos: p._count.turnos,
               totalEmpresas: p._count.vinculos,
+              fotoDataUrl: fotosDataUrl[i],
             }}
           />
         ))}

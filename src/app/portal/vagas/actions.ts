@@ -68,3 +68,51 @@ export async function candidatarSe(vagaId: number): Promise<CandidatarSeResultad
   revalidatePath("/portal/vagas");
   return { sucesso: true, match };
 }
+
+async function extraMarcadoDaPessoa(extraMarcadoId: number) {
+  const sessao = await requirePessoaComTermosAceitos();
+  const extra = await prisma.extraMarcado.findUnique({ where: { id: extraMarcadoId } });
+  if (!extra || extra.pessoaId !== sessao.pessoaId) {
+    throw new Error("Esse Extra Marcado não pertence a esta pessoa.");
+  }
+  return extra;
+}
+
+/** O "aperto de mãos" 🤝 do lado da pessoa — só agora, com os DOIS lados
+ * confirmados, o VinculoPessoaEmpresa nasce de verdade (antes disso ela
+ * não conseguia bater CPF no totem dessa empresa ainda). A tela que chama
+ * isso é responsável por mostrar o aviso de reputação ANTES do clique —
+ * ver AlertaExtraMarcado no Portal — porque não ter aviso nenhum não seria
+ * justo: faltar depois de confirmar aqui vira falta automática (ver
+ * marcarFaltasExtraMarcado, src/lib/fechamento-automatico.ts). */
+export async function confirmarExtraMarcado(extraMarcadoId: number) {
+  const extra = await extraMarcadoDaPessoa(extraMarcadoId);
+  if (extra.status !== "AGUARDANDO_PESSOA") {
+    throw new Error("Esse Extra Marcado não está mais esperando confirmação.");
+  }
+
+  await prisma.$transaction([
+    prisma.extraMarcado.update({
+      where: { id: extraMarcadoId },
+      data: { status: "CONFIRMADO", confirmadoPessoaEm: new Date() },
+    }),
+    prisma.vinculoPessoaEmpresa.upsert({
+      where: { pessoaId_empresaId: { pessoaId: extra.pessoaId, empresaId: extra.empresaId } },
+      update: {},
+      create: { pessoaId: extra.pessoaId, empresaId: extra.empresaId },
+    }),
+  ]);
+
+  revalidatePath("/portal/vagas");
+}
+
+/** Ela decide não ir — nunca vira falta (falta automática só existe pra
+ * quem confirmou e depois não apareceu, ver StatusExtraMarcado no schema). */
+export async function recusarExtraMarcado(extraMarcadoId: number) {
+  const extra = await extraMarcadoDaPessoa(extraMarcadoId);
+  if (extra.status !== "AGUARDANDO_PESSOA") {
+    throw new Error("Esse Extra Marcado não está mais esperando confirmação.");
+  }
+  await prisma.extraMarcado.update({ where: { id: extraMarcadoId }, data: { status: "CANCELADO" } });
+  revalidatePath("/portal/vagas");
+}
