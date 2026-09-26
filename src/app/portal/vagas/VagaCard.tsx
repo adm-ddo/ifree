@@ -57,9 +57,12 @@ export default function VagaCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
           {vaga.logoUrl ? (
+            // Nunca aponta direto pro blob (é privado, o navegador do
+            // freelancer não consegue carregar) — passa pela rota que
+            // repassa a imagem (ver src/app/vagas/[id]/logo/route.ts).
             // eslint-disable-next-line @next/next/no-img-element -- blob privado de tamanho variável, sem otimização do next/image aqui
             <img
-              src={vaga.logoUrl}
+              src={`/vagas/${vaga.id}/logo`}
               alt=""
               className="h-11 w-11 rounded-2xl object-cover shrink-0 border border-stone-100"
             />

@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { atualizarMeusDados } from "./actions";
+import { useState, useTransition } from "react";
+import { atualizarMeusDados, solicitarTrocaEmail } from "./actions";
 import { detectarTipoChavePix, LABEL_TIPO_CHAVE_PIX } from "@/lib/documento";
 import { MEIOS_TRANSPORTE } from "@/lib/transporte";
 
@@ -23,9 +23,30 @@ type Dados = {
 
 type EnderecoAuto = { endereco: string; bairro: string; cidade: string };
 
-export default function MeusDadosForm({ dadosIniciais }: { dadosIniciais: Dados }) {
-  const [state, formAction, pending] = useActionState(atualizarMeusDados, undefined);
+/** E-mail e o resto dos dados pessoais num botão/form só (pedido do
+ * Thiago em 2026-09-26: "não tem por que o e-mail ficar num campo
+ * separado" — antes disso era TrocarEmailForm.tsx à parte, removido). O
+ * e-mail continua com fluxo PRÓPRIO por baixo, mesmo estando na mesma
+ * tela: ele não é sobrescrito na hora feito o resto dos campos — só troca
+ * de verdade quando a pessoa clicar no link de confirmação mandado pro
+ * endereço NOVO (ver solicitarTrocaEmail em ./actions.ts). Por isso o
+ * submit chama as duas actions em sequência (nunca via useActionState,
+ * que só suporta uma action por form): sempre salva o resto dos dados, e
+ * só dispara a solicitação de troca quando o campo de e-mail realmente
+ * mudou. */
+export default function MeusDadosForm({
+  dadosIniciais,
+  emailAtual,
+}: {
+  dadosIniciais: Dados;
+  emailAtual: string | null;
+}) {
   const [aberto, setAberto] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  const [avisoEmail, setAvisoEmail] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState(false);
+  const [email, setEmail] = useState(emailAtual ?? "");
   const [chavePix, setChavePix] = useState(dadosIniciais.chavePix);
   const [cep, setCep] = useState(dadosIniciais.cep);
   const [enderecoAuto, setEnderecoAuto] = useState<EnderecoAuto>({
@@ -40,6 +61,12 @@ export default function MeusDadosForm({ dadosIniciais }: { dadosIniciais: Dados 
   // primeira montagem (ex.: página se atualiza sozinha após salvar outro
   // card desta mesma tela) — sem isso o campo ficava preso no valor de
   // quando a tela abriu.
+  const [emailAnterior, setEmailAnterior] = useState(emailAtual);
+  if (emailAtual !== emailAnterior) {
+    setEmailAnterior(emailAtual);
+    setEmail(emailAtual ?? "");
+  }
+
   const [chavePixAnterior, setChavePixAnterior] = useState(dadosIniciais.chavePix);
   if (dadosIniciais.chavePix !== chavePixAnterior) {
     setChavePixAnterior(dadosIniciais.chavePix);
@@ -82,28 +109,76 @@ export default function MeusDadosForm({ dadosIniciais }: { dadosIniciais: Dados 
     }
   }
 
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setErro(null);
+    setAvisoEmail(null);
+    setSucesso(false);
+
+    startTransition(async () => {
+      const resultadoDados = await atualizarMeusDados(undefined, fd);
+      if (resultadoDados?.erro) {
+        setErro(resultadoDados.erro);
+        return;
+      }
+
+      const novoEmail = String(fd.get("email") ?? "").trim();
+      if (novoEmail && novoEmail !== (emailAtual ?? "")) {
+        const fdEmail = new FormData();
+        fdEmail.set("novoEmail", novoEmail);
+        const resultadoEmail = await solicitarTrocaEmail(undefined, fdEmail);
+        if (resultadoEmail?.erro) {
+          setErro(`Dados salvos, mas não deu pra trocar o e-mail: ${resultadoEmail.erro}`);
+          return;
+        }
+        setAvisoEmail(
+          "Enviamos um link de confirmação pro e-mail novo — clique nele pra concluir a troca. O e-mail atual continua valendo até você confirmar."
+        );
+      }
+      setSucesso(true);
+    });
+  }
+
   if (!aberto) {
     return (
-      <button
-        type="button"
-        onClick={() => setAberto(true)}
-        className="text-sm text-brand-700 hover:underline self-start"
-      >
-        ✏️ Editar dados pessoais e de contato
-      </button>
+      <div className="flex flex-col gap-1.5">
+        {!emailAtual && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            ⚠️ Sem e-mail (nem data de nascimento) cadastrado, seu perfil pode ficar bloqueado se você
+            trabalhar em outra empresa pelo iFREE. Vale completar.
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => setAberto(true)}
+          className="text-sm text-brand-700 hover:underline self-start"
+        >
+          ✏️ Editar dados pessoais e de contato
+        </button>
+      </div>
     );
   }
 
   return (
     <form
-      action={formAction}
-      // Sem isso, o React 19 reseta o form nativamente após toda submissão
-      // bem-sucedida, mesmo em campo controlado — ver explicação completa
-      // em SalarioEscalaForm.tsx (mesmo bug, corrigido lá primeiro).
-      onReset={(e) => e.preventDefault()}
+      onSubmit={handleSubmit}
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm"
     >
       <h2 className="font-semibold text-navy-900 text-sm">Editar dados de contato</h2>
+
+      <label className="flex flex-col gap-1 text-sm text-stone-700">
+        E-mail
+        <input
+          name="email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoFocus
+          placeholder="seuemail@exemplo.com"
+          className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+      </label>
 
       <label className="flex flex-col gap-1 text-sm text-stone-700">
         Telefone (WhatsApp)
@@ -260,12 +335,17 @@ export default function MeusDadosForm({ dadosIniciais }: { dadosIniciais: Dados 
         </div>
       </div>
 
-      {state?.erro && (
+      {erro && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          {state.erro}
+          {erro}
         </p>
       )}
-      {state?.sucesso && (
+      {avisoEmail && (
+        <p className="text-sm text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">
+          {avisoEmail}
+        </p>
+      )}
+      {sucesso && !avisoEmail && (
         <p className="text-sm text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">
           Dados atualizados.
         </p>

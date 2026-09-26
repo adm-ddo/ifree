@@ -40,6 +40,7 @@ export default async function PessoaMasterPerfilPage({
       cidade: true,
       cep: true,
       fotoUrl: true,
+      fotoPerfilUrl: true,
       biografia: true,
       habilidades: true,
       vagasDesejadas: true,
@@ -60,8 +61,15 @@ export default async function PessoaMasterPerfilPage({
   });
   if (!pessoa) notFound();
 
+  // fotoPerfilUrl (cadastro do Portal/iFREE Conecta) é a foto "de
+  // verdade" hoje — fotoUrl (tirada no totem, no primeiro check-in) só
+  // serve de fallback pra quem nunca passou pelo Portal, mesma prioridade
+  // já usada em outras telas de freelancer. Bug real reportado pelo
+  // Thiago em 2026-09-26: esta tela buscava só fotoUrl, então freelancer
+  // com foto do Conecta aparecia sem foto nenhuma aqui.
+  const fotoParaExibir = pessoa.fotoPerfilUrl ?? pessoa.fotoUrl;
   const [fotoDataUrl, avaliacoesRecebidas] = await Promise.all([
-    pessoa.fotoUrl ? baixarComoDataUrl(pessoa.fotoUrl) : Promise.resolve(null),
+    fotoParaExibir ? baixarComoDataUrl(fotoParaExibir) : Promise.resolve(null),
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: pessoa.id } },
       select: {

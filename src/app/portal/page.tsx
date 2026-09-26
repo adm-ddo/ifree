@@ -8,7 +8,6 @@ import { calcularCompletude } from "@/lib/perfil-completude";
 import { HABILIDADES_SUGERIDAS, VAGAS_SUGERIDAS } from "@/lib/habilidades";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
 import MeusDadosForm from "./MeusDadosForm";
-import TrocarEmailForm from "./TrocarEmailForm";
 import FotoPerfilForm from "./FotoPerfilForm";
 import PerfilProfissionalForm from "./PerfilProfissionalForm";
 import DisponibilidadeToggle from "./DisponibilidadeToggle";
@@ -156,27 +155,24 @@ export default async function PortalHomePage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <TrocarEmailForm emailAtual={pessoa.email} />
-
-        <MeusDadosForm
-          dadosIniciais={{
-            telefone: pessoa.telefone,
-            endereco: pessoa.endereco,
-            numero: pessoa.numero ?? "",
-            complemento: pessoa.complemento ?? "",
-            bairro: pessoa.bairro ?? "",
-            cep: pessoa.cep ?? "",
-            cidade: pessoa.cidade ?? "",
-            chavePix: pessoa.chavePix ?? "",
-            rg: pessoa.rg ?? "",
-            dataNascimento: pessoa.dataNascimento ? pessoa.dataNascimento.toISOString().slice(0, 10) : "",
-            contatoEmergenciaNome: pessoa.contatoEmergenciaNome ?? "",
-            contatoEmergenciaTelefone: pessoa.contatoEmergenciaTelefone ?? "",
-            meiosTransporte: pessoa.meiosTransporte,
-          }}
-        />
-      </div>
+      <MeusDadosForm
+        emailAtual={pessoa.email}
+        dadosIniciais={{
+          telefone: pessoa.telefone,
+          endereco: pessoa.endereco,
+          numero: pessoa.numero ?? "",
+          complemento: pessoa.complemento ?? "",
+          bairro: pessoa.bairro ?? "",
+          cep: pessoa.cep ?? "",
+          cidade: pessoa.cidade ?? "",
+          chavePix: pessoa.chavePix ?? "",
+          rg: pessoa.rg ?? "",
+          dataNascimento: pessoa.dataNascimento ? pessoa.dataNascimento.toISOString().slice(0, 10) : "",
+          contatoEmergenciaNome: pessoa.contatoEmergenciaNome ?? "",
+          contatoEmergenciaTelefone: pessoa.contatoEmergenciaTelefone ?? "",
+          meiosTransporte: pessoa.meiosTransporte,
+        }}
+      />
 
       <SugestaoInstalarApp />
 
