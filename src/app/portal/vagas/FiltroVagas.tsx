@@ -9,6 +9,7 @@ type Item = {
   cargo: string;
   categoria: CategoriaVaga;
   logoUrl: string | null;
+  possibilidadeEfetivacao: boolean;
   empresaNome: string;
   empresaCidade: string | null;
   descricao: string;
@@ -118,6 +119,7 @@ export default function FiltroVagas({ itens }: { itens: Item[] }) {
                 cargo: vaga.cargo,
                 categoria: vaga.categoria,
                 logoUrl: vaga.logoUrl,
+                possibilidadeEfetivacao: vaga.possibilidadeEfetivacao,
                 empresaNome: vaga.empresaNome,
                 empresaCidade: vaga.empresaCidade,
                 descricao: vaga.descricao,

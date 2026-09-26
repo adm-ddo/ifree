@@ -31,6 +31,7 @@ export default function VagaCard({
     cargo: string;
     categoria: CategoriaVaga;
     logoUrl: string | null;
+    possibilidadeEfetivacao: boolean;
     empresaNome: string;
     empresaCidade: string | null;
     descricao: string;
@@ -90,6 +91,11 @@ export default function VagaCard({
         {vaga.turnoNoite && (
           <span className="rounded-full bg-navy-50 border border-navy-200 text-navy-700 text-[11px] px-2.5 py-1">
             🌙 Noite
+          </span>
+        )}
+        {vaga.possibilidadeEfetivacao && (
+          <span className="rounded-full bg-brand-50 border border-brand-200 text-brand-700 text-[11px] font-medium px-2.5 py-1">
+            📈 Chance de efetivação
           </span>
         )}
       </div>

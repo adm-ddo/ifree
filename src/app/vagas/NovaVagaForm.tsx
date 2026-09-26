@@ -36,6 +36,7 @@ async function comprimirImagem(arquivo: File): Promise<string> {
 
 export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao: string }) {
   const [aberto, setAberto] = useState(false);
+  const [mostrarSucesso, setMostrarSucesso] = useState(false);
   const [state, formAction, pending] = useActionState(criarVaga, undefined);
   const [categoria, setCategoria] = useState<CategoriaVaga>("OUTRO");
   const [tipoImagem, setTipoImagem] = useState<"ICONE" | "LOGO">("ICONE");
@@ -43,15 +44,43 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
   const [erroLogo, setErroLogo] = useState<string | null>(null);
   const inputLogoRef = useRef<HTMLInputElement>(null);
 
+  // Antes disso, depois de publicar a tela "travava" — o form ficava
+  // aberto do mesmo jeito, sem nenhum sinal de que funcionou. Reage à
+  // mudança de `state` durante a própria renderização (mesmo padrão já
+  // usado em ExtraDiarioForm/DisponibilidadeToggle, evita useEffect):
+  // fecha o formulário, limpa os campos de escolha visual e mostra um
+  // aviso de sucesso até a pessoa decidir publicar outra.
+  const [stateAnterior, setStateAnterior] = useState(state);
+  if (state !== stateAnterior) {
+    setStateAnterior(state);
+    if (state?.sucesso) {
+      setAberto(false);
+      setMostrarSucesso(true);
+      setCategoria("OUTRO");
+      setTipoImagem("ICONE");
+      setLogoPreview(null);
+    }
+  }
+
   if (!aberto) {
     return (
-      <button
-        type="button"
-        onClick={() => setAberto(true)}
-        className="rounded-lg border border-dashed border-stone-300 text-stone-600 hover:border-brand-400 hover:text-brand-700 text-sm px-4 py-3 text-center transition-colors"
-      >
-        + Publicar nova vaga
-      </button>
+      <div className="flex flex-col gap-2">
+        {mostrarSucesso && (
+          <p className="text-sm text-brand-700 bg-brand-50 border border-brand-200 rounded-lg px-3 py-2">
+            ✅ Vaga anunciada com sucesso!
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setMostrarSucesso(false);
+            setAberto(true);
+          }}
+          className="rounded-lg border border-dashed border-stone-300 text-stone-600 hover:border-brand-400 hover:text-brand-700 text-sm px-4 py-3 text-center transition-colors"
+        >
+          + Publicar nova vaga
+        </button>
+      </div>
     );
   }
 
@@ -214,6 +243,15 @@ export default function NovaVagaForm({ localizacaoPadrao }: { localizacaoPadrao:
       </div>
 
       <TurnoCheckboxes />
+
+      <label className="flex items-center gap-2 text-sm text-stone-700">
+        <input
+          type="checkbox"
+          name="possibilidadeEfetivacao"
+          className="h-4 w-4 accent-brand-600"
+        />
+        📈 Com possibilidade de efetivação (virar CLT depois)
+      </label>
 
       <HabilidadesPicker nome="habilidadesProcuradas" />
 

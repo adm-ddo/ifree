@@ -137,12 +137,12 @@ export default async function PortalHomePage() {
   const completude = calcularCompletude(pessoa);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 -mx-4 sm:mx-0 bg-navy-900 sm:rounded-3xl px-4 sm:px-6 py-6 sm:py-8">
       <div className="flex items-center gap-4">
         <FotoPerfilForm fotoDataUrl={fotoDataUrl} />
         <div>
-          <h1 className="text-2xl font-semibold text-navy-900">Olá, {pessoa.nome.split(" ")[0]}</h1>
-          <p className="text-stone-600 mt-1 text-sm">
+          <h1 className="text-2xl font-semibold text-white">Olá, {pessoa.nome.split(" ")[0]}</h1>
+          <p className="text-navy-300 mt-1 text-sm">
             {LABEL_TIPO_DOCUMENTO[pessoa.tipoDocumento]}{" "}
             {formatarDocumento(pessoa.tipoDocumento, pessoa.documento)} · {pessoa.telefone}
             {pessoa.chavePix && pessoa.tipoChavePix && (

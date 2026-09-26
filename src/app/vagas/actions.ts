@@ -6,7 +6,7 @@ import { normalizarTags } from "@/lib/habilidades";
 import { uploadDataUrl } from "@/lib/blob";
 import { revalidatePath } from "next/cache";
 
-export type NovaVagaState = { erro?: string } | undefined;
+export type NovaVagaState = { erro?: string; sucesso?: boolean } | undefined;
 
 const CATEGORIAS_VALIDAS = ["RESTAURANTE", "EVENTO", "OUTRO"] as const;
 
@@ -28,6 +28,7 @@ export async function criarVaga(
   const turnoDia = formData.get("turnoDia") === "on";
   const turnoNoite = formData.get("turnoNoite") === "on";
   const logoDataUrl = String(formData.get("logoDataUrl") ?? "").trim();
+  const possibilidadeEfetivacao = formData.get("possibilidadeEfetivacao") === "on";
 
   if (!cargo) return { erro: "Informe o cargo da vaga." };
   if (cargo.length > 100) return { erro: "O cargo pode ter no máximo 100 caracteres." };
@@ -50,6 +51,7 @@ export async function criarVaga(
       cargo,
       categoria,
       logoUrl,
+      possibilidadeEfetivacao,
       descricao,
       localizacao: localizacao || null,
       nomeFantasia: nomeFantasia || null,
@@ -61,6 +63,7 @@ export async function criarVaga(
   });
 
   revalidatePath("/vagas");
+  return { sucesso: true };
 }
 
 async function vagaDaEmpresa(vagaId: number) {
