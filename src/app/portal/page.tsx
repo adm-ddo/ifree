@@ -13,6 +13,7 @@ import FotoPerfilForm from "./FotoPerfilForm";
 import PerfilProfissionalForm from "./PerfilProfissionalForm";
 import DisponibilidadeToggle from "./DisponibilidadeToggle";
 import IndicacaoCard from "./IndicacaoCard";
+import SugestaoInstalarApp from "./SugestaoInstalarApp";
 
 const LABEL_STATUS_TURNO: Record<string, string> = {
   ABERTO: "Em andamento",
@@ -154,6 +155,8 @@ export default async function PortalHomePage() {
           </p>
         </div>
       </div>
+
+      <SugestaoInstalarApp />
 
       {conversas.length > 0 && (
         <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-2">

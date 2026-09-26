@@ -10,14 +10,13 @@ export default function EsqueciSenhaForm() {
   const [state, formAction, pending] = useActionState(solicitarRecuperacaoSenhaPessoa, undefined);
   const [cpf, setCpf] = useState("");
 
-  if (state?.sucesso) {
+  if (state && "sucesso" in state && state.sucesso) {
     return (
       <div className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm w-full max-w-md">
         <h1 className="text-xl font-semibold text-navy-900">Verifique seu e-mail</h1>
         <p className="text-sm text-stone-600">
-          Se esse CPF tiver acesso configurado, enviamos um link pro
-          e-mail cadastrado pra você criar uma senha nova. O link vale por
-          1 hora.
+          Enviamos as instruções pra <strong className="text-navy-900">{state.emailMascarado}</strong>.
+          O link vale por 1 hora.
         </p>
         <Link href="/portal/entrar" className="text-brand-700 underline text-sm">
           Voltar pro login
@@ -58,9 +57,14 @@ export default function EsqueciSenhaForm() {
 
       <CaptchaWidget />
 
-      {state?.erro && (
+      {state && "erro" in state && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          {state.erro}
+          {state.erro}{" "}
+          {(state.naoEncontrado || state.semAcesso) && (
+            <Link href="/portal/cadastrar-acesso" className="underline font-medium">
+              {state.naoEncontrado ? "Fazer novo cadastro" : "Criar minha senha"}
+            </Link>
+          )}
         </p>
       )}
 

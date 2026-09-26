@@ -1,7 +1,26 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { Logo } from "@/components/Logo";
 import { getSessaoPessoa } from "@/lib/auth-pessoa";
 import { logoutPessoa } from "@/lib/auth-pessoa-actions";
+
+/// Faz "Adicionar à tela inicial" a partir de qualquer página /portal/**
+/// instalar como "iFREE Conecta" (ver manifest.webmanifest/route.ts logo
+/// ao lado) em vez do manifest genérico do site inteiro (src/app/manifest.ts,
+/// que herdaria por padrão sem isso). appleWebApp cobre o Safari do iOS,
+/// que ignora bastante coisa do manifest.json e só reage a esses
+/// <meta name="apple-mobile-web-app-*"> específicos.
+export const metadata: Metadata = {
+  manifest: "/portal/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "iFREE Conecta",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/brand/icones-app/icon-180.png",
+  },
+};
 
 /** Header próprio do Portal (iFREE Conecta) — não é o AppHeader do painel
  * admin (ChromeGate esconde ele nessa rota). Precisa funcionar tanto
