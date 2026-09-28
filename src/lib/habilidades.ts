@@ -123,6 +123,20 @@ const CATEGORIAS_CARGOS: readonly CategoriaSugestoes[] = [
     ],
   },
   {
+    categoria: "Saúde e cuidados — idosos e casas de repouso",
+    itens: [
+      "Cuidador(a) de idosos",
+      "Técnico(a) de enfermagem",
+      "Enfermeiro(a)",
+      "Auxiliar de enfermagem",
+      "Cuidador(a) domiciliar (home care)",
+      "Acompanhante hospitalar",
+      "Fisioterapeuta",
+      "Terapeuta ocupacional",
+      "Auxiliar de cuidados pessoais",
+    ],
+  },
+  {
     categoria: "Administrativo",
     itens: ["Auxiliar administrativo", "Assistente financeiro", "Financeiro"],
   },
