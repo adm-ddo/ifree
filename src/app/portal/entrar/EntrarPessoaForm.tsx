@@ -16,8 +16,14 @@ export default function EntrarPessoaForm() {
       className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm w-full max-w-sm"
     >
       <div>
+        <span className="inline-block text-[11px] font-bold uppercase tracking-wide text-brand-700 bg-brand-50 border border-brand-200 rounded-full px-2.5 py-1 mb-2">
+          🧑‍🍳 Acesso do freelancer
+        </span>
         <h1 className="text-xl font-semibold text-navy-900">Entrar no Portal</h1>
-        <p className="text-sm text-stone-500 mt-1">
+        <p className="text-sm text-stone-600 mt-1">
+          Você está na área de quem busca vagas, fecha extras e recebe pelo iFREE.
+        </p>
+        <p className="text-sm text-stone-500 mt-2">
           Já trabalhou por uma empresa no iFREE?{" "}
           <Link href="/portal/cadastrar-acesso" className="text-brand-700 underline">
             Configurar acesso

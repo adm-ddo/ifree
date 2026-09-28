@@ -20,8 +20,14 @@ export default function LoginForm() {
         className="flex flex-col gap-3 rounded-2xl border border-stone-200 bg-white p-6 shadow-sm w-full"
       >
         <div>
+          <span className="inline-block text-[11px] font-bold uppercase tracking-wide text-navy-700 bg-navy-50 border border-navy-200 rounded-full px-2.5 py-1 mb-2">
+            🏢 Acesso da empresa
+          </span>
           <h1 className="text-xl font-semibold text-navy-900">Entrar</h1>
-          <p className="text-sm text-stone-500 mt-1">
+          <p className="text-sm text-stone-600 mt-1">
+            Você está na área de quem contrata, publica vagas e gerencia a equipe.
+          </p>
+          <p className="text-sm text-stone-500 mt-2">
             Ainda não tem conta?{" "}
             <Link href="/cadastro" className="text-brand-700 underline">
               Criar conta
