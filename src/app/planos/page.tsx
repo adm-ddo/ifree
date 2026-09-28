@@ -231,11 +231,14 @@ export default function PlanosPage() {
             <p>
               Sistema completo, liberado sem limitações — um único ecossistema híbrido, atendendo extra e
               CLT juntos, no controle da sua empresa na palma da mão. Você no comando, sem precisar abrir
-              câmera nem perguntar pra ninguém quem está trabalhando e que horas chegou. Depois do 1º ano
-              promocional (R$129,90 fixo), o preço passa a variar pelo tamanho do time: quantas pessoas{" "}
+              câmera nem perguntar pra ninguém quem está trabalhando e que horas chegou. O preço varia pelo
+              tamanho do time: quantas pessoas{" "}
               <strong>trabalharam pelo menos 1 turno/ponto no mês</strong>, extra e CLT somados — não
               importa quanta gente você tem cadastrada no total.
             </p>
+            <span className="promo-tag" style={{ marginTop: 12 }}>
+              🎉 Preços congelados até 31/01/2027 — depois sobe pro valor cheio (riscado)
+            </span>
           </div>
 
           <div className="module-grid" style={{ marginTop: 0, marginBottom: 24 }}>
@@ -265,6 +268,7 @@ export default function PlanosPage() {
               <div className="plan-range">pessoas ativas/mês</div>
               <div className="plan-price">
                 <span className="currency">R$</span>
+                <span className="riscado">229,90</span>
                 <span className="value">129,90</span>
                 <span className="period">/mês</span>
               </div>
@@ -274,6 +278,7 @@ export default function PlanosPage() {
               <div className="plan-range">pessoas ativas/mês</div>
               <div className="plan-price">
                 <span className="currency">R$</span>
+                <span className="riscado">259,90</span>
                 <span className="value">159,90</span>
                 <span className="period">/mês</span>
               </div>
@@ -283,6 +288,7 @@ export default function PlanosPage() {
               <div className="plan-range">pessoas ativas/mês</div>
               <div className="plan-price">
                 <span className="currency">R$</span>
+                <span className="riscado">299,90</span>
                 <span className="value">199,90</span>
                 <span className="period">/mês</span>
               </div>
@@ -292,6 +298,7 @@ export default function PlanosPage() {
               <div className="plan-range">qualquer tamanho de time</div>
               <div className="plan-price">
                 <span className="currency">R$</span>
+                <span className="riscado">399,90</span>
                 <span className="value">299,90</span>
                 <span className="period">/mês</span>
               </div>
@@ -312,16 +319,24 @@ export default function PlanosPage() {
                 </span>
                 <span className="desc">no 1º ano — sobre o valor pago via PIX automático pela plataforma</span>
               </div>
+              <div className="fee-figure" style={{ marginTop: 6 }}>
+                <span className="pct-group">
+                  <span className="pct" style={{ fontSize: "1.5rem" }}>+ R$ 0,69</span>
+                </span>
+                <span className="desc">por PIX enviado — taxa fixa, debitada automático do saldo a cada pagamento</span>
+              </div>
               <span className="promo-tag">🎉 Promocional de lançamento</span>
               <p>
                 Igual maquininha de cartão: sem movimentação, sem taxa. Você deposita o crédito, a
                 gente distribui certinho pra cada pessoa no fechamento do turno/ponto. Depois do 1º
-                ano, a taxa passa a ser 3,99% (o padrão da plataforma).
+                ano, a taxa percentual passa a ser 3,99% (o padrão da plataforma) — a taxa fixa de
+                R$0,69 por PIX enviado não muda.
               </p>
               <div className="example">
                 Exemplo: negócio no plano até 20, pagando <span className="mono">R$ 4.200,00</span> em
-                turnos no mês → <span className="mono">R$ 129,90</span> + 1,99% de R$ 4.200 (
-                <span className="mono">R$ 83,58</span>) = <span className="mono">R$ 213,48</span> no
+                turnos no mês, com 20 PIX enviados → <span className="mono">R$ 129,90</span> + 1,99%
+                de R$ 4.200 (<span className="mono">R$ 83,58</span>) + 20 × R$ 0,69 (
+                <span className="mono">R$ 13,80</span>) = <span className="mono">R$ 227,28</span> no
                 total.
               </div>
             </div>
@@ -379,7 +394,10 @@ export default function PlanosPage() {
         menos 1 turno/ponto fechado na competência, somados juntos — quem sai da folha um mês não pesa
         na conta. Taxa de PIX automático: 1,99% no primeiro ano (promocional), 3,99% depois — incide só
         sobre o valor efetivamente pago via PIX automático pela plataforma, pagamento feito por fora não
-        entra na conta. Fale com a gente pelo WhatsApp {WHATSAPP_NUMERO_FORMATADO}. iFREE ©{" "}
+        entra na conta. Além da taxa percentual, cada PIX enviado tem uma taxa fixa de R$0,69, debitada
+        automaticamente do saldo da conta a cada pagamento feito. Preços por tamanho de time (até 20/30/
+        50/ilimitado) congelados até 31/01/2027 — depois dessa data sobem pro valor cheio (mostrado
+        riscado ao lado de cada um). Fale com a gente pelo WhatsApp {WHATSAPP_NUMERO_FORMATADO}. iFREE ©{" "}
         {new Date().getFullYear()}.
       </p>
     </div>
