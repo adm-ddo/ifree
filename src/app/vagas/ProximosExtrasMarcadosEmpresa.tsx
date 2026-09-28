@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatarDataSemHora, inicioDoDiaBrasil } from "@/lib/data";
+import DesmarcarFreeEmpresaBotao from "./DesmarcarFreeEmpresaBotao";
 
 const LABEL_STATUS: Record<string, string> = {
   AGUARDANDO_PESSOA: "🤝 Esperando ela confirmar",
@@ -77,6 +78,7 @@ export default async function ProximosExtrasMarcadosEmpresa({
               >
                 Ver perfil
               </Link>
+              <DesmarcarFreeEmpresaBotao extraMarcadoId={e.id} />
             </span>
           </li>
         ))}
