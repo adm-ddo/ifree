@@ -1,20 +1,25 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import ConvidarParaVagaBotao from "./ConvidarParaVagaBotao";
-
-const DIAS_JANELA = 14;
+import { JANELA_RECENTE_HORAS, JANELA_MAXIMA_HORAS } from "./candidatosCompativeis";
+import LinhaCandidatoCompativel from "./LinhaCandidatoCompativel";
+import CandidatosCompativeisExpandido from "./CandidatosCompativeisExpandido";
 
 /** Mostra os matches "passivos" recentes (perfil compatível, sem
  * candidatura — ver src/lib/match-passivo.ts) pras vagas desta empresa,
  * com um link "Ver perfil" (reputação, habilidades, bio — sem
  * telefone/documento/endereço, já que ela nunca se candidatou e não deu
  * esse consentimento a esta empresa) e um botão de convite de verdade
- * (ConvidarParaVagaBotao). Antes disso era só uma lista de nomes sem
- * nenhuma ação possível (reportado pelo Thiago em 2026-09-26: "fica ali,
- * mas não serve pra nada"). O convite é só pra chamar a atenção dela pra
- * vaga — quem decide se manifestar e procurar a empresa é ELA, o convite
- * não abre conversa nem avisa a empresa de nada (mesma lógica de
- * pedido do Thiago: "a pessoa é que tem que se manifestar").
+ * (ConvidarParaVagaBotao, via LinhaCandidatoCompativel.tsx). Antes disso
+ * era só uma lista de nomes sem nenhuma ação possível (reportado pelo
+ * Thiago em 2026-09-26: "fica ali, mas não serve pra nada"). O convite é
+ * só pra chamar a atenção dela pra vaga — quem decide se manifestar e
+ * procurar a empresa é ELA, o convite não abre conversa nem avisa a
+ * empresa de nada.
+ *
+ * Janela padrão de só {JANELA_RECENTE_HORAS}h (pedido do Thiago em
+ * 2026-09-28: antes eram 14 dias corridos, virando uma lista grande com
+ * gente que já não era tão "recente" assim) — quem quiser ver mais clica
+ * em "Buscar mais pessoas compatíveis" (CandidatosCompativeisExpandido.tsx,
+ * paginado, até 72h de idade).
  *
  * `perfilHrefBase` (/vagas v1, /v2/vagas v2) monta o link do perfil —
  * mesmo padrão de funcoesHref em NovaVagaForm.tsx pra componente
@@ -26,46 +31,64 @@ export default async function MatchesRecentesBanner({
   empresaId: number;
   perfilHrefBase: string;
 }) {
-  const desde = new Date(Date.now() - DIAS_JANELA * 24 * 60 * 60 * 1000);
+  const agora = Date.now();
+  const desdeRecente = new Date(agora - JANELA_RECENTE_HORAS * 60 * 60 * 1000);
+  const desdeMaxima = new Date(agora - JANELA_MAXIMA_HORAS * 60 * 60 * 1000);
 
-  const matches = await prisma.vagaMatchPassivo.findMany({
-    where: { vaga: { empresaId }, criadoEm: { gte: desde } },
-    orderBy: { criadoEm: "desc" },
-    select: {
-      id: true,
-      convidadoEm: true,
-      pessoa: { select: { id: true, nome: true } },
-      vaga: { select: { id: true, cargo: true } },
-    },
-    take: 20,
-  });
+  const [matches, temMaisAlgum] = await Promise.all([
+    prisma.vagaMatchPassivo.findMany({
+      where: { vaga: { empresaId }, criadoEm: { gte: desdeRecente } },
+      orderBy: { criadoEm: "desc" },
+      select: {
+        id: true,
+        convidadoEm: true,
+        pessoa: { select: { id: true, nome: true } },
+        vaga: { select: { id: true, cargo: true } },
+      },
+    }),
+    // Só pra decidir se vale a pena mostrar o card TODO — sem isso, uma
+    // empresa que nunca teve nenhum match compatível veria um card vazio
+    // com "buscar mais" que nunca acha nada (dentro da janela máxima de
+    // JANELA_MAXIMA_HORAS; match mais velho que isso já não conta mais
+    // aqui, mesmo critério de buscarMaisCandidatosCompativeis).
+    prisma.vagaMatchPassivo.findFirst({
+      where: { vaga: { empresaId }, criadoEm: { gte: desdeMaxima } },
+      select: { id: true },
+    }),
+  ]);
 
-  if (matches.length === 0) return null;
+  if (matches.length === 0 && !temMaisAlgum) return null;
 
   return (
     <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-2">
-      <p className="text-sm font-semibold text-brand-800">
-        🎯 {matches.length} candidato{matches.length > 1 ? "s" : ""}{" "}
-        {matches.length > 1 ? "compatíveis apareceram" : "compatível apareceu"} nos últimos dias
-      </p>
-      <ul className="flex flex-col gap-1">
-        {matches.map((m) => (
-          <li key={m.id} className="flex items-center justify-between gap-2 text-xs">
-            <span className="truncate text-brand-700">
-              {m.pessoa.nome} — {m.vaga.cargo}
-            </span>
-            <span className="flex items-center gap-3 shrink-0">
-              <Link
-                href={`${perfilHrefBase}/${m.vaga.id}/candidatos/${m.pessoa.id}`}
-                className="text-[11px] text-brand-700 underline hover:text-brand-800"
-              >
-                Ver perfil
-              </Link>
-              <ConvidarParaVagaBotao matchPassivoId={m.id} jaConvidado={m.convidadoEm !== null} />
-            </span>
-          </li>
-        ))}
-      </ul>
+      {matches.length > 0 ? (
+        <>
+          <p className="text-sm font-semibold text-brand-800">
+            🎯 {matches.length} candidato{matches.length > 1 ? "s" : ""}{" "}
+            {matches.length > 1 ? "compatíveis apareceram" : "compatível apareceu"} nas últimas 24 horas
+          </p>
+          <ul className="flex flex-col">
+            {matches.map((m) => (
+              <LinhaCandidatoCompativel
+                key={m.id}
+                item={{
+                  id: m.id,
+                  pessoaId: m.pessoa.id,
+                  pessoaNome: m.pessoa.nome,
+                  vagaId: m.vaga.id,
+                  vagaCargo: m.vaga.cargo,
+                  convidadoEm: m.convidadoEm ? m.convidadoEm.toISOString() : null,
+                }}
+                perfilHrefBase={perfilHrefBase}
+              />
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="text-sm text-brand-800">Nenhum candidato compatível novo nas últimas 24 horas.</p>
+      )}
+
+      <CandidatosCompativeisExpandido perfilHrefBase={perfilHrefBase} />
     </div>
   );
 }

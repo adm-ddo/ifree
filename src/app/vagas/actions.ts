@@ -7,6 +7,12 @@ import { uploadDataUrl } from "@/lib/blob";
 import { notificarPessoasSobreVagaNova } from "@/lib/match-passivo";
 import { enviarEmailConviteVaga } from "@/lib/email";
 import { revalidatePath } from "next/cache";
+import {
+  JANELA_RECENTE_HORAS,
+  JANELA_MAXIMA_HORAS,
+  CANDIDATOS_POR_PAGINA,
+  type BuscarMaisCandidatosResultado,
+} from "./candidatosCompativeis";
 
 export type NovaVagaState = { erro?: string; sucesso?: boolean } | undefined;
 
@@ -188,4 +194,51 @@ export async function convidarParaVaga(matchPassivoId: number): Promise<Convidar
   await prisma.vagaMatchPassivo.update({ where: { id: matchPassivoId }, data: { convidadoEm: new Date() } });
   revalidatePath("/vagas");
   return { sucesso: true };
+}
+
+/** Busca paginada de candidatos compatíveis MAIS ANTIGOS que a janela
+ * recente do banner (entre 24h e 72h de idade) — botão "Buscar mais
+ * pessoas compatíveis", só carrega quando clicado (CandidatosCompativeis
+ * Expandido.tsx), 10 por página pra não devolver uma lista gigante de
+ * uma vez. */
+export async function buscarMaisCandidatosCompativeis(pagina: number): Promise<BuscarMaisCandidatosResultado> {
+  const sessao = await requireModulo("vagas");
+  const agora = Date.now();
+  const desde = new Date(agora - JANELA_MAXIMA_HORAS * 60 * 60 * 1000);
+  const ate = new Date(agora - JANELA_RECENTE_HORAS * 60 * 60 * 1000);
+  const paginaValida = Number.isInteger(pagina) && pagina > 0 ? pagina : 1;
+
+  const where = {
+    vaga: { empresaId: sessao.empresaEfetivoId },
+    criadoEm: { gte: desde, lt: ate },
+  } as const;
+
+  const [itens, total] = await Promise.all([
+    prisma.vagaMatchPassivo.findMany({
+      where,
+      orderBy: { criadoEm: "desc" },
+      skip: (paginaValida - 1) * CANDIDATOS_POR_PAGINA,
+      take: CANDIDATOS_POR_PAGINA,
+      select: {
+        id: true,
+        convidadoEm: true,
+        pessoa: { select: { id: true, nome: true } },
+        vaga: { select: { id: true, cargo: true } },
+      },
+    }),
+    prisma.vagaMatchPassivo.count({ where }),
+  ]);
+
+  return {
+    itens: itens.map((m) => ({
+      id: m.id,
+      pessoaId: m.pessoa.id,
+      pessoaNome: m.pessoa.nome,
+      vagaId: m.vaga.id,
+      vagaCargo: m.vaga.cargo,
+      convidadoEm: m.convidadoEm ? m.convidadoEm.toISOString() : null,
+    })),
+    totalPaginas: Math.max(1, Math.ceil(total / CANDIDATOS_POR_PAGINA)),
+    paginaAtual: paginaValida,
+  };
 }
