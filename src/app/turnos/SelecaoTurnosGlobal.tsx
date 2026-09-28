@@ -13,6 +13,10 @@ type TurnoResumoGlobal = {
   valorTotal: number | null;
   status: StatusTurno;
   fechamentoAutomatico: boolean;
+  /// Pagamento retido por duração fora do normal (ver
+  /// Turno.pagamentoRetidoRevisao) — turno some da fila de pagamento até
+  /// alguém corrigir a entrada ou liberar manualmente em /turnos/[id].
+  pagamentoRetidoRevisao: boolean;
   /// Elegível pra corrigir o horário de saída (ver corrigirSaidaTurno em
   /// src/app/turnos/actions.ts) — mostra o atalho direto pra página do
   /// turno, na âncora do formulário.
@@ -127,7 +131,11 @@ export default function SelecaoTurnosGlobal({ turnos }: { turnos: TurnoResumoGlo
         {turnos.map((turno) => (
           <li
             key={turno.id}
-            className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+            className={`rounded-2xl border p-4 shadow-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between ${
+              turno.pagamentoRetidoRevisao
+                ? "border-red-300 bg-red-50"
+                : "border-stone-200 bg-white"
+            }`}
           >
             <label className="flex items-start gap-3 cursor-pointer">
               <input
@@ -139,6 +147,11 @@ export default function SelecaoTurnosGlobal({ turnos }: { turnos: TurnoResumoGlo
               <div>
                 <p className="font-medium text-navy-900 flex items-center gap-1.5 flex-wrap">
                   {turno.pessoaNome}
+                  {turno.pagamentoRetidoRevisao && (
+                    <span className="text-[10px] font-medium uppercase tracking-wide rounded-full border border-red-300 bg-red-100 text-red-700 px-1.5 py-0.5 shrink-0">
+                      🚨 Retido
+                    </span>
+                  )}
                   {turno.modoDiaria && (
                     <span className="text-[10px] font-medium uppercase tracking-wide rounded-full border border-amber-200 bg-amber-50 text-amber-700 px-1.5 py-0.5 shrink-0">
                       Diária
@@ -179,6 +192,14 @@ export default function SelecaoTurnosGlobal({ turnos }: { turnos: TurnoResumoGlo
               <span className={`text-xs rounded-full border px-2 py-1 ${STATUS_CLASSE[turno.status]}`}>
                 {STATUS_LABEL[turno.status]}
               </span>
+              {turno.pagamentoRetidoRevisao && (
+                <Link
+                  href={`/turnos/${turno.id}#pagamento-retido`}
+                  className="text-xs text-red-700 hover:underline font-semibold"
+                >
+                  🚨 Revisar
+                </Link>
+              )}
               {turno.podeCorrigirSaida && (
                 <Link
                   href={`/turnos/${turno.id}#corrigir-saida`}

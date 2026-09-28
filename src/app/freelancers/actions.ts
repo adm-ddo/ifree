@@ -9,6 +9,7 @@ import { instanteBrasil } from "@/lib/data";
 import { STATUS_PENDENTES } from "@/lib/financeiro";
 import { classificarTurno } from "@/lib/turno";
 import { calcularMinutosPonto, resolverModoPausaClt } from "@/lib/ponto";
+import type { TurnoPredefinido } from "@/generated/prisma/enums";
 
 export type ConverterVinculoState = { erro: string } | undefined;
 
@@ -213,6 +214,43 @@ export async function alternarAtivoVinculo(pessoaId: number, ativo: boolean) {
   revalidatePath("/freelancers");
 }
 
+/** Libera uma pessoa bloqueada automaticamente pelo totem por suspeita de
+ * fraude (ver VinculoPessoaEmpresa.bloqueadoSuspeitaFraudeEm e
+ * iniciarTurno, src/app/t/[token]/actions.ts). Diferente de
+ * alternarAtivoVinculo acima (bloqueio manual do dono, sem prazo): aqui
+ * também ADICIONA o turno que gerou o bloqueio a turnosPermitidosEntrada,
+ * senão a próxima entrada dela nesse mesmo horário bloquearia nome. */
+export async function liberarBloqueioSuspeitaFraude(pessoaId: number): Promise<{ erro?: string }> {
+  const sessao = await requireModulo("freelancers");
+
+  const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
+    where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
+  });
+  if (!vinculo) {
+    return { erro: "Esse freelancer não pertence a esta empresa." };
+  }
+  if (!vinculo.bloqueadoSuspeitaFraudeEm) {
+    return { erro: "Essa pessoa não está bloqueada por suspeita de fraude." };
+  }
+
+  const permitidos = new Set(vinculo.turnosPermitidosEntrada);
+  if (vinculo.categoriaBloqueadaEntrada) permitidos.add(vinculo.categoriaBloqueadaEntrada);
+
+  await prisma.vinculoPessoaEmpresa.update({
+    where: { id: vinculo.id },
+    data: {
+      bloqueadoSuspeitaFraudeEm: null,
+      categoriaBloqueadaEntrada: null,
+      turnosPermitidosEntrada: [...permitidos],
+    },
+  });
+
+  revalidatePath("/freelancers");
+  revalidatePath(`/freelancers/${pessoaId}`);
+  revalidatePath(`/v2/freelancers/${pessoaId}`);
+  return {};
+}
+
 /** Dono está ciente do risco de vínculo CLT (3+ turnos na semana sem
  * declaração de ciência gerada, ver src/lib/riscoClt.ts) e decidiu
  * assumir o risco por enquanto, em vez de gerar a declaração agora. Tira
@@ -246,7 +284,7 @@ export async function dispensarRiscoClt(pessoaId: number) {
  * motivo de converterParaClt acima (chamada direta, sem <form>). */
 export async function atualizarTurnoPredefinido(
   pessoaId: number,
-  turnoPredefinido: "MANHA" | "NOITE" | "LIVRE"
+  turnoPredefinido: TurnoPredefinido
 ): Promise<ConverterVinculoState> {
   const sessao = await requireModulo("freelancers");
 

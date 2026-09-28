@@ -10,6 +10,8 @@ import { corGrupoPagamento } from "@/lib/grupo-pagamento";
 import { marcarTurnoDobrado } from "@/app/turnos/actions";
 import CorrigirFuncaoForm from "@/app/turnos/[id]/CorrigirFuncaoForm";
 import CorrigirSaidaForm from "@/app/turnos/[id]/CorrigirSaidaForm";
+import CorrigirEntradaForm from "@/app/turnos/[id]/CorrigirEntradaForm";
+import LiberarPagamentoRetidoButton from "@/app/turnos/[id]/LiberarPagamentoRetidoButton";
 import AvaliarExtraCard from "@/app/turnos/[id]/AvaliarExtraCard";
 import ConverterVinculoButton from "@/components/ConverterVinculoButton";
 
@@ -111,6 +113,44 @@ export default async function V2TurnoDetalhePage({ params }: { params: Promise<{
           )}
         </div>
       </div>
+
+      {turno.pagamentoRetidoRevisao && (
+        <div id="pagamento-retido" className="flex flex-col gap-3 scroll-mt-4">
+          <div className="rounded-2xl border border-red-300 bg-red-50 px-3.5 py-3 text-sm text-red-900">
+            🚨 <strong>Pagamento retido pra revisão</strong> — este turno teve uma
+            duração fora do normal
+            {turno.minutosArredondados !== null && (
+              <>
+                {" "}
+                ({Math.floor(turno.minutosArredondados / 60)}h
+                {String(turno.minutosArredondados % 60).padStart(2, "0")}min)
+              </>
+            )}
+            . Nenhum pagamento foi criado ou enviado automaticamente. Confira
+            se a entrada bateu certo — se não bateu, corrija abaixo antes de
+            liberar.
+          </div>
+          {turno.correcaoEntradaEm && (
+            <Aviso>
+              Entrada corrigida manualmente pela empresa ({turno.correcaoEntradaPorEmail}) em{" "}
+              {formatarDataHora(turno.correcaoEntradaEm)}
+              {turno.horaEntradaOriginal && (
+                <>
+                  {" "}
+                  — o sistema tinha registrado a entrada às{" "}
+                  <strong>{formatarDataHora(turno.horaEntradaOriginal)}</strong>
+                </>
+              )}
+              .
+            </Aviso>
+          )}
+          <CorrigirEntradaForm
+            turnoId={turno.id}
+            horaEntradaAtualValue={paraDatetimeLocalBrasil(turno.horaEntrada)}
+          />
+          <LiberarPagamentoRetidoButton turnoId={turno.id} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="rounded-2xl bg-white border border-stone-200 p-3.5 flex flex-col gap-2">

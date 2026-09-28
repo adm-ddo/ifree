@@ -43,18 +43,21 @@ export default function TurnoPredefinidoSelect({
         <span className="font-semibold text-navy-900">Turno fixo</span>
         <span className="text-xs text-stone-500">
           Ajuda o fechamento automático a saber qual horário de corte usar
-          se essa pessoa esquecer de bater saída. Livre deixa o sistema
-          inferir pelo horário que ela entrou.
+          se essa pessoa esquecer de bater saída, e liga a checagem de
+          horário incomum na entrada do totem (avisa/bloqueia quem bate
+          entrada muito fora do turno de sempre). Livre desliga as duas
+          coisas — o sistema só infere pelo horário que ela entrou.
         </span>
         <select
           value={valor}
           onChange={(e) => mudar(e.target.value as TurnoPredefinido)}
           disabled={pending}
-          className="border border-stone-300 rounded-lg px-3 py-2 max-w-[10rem] focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
+          className="border border-stone-300 rounded-lg px-3 py-2 max-w-[12rem] focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"
         >
           <option value="LIVRE">Livre</option>
-          <option value="MANHA">☀️ Turno do dia</option>
-          <option value="NOITE">🌙 Turno da noite</option>
+          <option value="MANHA">☀️ Manhã</option>
+          <option value="NOITE">🌙 Tarde/noite</option>
+          <option value="MADRUGADA">🌌 Madrugada</option>
         </select>
       </label>
       {erro && (

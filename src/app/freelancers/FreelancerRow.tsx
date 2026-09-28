@@ -18,6 +18,7 @@ type Freelancer = {
   temFoto: boolean;
   sexo: Sexo | null;
   ativo: boolean;
+  bloqueadoSuspeitaFraude: boolean;
 };
 
 export default function FreelancerRow({ freelancer }: { freelancer: Freelancer }) {
@@ -32,6 +33,9 @@ export default function FreelancerRow({ freelancer }: { freelancer: Freelancer }
             {freelancer.nome}{" "}
             {!freelancer.ativo && (
               <span className="text-xs text-red-600 font-normal">(desativado)</span>
+            )}
+            {freelancer.bloqueadoSuspeitaFraude && (
+              <span className="text-xs text-red-600 font-semibold">🚨 bloqueado por suspeita de fraude</span>
             )}
           </p>
           <p className="text-xs text-stone-500">

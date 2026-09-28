@@ -52,6 +52,37 @@ export async function buscarFeriasAlerta(
   }
 }
 
+/** Turnos com pagamento retido pra revisão (duração fora do normal — ver
+ * Turno.pagamentoRetidoRevisao e LIMIAR_DURACAO_SUSPEITA_MIN em
+ * src/lib/turno.ts). Pedido do Thiago em 2026-09-28 depois de um turno de
+ * ~16h30 ter sido pago automático por engano (entrada perdida virou
+ * "saída" do dia seguinte) — precisa aparecer bem visível, é dinheiro
+ * parado esperando decisão. */
+export async function buscarTurnosRetidosAlerta(empresaId: number): Promise<number> {
+  try {
+    return await prisma.turno.count({ where: { empresaId, pagamentoRetidoRevisao: true } });
+  } catch (err) {
+    console.error("Falha ao checar turnos retidos pro aviso do topo (v2):", err);
+    return 0;
+  }
+}
+
+/** Pessoas bloqueadas automaticamente no totem por bater entrada fora dos
+ * turnos permitidos (ver VinculoPessoaEmpresa.bloqueadoSuspeitaFraudeEm e
+ * iniciarTurno em src/app/t/[token]/actions.ts). Pedido do Thiago em
+ * 2026-09-28, junto com turnosRetidos acima — linha de defesa NA entrada,
+ * antes do turno começar. */
+export async function buscarBloqueiosSuspeitaFraudeAlerta(empresaId: number): Promise<number> {
+  try {
+    return await prisma.vinculoPessoaEmpresa.count({
+      where: { empresaId, bloqueadoSuspeitaFraudeEm: { not: null } },
+    });
+  } catch (err) {
+    console.error("Falha ao checar bloqueios por suspeita de fraude pro aviso do topo (v2):", err);
+    return 0;
+  }
+}
+
 export async function buscarDenunciasNovasAlerta(empresaId: number): Promise<number> {
   try {
     return await prisma.denuncia.count({ where: { empresaId, status: "RECEBIDO" } });
@@ -220,6 +251,8 @@ export type DadosLayoutV2 = {
   experienciaAlerta: { vencidos: number; vencendoEmBreve: number } | null;
   assinaturaAlerta: { diasRestantes: number; emTrial: boolean; horasParaBloqueio: number | null } | null;
   denunciasNovas: number;
+  turnosRetidos: number;
+  bloqueiosSuspeitaFraude: number;
   /// Módulos liberados pro usuário atual nesta empresa (ver
   /// src/lib/modulosEquipe.ts) — usado só pra filtrar a nav (esconder
   /// item que ia dar redirect de qualquer jeito). Master sempre recebe a
@@ -252,6 +285,8 @@ async function buscarDadosLayoutV2SemCache(
     experienciaAlerta,
     assinaturaAlerta,
     empresaPlano,
+    turnosRetidos,
+    bloqueiosSuspeitaFraude,
   ] = await Promise.all([
     usuarioEhResponsavelEtica(usuarioId, empresaId, isMaster),
     usuarioEhResponsavelGed(usuarioId, empresaId, isMaster),
@@ -262,6 +297,8 @@ async function buscarDadosLayoutV2SemCache(
     buscarExperienciaAlerta(empresaId),
     buscarAssinaturaAlerta(empresaId),
     prisma.empresa.findUnique({ where: { id: empresaId }, select: { planoEmpresa: true } }),
+    buscarTurnosRetidosAlerta(empresaId),
+    buscarBloqueiosSuspeitaFraudeAlerta(empresaId),
   ]);
   // Mesmo motivo do v1: só busca depois de saber responsavelEtica/Pgr, pra
   // não vazar nem a existência de denúncia/PGR pra quem não tem acesso.
@@ -292,6 +329,8 @@ async function buscarDadosLayoutV2SemCache(
     experienciaAlerta,
     assinaturaAlerta,
     denunciasNovas,
+    turnosRetidos,
+    bloqueiosSuspeitaFraude,
     pgrAlerta,
     modulosPermitidos,
     planoEmpresa: empresaPlano?.planoEmpresa ?? "COMPLETO",

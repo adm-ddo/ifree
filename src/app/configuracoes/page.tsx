@@ -41,6 +41,7 @@ export default async function ConfiguracoesPage() {
         diariaLimiarCompletaMin: true,
         horarioInicioDiaMin: true,
         horarioInicioNoiteMin: true,
+        horarioInicioMadrugadaMin: true,
         horarioFechamentoDiaMin: true,
         horarioFechamentoNoiteMin: true,
         semanaPagamentoInicioDia: true,
@@ -223,6 +224,7 @@ export default async function ConfiguracoesPage() {
       <HorarioFechamentoForm
         horarioInicioDiaMin={empresa.horarioInicioDiaMin}
         horarioInicioNoiteMin={empresa.horarioInicioNoiteMin}
+        horarioInicioMadrugadaMin={empresa.horarioInicioMadrugadaMin}
         horarioFechamentoDiaMin={empresa.horarioFechamentoDiaMin}
         horarioFechamentoNoiteMin={empresa.horarioFechamentoNoiteMin}
       />

@@ -4,6 +4,18 @@ import { minutosDesdeMeiaNoiteBrasil } from "@/lib/data";
 import { LIMIAR_PAUSA_MIN, DESCONTO_POR_MODO } from "@/lib/pausa";
 import type { ModoPausa, ModoPagamento, TurnoPredefinido } from "@/generated/prisma/enums";
 
+/// Duração (minutos) acima da qual um turno é considerado "fora do
+/// normal" e o pagamento automático fica retido pra revisão manual — ver
+/// Turno.pagamentoRetidoRevisao no schema pro caso real que motivou isso.
+/// 12h (recomendado pelo Thiago em 2026-09-28): pega com folga o caso da
+/// Alice (~16h30) e também retém turno dobrado dia+noite legítimo — o que
+/// é aceitável de propósito, já que turno dobrado hoje só fica com o
+/// desconto de pausa certo depois que o dono marca turnoDobrado
+/// manualmente de qualquer forma (ver marcarTurnoDobrado,
+/// src/app/turnos/actions.ts) — então já precisaria de revisão antes de
+/// pagar certo mesmo sem este limiar.
+export const LIMIAR_DURACAO_SUSPEITA_MIN = 12 * 60;
+
 const TURNO_COM_RELACOES = {
   include: {
     pessoa: {
@@ -158,4 +170,54 @@ export function classificarTurno(
   if (turnoPredefinido === "NOITE") return "NOITE";
   const meioDoCaminho = (horarioInicioDiaMin + horarioInicioNoiteMin) / 2;
   return minutosDesdeMeiaNoiteBrasil(horaEntrada) < meioDoCaminho ? "DIA" : "NOITE";
+}
+
+/// Tolerância (minutos) depois do horário oficial de início de um turno
+/// permitido em que bater entrada não gera nenhum aviso — passado isso, o
+/// totem pede confirmação explícita ("tem certeza que está iniciando um
+/// turno agora?") antes de seguir. 4h, pedido do Thiago em 2026-09-28.
+export const LIMIAR_TOLERANCIA_ENTRADA_MIN = 4 * 60;
+
+type HorariosInicioTurno = {
+  horarioInicioMadrugadaMin: number;
+  horarioInicioDiaMin: number;
+  horarioInicioNoiteMin: number;
+};
+
+/** Classifica um horário de entrada numa das 3 categorias reais de turno
+ * (MADRUGADA/MANHA/NOITE — nunca LIVRE), diferente de classificarTurno
+ * acima (que só distingue DIA/NOITE pro fechamento automático). Cada
+ * categoria "dona" o intervalo do seu horário oficial de início até o
+ * início da próxima categoria mais tarde no dia, de forma circular (ex.:
+ * madrugada 00h, manhã 9h, tarde/noite 16h → tarde/noite dona 16h–24h,
+ * madrugada dona 0h–9h). Usado só pela checagem de horário incomum na
+ * entrada do totem (ver turnosPermitidosEntrada) — nunca no cálculo de
+ * pagamento nem no fechamento automático. */
+export function classificarTurnoEntrada(
+  horaEntrada: Date,
+  horarios: HorariosInicioTurno
+): Exclude<TurnoPredefinido, "LIVRE"> {
+  const minutosAgora = minutosDesdeMeiaNoiteBrasil(horaEntrada);
+  const pontosNaoOrdenados: [Exclude<TurnoPredefinido, "LIVRE">, number][] = [
+    ["MADRUGADA", horarios.horarioInicioMadrugadaMin],
+    ["MANHA", horarios.horarioInicioDiaMin],
+    ["NOITE", horarios.horarioInicioNoiteMin],
+  ];
+  const pontos = pontosNaoOrdenados.sort((a, b) => a[1] - b[1]);
+
+  let escolhido = pontos[pontos.length - 1][0];
+  for (const [nome, min] of pontos) {
+    if (minutosAgora >= min) escolhido = nome;
+  }
+  return escolhido;
+}
+
+/** Minutos decorridos desde o horário oficial de início da categoria já
+ * classificada (ver classificarTurnoEntrada acima), sempre >= 0 — soma
+ * 24h quando a entrada é "antes" do horário no relógio (ex.: início às
+ * 23h, entrada 00h30 do dia seguinte = 90min depois, não negativo). */
+export function calcularDesvioEntradaMin(horaEntrada: Date, horarioInicioMin: number): number {
+  const minutosAgora = minutosDesdeMeiaNoiteBrasil(horaEntrada);
+  const desvio = minutosAgora - horarioInicioMin;
+  return desvio < 0 ? desvio + 24 * 60 : desvio;
 }

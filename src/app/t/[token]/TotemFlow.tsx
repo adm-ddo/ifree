@@ -98,6 +98,16 @@ type Step =
       funcaoId: number;
       funcaoNome: string;
     }
+  | {
+      name: "confirmarHorarioEntrada";
+      pessoaId: number;
+      pessoaNome: string;
+      fotoDataUrl: string;
+      funcaoId: number;
+      funcaoNome: string;
+      assinaturaDataUrl: string;
+      mensagem: string;
+    }
   | { name: "sucessoEntrada"; pessoaNome: string; funcaoNome: string }
   | ({ name: "fotoSaida"; pessoaId: number; pessoaNome: string; turno: TurnoAberto } & DadosPessoa)
   | ({
@@ -509,6 +519,18 @@ export default function TotemFlow({
                 assinaturaDataUrl,
               });
               if ("erro" in res) return setStep({ name: "erro", mensagem: res.erro });
+              if ("precisaConfirmarHorario" in res) {
+                return setStep({
+                  name: "confirmarHorarioEntrada",
+                  pessoaId: step.pessoaId,
+                  pessoaNome: step.pessoaNome,
+                  fotoDataUrl: step.fotoDataUrl,
+                  funcaoId: step.funcaoId,
+                  funcaoNome: step.funcaoNome,
+                  assinaturaDataUrl,
+                  mensagem: res.precisaConfirmarHorario,
+                });
+              }
               setStep({
                 name: "sucessoEntrada",
                 pessoaNome: step.pessoaNome,
@@ -518,6 +540,32 @@ export default function TotemFlow({
           />
           <BotaoCancelar onClick={() => setStep({ name: "documento" })} />
         </div>
+      )}
+
+      {step.name === "confirmarHorarioEntrada" && (
+        <TelaConfirmarHorarioEntrada
+          mensagem={step.mensagem}
+          funcaoNome={step.funcaoNome}
+          onConfirmar={async () => {
+            const res = await iniciarTurno(token, {
+              pessoaId: step.pessoaId,
+              funcaoId: step.funcaoId,
+              fotoDataUrl: step.fotoDataUrl,
+              assinaturaDataUrl: step.assinaturaDataUrl,
+              confirmarHorarioIncomum: true,
+            });
+            if ("erro" in res) return setStep({ name: "erro", mensagem: res.erro });
+            if ("precisaConfirmarHorario" in res) {
+              return setStep({ name: "erro", mensagem: "Não foi possível confirmar o horário — tente de novo." });
+            }
+            setStep({
+              name: "sucessoEntrada",
+              pessoaNome: step.pessoaNome,
+              funcaoNome: step.funcaoNome,
+            });
+          }}
+          onCancelar={() => setStep({ name: "documento" })}
+        />
       )}
 
       {step.name === "sucessoEntrada" && (
@@ -968,6 +1016,63 @@ function TelaTermos({
         className="w-full rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xl font-medium py-4 disabled:opacity-50 transition-colors"
       >
         Continuar para assinatura
+      </button>
+      <BotaoCancelar onClick={onCancelar} />
+    </div>
+  );
+}
+
+/** Horário de entrada fora do normal pra essa pessoa (ver
+ * classificarTurnoEntrada/turnosPermitidosEntrada, src/lib/turno.ts) —
+ * exige ler a pergunta com atenção e marcar o checkbox antes de liberar o
+ * botão, mesmo padrão defensivo de TelaTermos acima, pra não virar um
+ * "continuar" automático que ninguém lê. Pedido do Thiago em 2026-09-28. */
+function TelaConfirmarHorarioEntrada({
+  mensagem,
+  funcaoNome,
+  onConfirmar,
+  onCancelar,
+}: {
+  mensagem: string;
+  funcaoNome: string;
+  onConfirmar: () => void | Promise<void>;
+  onCancelar: () => void;
+}) {
+  const [confirmado, setConfirmado] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+
+  return (
+    <div className="flex flex-col gap-5 items-center w-full max-w-xl">
+      <p className="text-6xl">⏰</p>
+      <h1 className="text-3xl font-semibold text-navy-900">{mensagem}</h1>
+      <p className="text-lg text-stone-600">
+        Função: <strong>{funcaoNome}</strong>
+      </p>
+      <p className="text-base text-stone-500">
+        Esse horário está bem diferente do seu turno normal. Se você está
+        mesmo chegando agora pra trabalhar, confirme abaixo. Se bateu sem
+        querer (ou já trabalhou e só esqueceu de bater a saída antes), toque
+        em cancelar e procure o responsável.
+      </p>
+      <label className="flex items-start gap-3 text-left text-lg text-stone-700 w-full">
+        <input
+          type="checkbox"
+          checked={confirmado}
+          onChange={(e) => setConfirmado(e.target.checked)}
+          className="mt-1 h-7 w-7 shrink-0 accent-brand-600"
+        />
+        Li com atenção e confirmo que estou chegando agora pra iniciar um turno.
+      </label>
+      <button
+        type="button"
+        disabled={!confirmado || enviando}
+        onClick={async () => {
+          setEnviando(true);
+          await onConfirmar();
+        }}
+        className="w-full rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xl font-medium py-4 disabled:opacity-50 transition-colors"
+      >
+        {enviando ? "Confirmando..." : "Confirmar e iniciar turno"}
       </button>
       <BotaoCancelar onClick={onCancelar} />
     </div>

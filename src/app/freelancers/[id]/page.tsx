@@ -11,6 +11,7 @@ import CorrigirFuncaoForm from "@/app/turnos/[id]/CorrigirFuncaoForm";
 import PagamentoForm from "./PagamentoForm";
 import MetaHorasForm from "./MetaHorasForm";
 import TurnoPredefinidoSelect from "./TurnoPredefinidoSelect";
+import BloqueioSuspeitaFraudeCard from "./BloqueioSuspeitaFraudeCard";
 import DadosPessoaForm from "./DadosPessoaForm";
 import ConverterParaCltButton from "./ConverterParaCltButton";
 import ReputacaoCard from "./ReputacaoCard";
@@ -47,6 +48,9 @@ export default async function FreelancerDetalhePage({
         frequenciaPagamento: true,
         cargaHorariaSemanalMin: true,
         turnoPredefinido: true,
+        turnosPermitidosEntrada: true,
+        bloqueadoSuspeitaFraudeEm: true,
+        motivoBloqueioSuspeitaFraude: true,
         pessoa: {
           select: {
             nome: true,
@@ -221,6 +225,15 @@ export default async function FreelancerDetalhePage({
       />
 
       <TurnoPredefinidoSelect pessoaId={pessoaId} valorAtual={vinculo.turnoPredefinido} />
+
+      {vinculo.turnoPredefinido !== "LIVRE" && (
+        <BloqueioSuspeitaFraudeCard
+          pessoaId={pessoaId}
+          turnosPermitidos={vinculo.turnosPermitidosEntrada}
+          bloqueadoEm={vinculo.bloqueadoSuspeitaFraudeEm}
+          motivo={vinculo.motivoBloqueioSuspeitaFraude}
+        />
+      )}
 
       <MetaHorasForm
         pessoaId={pessoaId}

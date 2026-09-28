@@ -282,15 +282,17 @@ export async function atualizarHorarioFechamento(
 
   const horarioInicioDiaMin = paraMinutosHorario(String(formData.get("horarioInicioDia") ?? ""));
   const horarioInicioNoiteMin = paraMinutosHorario(String(formData.get("horarioInicioNoite") ?? ""));
+  const horarioInicioMadrugadaMin = paraMinutosHorario(String(formData.get("horarioInicioMadrugada") ?? ""));
   const horarioFechamentoDiaMin = paraMinutosHorario(String(formData.get("horarioFechamentoDia") ?? ""));
   const horarioFechamentoNoiteMin = paraMinutosHorario(String(formData.get("horarioFechamentoNoite") ?? ""));
   if (
     horarioInicioDiaMin === null ||
     horarioInicioNoiteMin === null ||
+    horarioInicioMadrugadaMin === null ||
     horarioFechamentoDiaMin === null ||
     horarioFechamentoNoiteMin === null
   ) {
-    return { erro: "Informe os quatro horários válidos (HH:MM)." };
+    return { erro: "Informe os cinco horários válidos (HH:MM)." };
   }
   if (horarioInicioDiaMin >= horarioInicioNoiteMin) {
     return { erro: "O início do turno do dia precisa ser antes do início do turno da noite." };
@@ -301,7 +303,13 @@ export async function atualizarHorarioFechamento(
 
   await prisma.empresa.update({
     where: { id: sessao.empresaEfetivoId },
-    data: { horarioInicioDiaMin, horarioInicioNoiteMin, horarioFechamentoDiaMin, horarioFechamentoNoiteMin },
+    data: {
+      horarioInicioDiaMin,
+      horarioInicioNoiteMin,
+      horarioInicioMadrugadaMin,
+      horarioFechamentoDiaMin,
+      horarioFechamentoNoiteMin,
+    },
   });
 
   revalidatePath("/configuracoes");

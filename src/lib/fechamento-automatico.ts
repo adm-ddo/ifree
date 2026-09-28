@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { dataISOBrasil, dataISODoDbDate, inicioDoDiaBrasil, instanteBrasil } from "@/lib/data";
 import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
-import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
+import { processarOuReterPagamentoTurno } from "@/lib/pagamentos/processar";
 import type { TurnoPredefinido } from "@/generated/prisma/enums";
 
 /** Encerra turnos que ninguém bateu saída — chamada pelo Vercel Cron (ver
@@ -131,7 +131,13 @@ export async function fecharTurnosAtrasados(
       },
     });
 
-    await processarPagamentoTurno(turno.id);
+    // processarOuReterPagamentoTurno (em vez de processarPagamentoTurno
+    // direto) retém o pagamento pra revisão manual quando a duração deu
+    // fora do normal — ver Turno.pagamentoRetidoRevisao no schema. Mesmo
+    // risco de duração absurda existe aqui: um turno fechado sozinho pelo
+    // cron também pode ter nascido de uma entrada errada (ver docblock
+    // acima sobre os 3 turnos da DB25).
+    await processarOuReterPagamentoTurno(turno.id, minutosArredondados);
     fechados++;
   }
 

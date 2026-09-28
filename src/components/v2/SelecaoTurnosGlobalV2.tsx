@@ -13,6 +13,7 @@ type TurnoResumoGlobal = {
   valorTotal: number | null;
   status: StatusTurno;
   fechamentoAutomatico: boolean;
+  pagamentoRetidoRevisao: boolean;
   podeCorrigirSaida: boolean;
   modoDiaria: boolean;
   frequenciaSemanal: boolean;
@@ -120,7 +121,9 @@ export default function SelecaoTurnosGlobalV2({ turnos }: { turnos: TurnoResumoG
         {turnos.map((turno) => (
           <li
             key={turno.id}
-            className={`rounded-xl bg-white border-l-4 ${STATUS_STRIPE[turno.status]} p-3.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between`}
+            className={`rounded-xl border-l-4 ${STATUS_STRIPE[turno.status]} p-3.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between ${
+              turno.pagamentoRetidoRevisao ? "bg-red-50" : "bg-white"
+            }`}
           >
             <label className="flex items-start gap-3 cursor-pointer min-w-0">
               <input
@@ -132,6 +135,11 @@ export default function SelecaoTurnosGlobalV2({ turnos }: { turnos: TurnoResumoG
               <div className="min-w-0">
                 <p className="font-bold text-[13px] text-navy-900 flex items-center gap-1.5 flex-wrap">
                   {turno.pessoaNome}
+                  {turno.pagamentoRetidoRevisao && (
+                    <span className="text-[9px] font-bold uppercase tracking-wide rounded-full bg-red-100 text-red-700 px-1.5 py-0.5 shrink-0">
+                      🚨 Retido
+                    </span>
+                  )}
                   {turno.modoDiaria && (
                     <span className="text-[9px] font-bold uppercase tracking-wide rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 shrink-0">
                       Diária
@@ -168,6 +176,11 @@ export default function SelecaoTurnosGlobalV2({ turnos }: { turnos: TurnoResumoG
               <span className={`text-[10px] font-bold rounded-full px-2.5 py-1 ${STATUS_CLASSE[turno.status]}`}>
                 {STATUS_LABEL[turno.status]}
               </span>
+              {turno.pagamentoRetidoRevisao && (
+                <Link href={`/v2/turnos/${turno.id}#pagamento-retido`} className="text-[11px] font-bold text-red-700">
+                  🚨 Revisar
+                </Link>
+              )}
               {turno.podeCorrigirSaida && (
                 <Link href={`/v2/turnos/${turno.id}#corrigir-saida`} className="text-[11px] font-bold text-amber-700">
                   🔧 Corrigir

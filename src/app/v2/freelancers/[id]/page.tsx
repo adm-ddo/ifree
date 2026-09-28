@@ -11,6 +11,7 @@ import CorrigirFuncaoForm from "@/app/turnos/[id]/CorrigirFuncaoForm";
 import PagamentoForm from "@/app/freelancers/[id]/PagamentoForm";
 import MetaHorasForm from "@/app/freelancers/[id]/MetaHorasForm";
 import TurnoPredefinidoSelect from "@/app/freelancers/[id]/TurnoPredefinidoSelect";
+import BloqueioSuspeitaFraudeCard from "@/app/freelancers/[id]/BloqueioSuspeitaFraudeCard";
 import DadosPessoaForm from "@/app/freelancers/[id]/DadosPessoaForm";
 import ConverterParaCltButton from "@/app/freelancers/[id]/ConverterParaCltButton";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
@@ -42,6 +43,9 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
         frequenciaPagamento: true,
         cargaHorariaSemanalMin: true,
         turnoPredefinido: true,
+        turnosPermitidosEntrada: true,
+        bloqueadoSuspeitaFraudeEm: true,
+        motivoBloqueioSuspeitaFraude: true,
         pessoa: {
           select: {
             nome: true,
@@ -179,6 +183,15 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
       <PagamentoForm pessoaId={pessoaId} modoPagamentoAtual={vinculo.modoPagamento} valorDiariaAtual={valorDiariaAtual} frequenciaPagamentoAtual={vinculo.frequenciaPagamento} />
 
       <TurnoPredefinidoSelect pessoaId={pessoaId} valorAtual={vinculo.turnoPredefinido} />
+
+      {vinculo.turnoPredefinido !== "LIVRE" && (
+        <BloqueioSuspeitaFraudeCard
+          pessoaId={pessoaId}
+          turnosPermitidos={vinculo.turnosPermitidosEntrada}
+          bloqueadoEm={vinculo.bloqueadoSuspeitaFraudeEm}
+          motivo={vinculo.motivoBloqueioSuspeitaFraude}
+        />
+      )}
 
       <MetaHorasForm pessoaId={pessoaId} cargaHorariaSemanalHorasAtual={vinculo.cargaHorariaSemanalMin !== null ? vinculo.cargaHorariaSemanalMin / 60 : null} />
 

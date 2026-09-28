@@ -48,10 +48,15 @@ enum TipoVinculo {
 /// Turno fixo da pessoa (só relevante pra EXTRA) — usado pelo fechamento
 /// automático pra decidir qual horário de corte aplicar quando ela
 /// esquece de bater saída. LIVRE (padrão) deixa o sistema inferir pelo
-/// horário de entrada — ver src/lib/turno.ts:classificarTurno.
+/// horário de entrada — ver src/lib/turno.ts:classificarTurno. MADRUGADA
+/// também alimenta a checagem de horário incomum na entrada do totem (ver
+/// VinculoPessoaEmpresa.turnosPermitidosEntrada e
+/// src/lib/turno.ts:classificarTurnoEntrada) — LIVRE fica de fora dessa
+/// checagem de propósito, é o sinal de "sem turno fixo, não verificar".
 enum TurnoPredefinido {
   MANHA
   NOITE
+  MADRUGADA
   LIVRE
 }
 
@@ -197,6 +202,14 @@ model Empresa {
   /// do dia).
   horarioInicioDiaMin               Int              @default(540) // 09:00
   horarioInicioNoiteMin             Int              @default(960) // 16:00
+  /// Horário oficial de início do turno da madrugada (minutos desde
+  /// meia-noite, Brasília) — 3º ponto de referência, usado só por
+  /// classificarTurnoEntrada (src/lib/turno.ts) pra checar horário
+  /// incomum na entrada do totem (ver
+  /// VinculoPessoaEmpresa.turnosPermitidosEntrada). Não entra em
+  /// classificarTurno (DIA/NOITE) nem no fechamento automático, que
+  /// continuam só com os dois horários acima.
+  horarioInicioMadrugadaMin         Int              @default(0) // 00:00
   /// Horários (minutos desde meia-noite, horário de Brasília) usados como
   /// horaSaida quando o fechamento automático encerra um turno que ninguém
   /// bateu saída — ver src/lib/fechamento-automatico.ts. Qual dos dois se
@@ -951,8 +964,39 @@ model VinculoPessoaEmpresa {
   dataRescisao               DateTime?           @db.Date
   rescisaoRegistradaEm       DateTime?
   rescisaoRegistradaPorEmail String?
-  /// Turno fixo dessa pessoa — só EXTRA. Ver enum TurnoPredefinido.
+  /// Turno fixo dessa pessoa — só EXTRA. Ver enum TurnoPredefinido. LIVRE
+  /// (padrão) desliga a checagem de horário incomum abaixo por completo.
   turnoPredefinido           TurnoPredefinido    @default(LIVRE)
+  /// Turnos (MANHA/NOITE/MADRUGADA) em que esta pessoa já bateu entrada
+  /// antes e por isso pode bater de novo sem aviso/bloqueio — só
+  /// preenchido quando turnoPredefinido != LIVRE. Vazio até a primeira
+  /// entrada (que semeia sozinha, sem checar nada); depois disso, bater
+  /// entrada num turno de fora desta lista bloqueia
+  /// (bloqueadoSuspeitaFraudeEm) em vez de só entrar — só a empresa libera
+  /// manualmente (o que também adiciona esse turno aqui). Pedido do
+  /// Thiago em 2026-09-28, junto com Turno.pagamentoRetidoRevisao: linha
+  /// de defesa ANTES do turno começar, pega o problema na entrada em vez
+  /// de só depois no fechamento. Ver classificarTurnoEntrada/
+  /// LIMIAR_TOLERANCIA_ENTRADA_MIN em src/lib/turno.ts e iniciarTurno em
+  /// src/app/t/[token]/actions.ts.
+  turnosPermitidosEntrada    TurnoPredefinido[]  @default([])
+  /// Setado quando o totem recusa uma entrada por estar num turno fora de
+  /// turnosPermitidosEntrada — pessoa fica impedida de bater entrada
+  /// nesta empresa (mesma mensagem que `ativo=false`, mas por suspeita de
+  /// fraude, não desligamento) até a empresa liberar manualmente (ver
+  /// liberarBloqueioSuspeitaFraude em src/app/freelancers/actions.ts), o
+  /// que também adiciona o turno tentado a turnosPermitidosEntrada.
+  bloqueadoSuspeitaFraudeEm  DateTime?
+  /// Categoria (MADRUGADA/MANHA/NOITE) que gerou o bloqueio acima — usada
+  /// por liberarBloqueioSuspeitaFraude (src/app/freelancers/actions.ts)
+  /// pra adicionar direto a turnosPermitidosEntrada ao liberar, sem
+  /// precisar reclassificar nada. Limpo junto com bloqueadoSuspeitaFraudeEm.
+  categoriaBloqueadaEntrada  TurnoPredefinido?
+  /// Snapshot legível do que gerou o bloqueio acima (horário tentado,
+  /// turno classificado, turnos permitidos na hora) — mostrado pra
+  /// empresa em /freelancers/[id], preservado mesmo depois de liberado
+  /// pra ficar no histórico.
+  motivoBloqueioSuspeitaFraude String?
   /// Só CLT: habilita, no totem, a pergunta "bater ponto CLT normal ou
   /// fazer um extra pago hoje" na hora da entrada. Quando a pessoa opta
   /// por extra, o turno segue o fluxo normal de EXTRA (função, contrato,
@@ -1137,6 +1181,27 @@ model Turno {
   /// fechamento automático pro limite da noite e dobra o desconto de
   /// pausa. Ver src/lib/fechamento-automatico.ts.
   turnoDobrado                Boolean             @default(false)
+  /// true quando a duração calculada (minutosArredondados) passou de
+  /// LIMIAR_DURACAO_SUSPEITA_MIN (src/lib/turno.ts) no momento de encerrar
+  /// — o pagamento automático (processarPagamentoTurno) NUNCA roda
+  /// enquanto isto for true, mesmo que o turno já esteja CONCLUIDO (ver
+  /// concluirTurno em src/app/t/[token]/actions.ts e fecharTurnosAtrasados
+  /// em src/lib/fechamento-automatico.ts). Caso real que motivou este
+  /// campo (Thiago, 2026-09-28): pessoa não bateu entrada no turno normal
+  /// de sexta, bateu só às 23:31 (virou entrada de um turno NOVO por
+  /// engano) e no sábado às 15:59 essa entrada errada foi fechada como se
+  /// fosse a saída — ~16h30 de turno, pago automático, valor completamente
+  /// errado. Só libera pagamento via liberarPagamentoRetido
+  /// (src/app/turnos/actions.ts), nunca sozinho.
+  pagamentoRetidoRevisao       Boolean             @default(false)
+  /// Auditoria da correção de entrada (corrigirEntradaTurno) — mesmo
+  /// espírito de correcaoSaidaEm/horaSaidaOriginal, só que pro outro lado
+  /// do turno. Só pode corrigir entrada enquanto pagamentoRetidoRevisao
+  /// for true (ver corrigirEntradaTurno) — é o único cenário em que a
+  /// entrada batida de verdade no totem já é sabidamente suspeita.
+  horaEntradaOriginal          DateTime?
+  correcaoEntradaEm            DateTime?
+  correcaoEntradaPorEmail      String?
   criadoEm                    DateTime            @default(now())
   atualizadoEm                DateTime            @updatedAt
 

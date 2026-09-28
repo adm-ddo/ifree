@@ -36,21 +36,24 @@ export default async function TurnosPage({
     nome?: string;
     de?: string;
     ate?: string;
+    retido?: string;
   }>;
 }) {
   const sessao = await requireModulo("turnos");
-  const { status, frequencia, nome, de, ate } = await searchParams;
+  const { status, frequencia, nome, de, ate, retido } = await searchParams;
   const statusFiltro = FILTROS.some((f) => f.valor === status) ? (status as StatusTurno) : null;
   const frequenciaFiltro = FREQUENCIAS.some((f) => f.valor === frequencia)
     ? (frequencia as FrequenciaPagamento)
     : null;
   const nomeFiltro = nome?.trim() || "";
+  const retidoFiltro = retido === "1";
 
   const where: Prisma.TurnoWhereInput = {
     empresaId: sessao.empresaEfetivoId,
     ...(statusFiltro ? { status: statusFiltro } : {}),
     ...(frequenciaFiltro ? { frequenciaPagamentoAplicada: frequenciaFiltro } : {}),
     ...(nomeFiltro ? { pessoa: { nome: { contains: nomeFiltro, mode: "insensitive" } } } : {}),
+    ...(retidoFiltro ? { pagamentoRetidoRevisao: true } : {}),
     ...(de || ate
       ? {
           horaEntrada: {
@@ -74,6 +77,7 @@ export default async function TurnosPage({
       status: true,
       fechamentoAutomatico: true,
       correcaoSaidaEm: true,
+      pagamentoRetidoRevisao: true,
       modoPagamentoAplicado: true,
       frequenciaPagamentoAplicada: true,
       assinaturaContratoUrl: true,
@@ -107,6 +111,15 @@ export default async function TurnosPage({
   if (nomeFiltro) paramsBase.set("nome", nomeFiltro);
   if (de) paramsBase.set("de", de);
   if (ate) paramsBase.set("ate", ate);
+  if (retidoFiltro) paramsBase.set("retido", "1");
+
+  const hrefRetido = () => {
+    const params = new URLSearchParams(paramsBase);
+    if (retidoFiltro) params.delete("retido");
+    else params.set("retido", "1");
+    const query = params.toString();
+    return query ? `/turnos?${query}` : "/turnos";
+  };
 
   const hrefStatus = (valor: StatusTurno | "TODOS") => {
     const params = new URLSearchParams(paramsBase);
@@ -139,6 +152,7 @@ export default async function TurnosPage({
     if (statusFiltro) params.set("status", statusFiltro);
     if (frequenciaFiltro) params.set("frequencia", frequenciaFiltro);
     if (nomeFiltro) params.set("nome", nomeFiltro);
+    if (retidoFiltro) params.set("retido", "1");
     params.set("de", deISO);
     params.set("ate", ateISO);
     return `/turnos?${params.toString()}`;
@@ -148,6 +162,7 @@ export default async function TurnosPage({
     const params = new URLSearchParams();
     if (statusFiltro) params.set("status", statusFiltro);
     if (frequenciaFiltro) params.set("frequencia", frequenciaFiltro);
+    if (retidoFiltro) params.set("retido", "1");
     const query = params.toString();
     return query ? `/turnos?${query}` : "/turnos";
   };
@@ -176,6 +191,19 @@ export default async function TurnosPage({
             {f.label}
           </Link>
         ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={hrefRetido()}
+          className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+            retidoFiltro
+              ? "bg-red-600 text-white border-red-600"
+              : "border-red-200 text-red-700 bg-red-50 hover:bg-red-100"
+          }`}
+        >
+          🚨 Pagamento retido
+        </Link>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -299,6 +327,7 @@ export default async function TurnosPage({
             valorTotal: turno.valorTotal !== null ? Number(turno.valorTotal) : null,
             status: turno.status,
             fechamentoAutomatico: turno.fechamentoAutomatico,
+            pagamentoRetidoRevisao: turno.pagamentoRetidoRevisao,
             podeCorrigirSaida:
               turno.status !== "ABERTO" &&
               (turno.fechamentoAutomatico || turno.correcaoSaidaEm !== null),

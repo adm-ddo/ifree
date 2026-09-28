@@ -15,6 +15,8 @@ export default function AlertasV2({
   feriasAlerta,
   experienciaAlerta,
   pgrAlerta,
+  turnosRetidos,
+  bloqueiosSuspeitaFraude,
 }: {
   assinaturaAlerta: { diasRestantes: number; emTrial: boolean; horasParaBloqueio: number | null } | null;
   denunciasNovas: number;
@@ -24,6 +26,15 @@ export default function AlertasV2({
   feriasAlerta: { vencidas: number; vencendoEmBreve: number } | null;
   experienciaAlerta: { vencidos: number; vencendoEmBreve: number } | null;
   pgrAlerta: { nuncaFez: boolean; diasDesdeUltimoCiclo: number | null } | null;
+  /// Turnos com pagamento retido por duração fora do normal — ver
+  /// Turno.pagamentoRetidoRevisao no schema. Vermelho (mesmo peso de
+  /// denúncia) de propósito: é dinheiro parado esperando decisão, pedido
+  /// do Thiago em 2026-09-28 depois de um turno pago automático errado.
+  turnosRetidos: number;
+  /// Pessoas bloqueadas no totem por bater entrada fora dos turnos
+  /// permitidos — ver VinculoPessoaEmpresa.bloqueadoSuspeitaFraudeEm.
+  /// Mesmo vermelho, mesmo motivo: pedido do Thiago em 2026-09-28.
+  bloqueiosSuspeitaFraude: number;
 }) {
   return (
     <>
@@ -68,6 +79,25 @@ export default function AlertasV2({
             ver vagas
           </Link>
         </div>
+      )}
+
+      {turnosRetidos > 0 && (
+        <Link
+          href="/v2/turnos?retido=1"
+          className="block bg-red-600 text-white text-xs font-bold px-4 py-2.5 text-center"
+        >
+          🚨 {turnosRetidos} {turnosRetidos === 1 ? "turno com duração fora do normal" : "turnos com duração fora do normal"} — pagamento RETIDO, não sai sozinho · clique para revisar
+        </Link>
+      )}
+
+      {bloqueiosSuspeitaFraude > 0 && (
+        <Link
+          href="/v2/freelancers?bloqueado=1"
+          className="block bg-red-600 text-white text-xs font-bold px-4 py-2.5 text-center"
+        >
+          🚨 {bloqueiosSuspeitaFraude} {bloqueiosSuspeitaFraude === 1 ? "pessoa bloqueada" : "pessoas bloqueadas"} por
+          suspeita de fraude no totem · clique para revisar
+        </Link>
       )}
 
       {pagamentosPendentes && pagamentosPendentes.quantidade > 0 && (

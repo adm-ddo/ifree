@@ -18,6 +18,7 @@ type Freelancer = {
   temFoto: boolean;
   sexo: Sexo | null;
   ativo: boolean;
+  bloqueadoSuspeitaFraude: boolean;
 };
 
 /** Mesma lógica/props de src/app/freelancers/FreelancerRow.tsx (v1, não
@@ -33,6 +34,9 @@ export default function FreelancerRowV2({ freelancer }: { freelancer: Freelancer
         <div className="min-w-0">
           <p className="font-bold text-[13px] text-navy-900">
             {freelancer.nome} {!freelancer.ativo && <span className="text-[11px] text-red-600 font-normal">(desativado)</span>}
+            {freelancer.bloqueadoSuspeitaFraude && (
+              <span className="text-[11px] text-red-600 font-bold"> 🚨 bloqueado</span>
+            )}
           </p>
           <p className="text-[11px] text-stone-500">
             {LABEL_TIPO_DOCUMENTO[freelancer.tipoDocumento]} {formatarDocumento(freelancer.tipoDocumento, freelancer.documento)} ·{" "}

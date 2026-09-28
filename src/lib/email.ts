@@ -580,6 +580,96 @@ export async function enviarEmailCandidatoCompativel(
   }
 }
 
+/** Avisa a empresa (todo usuário com acesso, mesmo espírito de
+ * enviarEmailCandidatoCompativel acima) que um turno fechou com duração
+ * fora do normal e o PIX foi RETIDO — não vai sair sozinho. Disparado na
+ * hora, direto de concluirTurno (src/app/t/[token]/actions.ts) ou
+ * fecharTurnosAtrasados (src/lib/fechamento-automatico.ts), pedido do
+ * Thiago em 2026-09-28 depois de um turno de ~16h30 ter sido pago
+ * automático por engano (entrada perdida virou "saída" do dia seguinte).
+ * Sempre envia (sem checar RESEND_API_KEY silenciosamente como os avisos
+ * "de conveniência" acima) — é dinheiro parado esperando decisão, vale
+ * logar o motivo se não conseguir mandar. */
+export async function enviarEmailTurnoRetido(
+  destinatario: string,
+  pessoaNome: string,
+  horas: number,
+  turnoId: number
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn(`RESEND_API_KEY não configurada — aviso de turno retido (id ${turnoId}) não enviado.`);
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: "⚠️ Turno com duração fora do normal — pagamento retido",
+    paragrafos: [
+      `O turno de <strong>${escaparHtml(pessoaNome)}</strong> fechou com <strong>${horas.toFixed(1)} horas</strong> — bem acima do normal.`,
+      "Pra evitar pagar um valor errado, o PIX automático NÃO foi disparado. Revise o horário de entrada e saída desse turno e libere o pagamento manualmente quando estiver correto.",
+    ],
+    textoBotao: "Revisar turno agora",
+    linkBotao: `${SITE_URL}/turnos/${turnoId}`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "⚠️ Turno com duração fora do normal — pagamento retido",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error(`Falha ao enviar aviso de turno retido (id ${turnoId}):`, err);
+    return { sucesso: false };
+  }
+}
+
+/** Pessoa foi bloqueada automaticamente no totem por bater entrada num
+ * turno fora da lista de turnos permitidos dela (ver
+ * VinculoPessoaEmpresa.turnosPermitidosEntrada/bloqueadoSuspeitaFraudeEm)
+ * — mesmo espírito/formato de enviarEmailTurnoRetido acima, pedido do
+ * Thiago em 2026-09-28 junto com o retido de pagamento: linha de defesa
+ * NA entrada, antes do turno nem começar. Sempre envia, sem checar
+ * RESEND_API_KEY silenciosamente — é bloqueio de acesso, vale logar. */
+export async function enviarEmailBloqueioSuspeitaFraude(
+  destinatario: string,
+  pessoaNome: string,
+  motivo: string,
+  pessoaId: number
+): Promise<{ sucesso: boolean }> {
+  const resend = cliente();
+  if (!resend) {
+    console.warn(`RESEND_API_KEY não configurada — aviso de bloqueio por suspeita de fraude (pessoa ${pessoaId}) não enviado.`);
+    return { sucesso: false };
+  }
+
+  const html = layoutEmail({
+    titulo: "🚨 Bloqueio por suspeita — horário de entrada incomum",
+    paragrafos: [
+      `Por suspeita de tentativa de fraude, <strong>${escaparHtml(pessoaNome)}</strong> foi bloqueado(a) automaticamente e não consegue mais bater entrada no totem até você revisar.`,
+      escaparHtml(motivo),
+      "Se estiver tudo certo (a pessoa realmente precisava iniciar nesse horário), libere pelo sistema e peça pra ela bater entrada de novo.",
+    ],
+    textoBotao: "Revisar e liberar",
+    linkBotao: `${SITE_URL}/freelancers/${pessoaId}`,
+  });
+
+  try {
+    await resend.emails.send({
+      from: REMETENTE,
+      to: destinatario,
+      subject: "🚨 Bloqueio por suspeita — horário de entrada incomum",
+      html,
+    });
+    return { sucesso: true };
+  } catch (err) {
+    console.error(`Falha ao enviar aviso de bloqueio por suspeita de fraude (pessoa ${pessoaId}):`, err);
+    return { sucesso: false };
+  }
+}
+
 /** Avisa o master que uma empresa fez upgrade do plano Conecta pro
  * Completo (ver fazerUpgradeParaCompleto, src/app/v2/upgrade/actions.ts)
  * — mesmo espírito/formato de enviarEmailNovoCadastro, evento comercial

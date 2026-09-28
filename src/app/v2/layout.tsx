@@ -65,6 +65,8 @@ export default async function V2Layout({ children }: { children: React.ReactNode
           experienciaAlerta: null,
           assinaturaAlerta: null,
           denunciasNovas: 0,
+          turnosRetidos: 0,
+          bloqueiosSuspeitaFraude: 0,
           pgrAlerta: null,
           modulosPermitidos: [],
           planoEmpresa: "COMPLETO",
@@ -81,6 +83,8 @@ export default async function V2Layout({ children }: { children: React.ReactNode
     experienciaAlerta,
     assinaturaAlerta,
     denunciasNovas,
+    turnosRetidos,
+    bloqueiosSuspeitaFraude,
     pgrAlerta,
     modulosPermitidos,
     planoEmpresa,
@@ -121,6 +125,8 @@ export default async function V2Layout({ children }: { children: React.ReactNode
             feriasAlerta={feriasAlerta}
             experienciaAlerta={experienciaAlerta}
             pgrAlerta={pgrAlerta}
+            turnosRetidos={turnosRetidos}
+            bloqueiosSuspeitaFraude={bloqueiosSuspeitaFraude}
           />
         }
       >

@@ -10,6 +10,8 @@ import AlertaDenunciasNovas from "@/components/AlertaDenunciasNovas";
 import AlertaCandidaturasConecta from "@/components/AlertaCandidaturasConecta";
 import AlertaAssinaturaVencendo from "@/components/AlertaAssinaturaVencendo";
 import AlertaRiscoClt from "@/components/AlertaRiscoClt";
+import AlertaTurnosRetidos from "@/components/AlertaTurnosRetidos";
+import AlertaBloqueiosSuspeitaFraude from "@/components/AlertaBloqueiosSuspeitaFraude";
 import ChromeGate from "@/components/ChromeGate";
 import MainWrapper from "@/components/MainWrapper";
 import SplashScreen from "@/components/SplashScreen";
@@ -19,6 +21,7 @@ import { usuarioEhResponsavelEtica } from "@/lib/etica";
 import { usuarioEhResponsavelGed } from "@/lib/ged";
 import { diasParaVencer, GRACA_DIAS } from "@/lib/assinatura";
 import { buscarRiscoCltEmpresa } from "@/lib/riscoClt";
+import { buscarTurnosRetidosAlerta, buscarBloqueiosSuspeitaFraudeAlerta } from "@/lib/alertas";
 import "./globals.css";
 
 const urbanist = Urbanist({
@@ -304,9 +307,9 @@ export default async function RootLayout({
   const mostrarLinkEmpresas = !!sessao && !sessao.isMaster && dentroDeTenant;
   const mostrarEmpresasMaster = !!(sessao?.isMaster && !sessao.empresaAtivaId);
 
-  // Os 8 avisos abaixo não dependem uns dos outros (só de empresaEfetivoId/
+  // Os 10 avisos abaixo não dependem uns dos outros (só de empresaEfetivoId/
   // usuarioId, já resolvidos acima) — rodam em paralelo num Promise.all só,
-  // em vez de 8 round-trips em série. denunciasNovas é a exceção: só faz
+  // em vez de 10 round-trips em série. denunciasNovas é a exceção: só faz
   // sentido buscar depois de saber responsavelEtica (não vaza nem a
   // existência de denúncia pra quem não tem acesso), por isso fica de fora
   // do Promise.all e vira 1 await dependente logo depois.
@@ -319,6 +322,8 @@ export default async function RootLayout({
     experienciaAlerta,
     assinaturaAlerta,
     riscoCltAlerta,
+    turnosRetidos,
+    bloqueiosSuspeitaFraude,
   ] = dentroDeTenant
     ? await Promise.all([
         buscarPagamentosPendentes(sessao!.empresaEfetivoId!),
@@ -329,6 +334,8 @@ export default async function RootLayout({
         buscarExperienciaAlerta(sessao!.empresaEfetivoId!),
         buscarAssinaturaAlerta(sessao!.empresaEfetivoId!),
         buscarRiscoCltAlerta(sessao!.empresaEfetivoId!),
+        buscarTurnosRetidosAlerta(sessao!.empresaEfetivoId!),
+        buscarBloqueiosSuspeitaFraudeAlerta(sessao!.empresaEfetivoId!),
       ])
     : ([
         null,
@@ -339,6 +346,8 @@ export default async function RootLayout({
         null,
         null,
         null,
+        0,
+        0,
       ] as const);
   const vagasAlertaCount = candidaturasPendentes + mensagensConectaNaoLidas;
 
@@ -382,6 +391,8 @@ export default async function RootLayout({
             />
           )}
           <AlertaDenunciasNovas quantidade={denunciasNovas} />
+          <AlertaTurnosRetidos quantidade={turnosRetidos} />
+          <AlertaBloqueiosSuspeitaFraude quantidade={bloqueiosSuspeitaFraude} />
           <AlertaCandidaturasConecta
             pendentes={candidaturasPendentes}
             matches={candidaturasPendentesComMatch}

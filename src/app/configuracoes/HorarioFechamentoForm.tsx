@@ -14,11 +14,13 @@ function minutosParaHoraMin(minutos: number): string {
 export default function HorarioFechamentoForm({
   horarioInicioDiaMin,
   horarioInicioNoiteMin,
+  horarioInicioMadrugadaMin,
   horarioFechamentoDiaMin,
   horarioFechamentoNoiteMin,
 }: {
   horarioInicioDiaMin: number;
   horarioInicioNoiteMin: number;
+  horarioInicioMadrugadaMin: number;
   horarioFechamentoDiaMin: number;
   horarioFechamentoNoiteMin: number;
 }) {
@@ -65,6 +67,20 @@ export default function HorarioFechamentoForm({
             required
             className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          🌌 Início do turno da madrugada
+          <input
+            type="time"
+            name="horarioInicioMadrugada"
+            defaultValue={minutosParaHoraMin(horarioInicioMadrugadaMin)}
+            required
+            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+          <span className="text-xs text-stone-500 font-normal">
+            Só usado na checagem de horário incomum do totem (ver Turno
+            fixo em cada pessoa).
+          </span>
         </label>
         <label className="flex flex-col gap-1 text-sm text-stone-700">
           ☀️ Fim do turno do dia

@@ -220,6 +220,157 @@ export async function corrigirSaidaTurno(
   return { sucesso: true };
 }
 
+export type CorrigirEntradaState = { erro?: string; sucesso?: boolean } | undefined;
+
+/** O dono corrige o horário de ENTRADA de um turno retido pra revisão
+ * (Turno.pagamentoRetidoRevisao) — só nesse caso: é o único cenário em
+ * que uma entrada batida de verdade no totem já é sabidamente suspeita
+ * (ver LIMIAR_DURACAO_SUSPEITA_MIN, src/lib/turno.ts, e o caso real que
+ * motivou isso — pessoa não bateu entrada do turno normal de sexta, bateu
+ * só às 23:31 virando entrada de um turno NOVO por engano, e no sábado
+ * essa entrada errada foi fechada como se fosse saída, ~16h30 pagos
+ * automático por engano). Fora desse caso, entrada é sempre fonte de
+ * verdade (foto/assinatura reais) — diferente de corrigirSaidaTurno
+ * acima, que cobre o caso normal de saída fabricada pelo fechamento
+ * automático.
+ *
+ * NUNCA libera o pagamento sozinho, só recalcula os números — o dono
+ * confere o valor corrigido e decide quando chamar liberarPagamentoRetido
+ * (abaixo), mesmo que a duração corrigida já dê "normal". */
+export async function corrigirEntradaTurno(
+  _prev: CorrigirEntradaState,
+  formData: FormData
+): Promise<CorrigirEntradaState> {
+  const sessao = await requireModulo("turnos");
+
+  const turnoId = Number(formData.get("turnoId"));
+  const horaEntradaBruta = String(formData.get("horaEntrada") ?? "");
+  if (!Number.isInteger(turnoId)) return { erro: "Turno inválido." };
+
+  const turno = await prisma.turno.findUnique({
+    where: { id: turnoId },
+    include: {
+      pagamento: true,
+      empresa: {
+        select: {
+          horarioInicioDiaMin: true,
+          horarioInicioNoiteMin: true,
+          modoPausaDia: true,
+          modoPausaNoite: true,
+          diariaLimiarMeiaMin: true,
+          diariaLimiarCompletaMin: true,
+        },
+      },
+    },
+  });
+  if (!turno || turno.empresaId !== sessao.empresaEfetivoId) {
+    return { erro: "Esse turno não pertence a esta empresa." };
+  }
+  if (!turno.pagamentoRetidoRevisao) {
+    return { erro: "Só é possível corrigir a entrada de turnos retidos pra revisão." };
+  }
+  if (turno.status === "ABERTO" || turno.horaSaida === null) {
+    return { erro: "Esse turno ainda está aberto." };
+  }
+  if (turno.pagamento?.status === "PROCESSANDO") {
+    return { erro: "O pagamento desse turno está em processamento — aguarde terminar antes de corrigir." };
+  }
+
+  const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})$/.exec(horaEntradaBruta);
+  if (!m) return { erro: "Informe uma data e hora de entrada válidas." };
+  const horaEntrada = instanteBrasil(m[1], Number(m[2]) * 60 + Number(m[3]));
+  if (horaEntrada >= turno.horaSaida) {
+    return { erro: "A entrada precisa ser antes da saída." };
+  }
+
+  const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
+    where: { pessoaId_empresaId: { pessoaId: turno.pessoaId, empresaId: turno.empresaId } },
+    select: { turnoPredefinido: true },
+  });
+  const modoPausaAplicavel = turno.turnoDobrado
+    ? turno.empresa.modoPausaNoite
+    : classificarTurno(
+          horaEntrada,
+          vinculo?.turnoPredefinido ?? "LIVRE",
+          turno.empresa.horarioInicioDiaMin,
+          turno.empresa.horarioInicioNoiteMin
+        ) === "DIA"
+      ? turno.empresa.modoPausaDia
+      : turno.empresa.modoPausaNoite;
+
+  const elapsedMs = turno.horaSaida.getTime() - horaEntrada.getTime();
+  const { minutosTrabalhados, minutosDescontadosPausa, minutosArredondados } = calcularMinutosArredondados(
+    elapsedMs,
+    modoPausaAplicavel,
+    turno.turnoDobrado ? 2 : 1
+  );
+  const valorTotal = calcularValorTurno({
+    modoPagamento: turno.modoPagamentoAplicado,
+    minutosArredondados,
+    valorHoraAplicado: Number(turno.valorHoraAplicado),
+    valorDiariaAplicada: turno.valorDiariaAplicada !== null ? Number(turno.valorDiariaAplicada) : null,
+    diariaLimiarMeiaMin: turno.empresa.diariaLimiarMeiaMin,
+    diariaLimiarCompletaMin: turno.empresa.diariaLimiarCompletaMin,
+  });
+
+  await prisma.turno.update({
+    where: { id: turno.id },
+    data: {
+      horaEntrada,
+      minutosTrabalhados,
+      minutosDescontadosPausa,
+      minutosArredondados,
+      valorTotal,
+      horaEntradaOriginal: turno.horaEntradaOriginal ?? turno.horaEntrada,
+      correcaoEntradaEm: new Date(),
+      correcaoEntradaPorEmail: sessao.email,
+    },
+  });
+
+  if (turno.pagamento) {
+    await prisma.pagamento.update({ where: { id: turno.pagamento.id }, data: { valor: valorTotal } });
+  }
+
+  revalidatePath(`/turnos/${turno.id}`);
+  revalidatePath("/turnos");
+  revalidatePath("/pagamentos");
+  revalidatePath("/financeiro");
+  revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
+  return { sucesso: true };
+}
+
+/** O dono revisou um turno retido por duração fora do normal (ver
+ * Turno.pagamentoRetidoRevisao) — depois de corrigir entrada/saída se
+ * precisava, libera o pagamento de verdade. Sempre passa pelo caminho
+ * normal (processarPagamentoTurno: cria o Pagamento e tenta o PIX se a
+ * empresa tiver automação configurada) — nunca reativa a retenção
+ * sozinho depois. Chamada direto pelo botão, sem <form action>, por isso
+ * devolve { erro } em vez de lançar (mesmo padrão de marcarTurnoDobrado
+ * abaixo). */
+export async function liberarPagamentoRetido(turnoId: number): Promise<{ erro?: string; sucesso?: boolean }> {
+  const sessao = await requireModulo("turnos");
+
+  const turno = await prisma.turno.findUnique({ where: { id: turnoId } });
+  if (!turno || turno.empresaId !== sessao.empresaEfetivoId) {
+    return { erro: "Esse turno não pertence a esta empresa." };
+  }
+  if (!turno.pagamentoRetidoRevisao) {
+    return { erro: "Esse turno não está retido pra revisão." };
+  }
+
+  await prisma.turno.update({ where: { id: turnoId }, data: { pagamentoRetidoRevisao: false } });
+  await processarPagamentoTurno(turnoId);
+
+  revalidatePath(`/turnos/${turnoId}`);
+  revalidatePath("/turnos");
+  revalidatePath("/pagamentos");
+  revalidatePath("/financeiro");
+  revalidatePath("/dashboard");
+  revalidatePath("/v2/dashboard");
+  return { sucesso: true };
+}
+
 export type MarcarDobradoState = { erro: string } | undefined;
 
 /** O dono marca que a pessoa dobrou o turno (fez dia e noite seguidos) e

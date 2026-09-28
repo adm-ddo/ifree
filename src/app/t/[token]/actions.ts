@@ -12,13 +12,22 @@ import {
   chavePixValida,
 } from "@/lib/documento";
 import { uploadDataUrl } from "@/lib/blob";
-import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
-import { dataISOBrasil, dataISODoDbDate } from "@/lib/data";
+import {
+  calcularMinutosArredondados,
+  calcularValorTurno,
+  classificarTurno,
+  classificarTurnoEntrada,
+  calcularDesvioEntradaMin,
+  LIMIAR_TOLERANCIA_ENTRADA_MIN,
+} from "@/lib/turno";
+import { LABEL_TURNO_PREDEFINIDO } from "@/lib/turnoPredefinido";
+import { dataISOBrasil, dataISODoDbDate, formatarDataHora } from "@/lib/data";
 import { calcularMinutosPonto, acoesPossiveisPonto, resolverModoPausaClt, type AcaoPonto } from "@/lib/ponto";
-import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
+import { processarOuReterPagamentoTurno } from "@/lib/pagamentos/processar";
 import { notaValida, tagsValidadas } from "@/lib/avaliacao";
 import { verificarRestricaoEntrada } from "@/lib/restricao-horario";
 import { comRetentativaDePool, comRetentativaDePoolOuErro } from "@/lib/retry";
+import { enviarEmailBloqueioSuspeitaFraude } from "@/lib/email";
 import type { TipoChavePix } from "@/generated/prisma/enums";
 
 /** QR code de validade curta pro Canal de Ética, exibido no menu de
@@ -794,7 +803,10 @@ export async function criarPessoa(
 
 export type Funcao = { id: number; nome: string; valorHoraPadrao: number };
 
-export type ResultadoInicioTurno = ResultadoErro | { turnoId: number };
+export type ResultadoInicioTurno =
+  | ResultadoErro
+  | { precisaConfirmarHorario: string }
+  | { turnoId: number };
 
 export async function iniciarTurno(
   token: string,
@@ -803,6 +815,10 @@ export async function iniciarTurno(
     funcaoId: number;
     fotoDataUrl: string;
     assinaturaDataUrl: string;
+    /// true quando a pessoa já viu o aviso de horário incomum
+    /// (precisaConfirmarHorario abaixo) e confirmou que quer mesmo
+    /// iniciar agora — evita perguntar nessa mesma chamada de novo.
+    confirmarHorarioIncomum?: boolean;
   }
 ): Promise<ResultadoInicioTurno> {
   const totem = await resolverTotemAtivo(token);
@@ -823,6 +839,11 @@ export async function iniciarTurno(
   if (vinculo && !vinculo.ativo) {
     return { erro: "Você está bloqueado(a) nesta empresa. Fale com o responsável." };
   }
+  if (vinculo?.bloqueadoSuspeitaFraudeEm) {
+    return {
+      erro: "Você está temporariamente bloqueado(a) por suspeita de horário incomum. Fale com o responsável pra liberar de novo.",
+    };
+  }
   // Nunca confia que o cliente só chegou aqui pela tela cltOuExtra — uma
   // pessoa CLT só pode abrir um turno extra se o dono ligou
   // permiteExtraDiario pra ela (mesmo padrão defensivo de baterPontoClt).
@@ -832,6 +853,71 @@ export async function iniciarTurno(
   if (vinculo) {
     const restricao = verificarRestricaoEntrada(vinculo.restricoesHorario, new Date());
     if (restricao.bloqueado) return { erro: restricao.mensagem };
+  }
+
+  // Checagem de horário incomum na entrada — só quando a pessoa tem turno
+  // fixo definido (turnoPredefinido != LIVRE, que é o padrão de todo
+  // mundo). Primeira entrada de cada turno semeia turnosPermitidosEntrada
+  // sozinha, sem checar nada; dali em diante, bater entrada FORA da lista
+  // bloqueia na hora (bloqueadoSuspeitaFraudeEm) e avisa a empresa, e
+  // bater DENTRO da lista mas passado LIMIAR_TOLERANCIA_ENTRADA_MIN pede
+  // confirmação explícita antes de seguir. Pedido do Thiago em
+  // 2026-09-28, junto com Turno.pagamentoRetidoRevisao — linha de defesa
+  // ANTES do turno começar. Fica ANTES do upload de foto/assinatura de
+  // propósito: se precisar pedir confirmação, não desperdiça upload numa
+  // chamada que ainda vai repetir.
+  const agora = new Date();
+  if (vinculo && vinculo.turnoPredefinido !== "LIVRE") {
+    const empresaHorariosEntrada = await prisma.empresa.findUnique({
+      where: { id: totem.empresaId },
+      select: { horarioInicioMadrugadaMin: true, horarioInicioDiaMin: true, horarioInicioNoiteMin: true },
+    });
+    if (empresaHorariosEntrada) {
+      const categoriaEntrada = classificarTurnoEntrada(agora, empresaHorariosEntrada);
+      const permitidos = vinculo.turnosPermitidosEntrada;
+
+      if (permitidos.length === 0) {
+        await prisma.vinculoPessoaEmpresa.update({
+          where: { pessoaId_empresaId: { pessoaId: pessoa.id, empresaId: totem.empresaId } },
+          data: { turnosPermitidosEntrada: [categoriaEntrada] },
+        });
+      } else if (!permitidos.includes(categoriaEntrada)) {
+        const motivo = `Tentou bater entrada às ${formatarDataHora(agora)} (turno ${LABEL_TURNO_PREDEFINIDO[categoriaEntrada]}), fora dos turnos permitidos até então (${permitidos.map((p) => LABEL_TURNO_PREDEFINIDO[p]).join(", ")}).`;
+        await prisma.vinculoPessoaEmpresa.update({
+          where: { pessoaId_empresaId: { pessoaId: pessoa.id, empresaId: totem.empresaId } },
+          data: {
+            bloqueadoSuspeitaFraudeEm: agora,
+            categoriaBloqueadaEntrada: categoriaEntrada,
+            motivoBloqueioSuspeitaFraude: motivo,
+          },
+        });
+        const usuariosEmpresa = await prisma.usuarioEmpresa.findMany({
+          where: { empresaId: totem.empresaId },
+          select: { usuario: { select: { email: true } } },
+        });
+        for (const { usuario } of usuariosEmpresa) {
+          await enviarEmailBloqueioSuspeitaFraude(usuario.email, pessoa.nome, motivo, pessoa.id);
+        }
+        return {
+          erro:
+            "Horário incomum pra você — por segurança, seu acesso foi bloqueado e a empresa foi avisada. Fale com o responsável pra liberar de novo.",
+        };
+      } else if (!dados.confirmarHorarioIncomum) {
+        const horarioNominalMin =
+          categoriaEntrada === "MADRUGADA"
+            ? empresaHorariosEntrada.horarioInicioMadrugadaMin
+            : categoriaEntrada === "MANHA"
+              ? empresaHorariosEntrada.horarioInicioDiaMin
+              : empresaHorariosEntrada.horarioInicioNoiteMin;
+        const desvio = calcularDesvioEntradaMin(agora, horarioNominalMin);
+        if (desvio > LIMIAR_TOLERANCIA_ENTRADA_MIN) {
+          return {
+            precisaConfirmarHorario:
+              "Você está chegando agora mesmo? Confirme que quer iniciar um turno agora.",
+          };
+        }
+      }
+    }
   }
 
   const turnoJaAberto = await prisma.turno.findFirst({
@@ -869,7 +955,7 @@ export async function iniciarTurno(
           valorDiariaAplicada:
             vinculo?.modoPagamento === "DIARIA" ? vinculo.valorDiaria : null,
           frequenciaPagamentoAplicada: vinculo?.frequenciaPagamento ?? "DIARIA",
-          horaEntrada: new Date(),
+          horaEntrada: agora,
           fotoEntradaUrl: fotoUrl,
           assinaturaContratoUrl: assinaturaUrl,
           status: "ABERTO",
@@ -1000,10 +1086,13 @@ export async function concluirTurno(
   );
   if ("erro" in resultado) return resultado;
 
-  // Tenta o PIX na hora. Se falhar, o turno fica ERRO_PAGAMENTO e o admin
-  // resolve depois em /pagamentos — a pessoa já assinou e pode ir embora,
-  // não fica esperando o resultado do pagamento no totem.
-  await processarPagamentoTurno(turno.id);
+  // Tenta o PIX na hora — SALVO quando a duração deu fora do normal, caso
+  // em que o pagamento fica retido pra revisão manual em vez de sair
+  // sozinho (ver processarOuReterPagamentoTurno, src/lib/pagamentos/
+  // processar.ts, e o caso real que motivou isso lá). Se falhar (ou ficar
+  // retido), o admin resolve depois em /pagamentos ou /turnos — a pessoa
+  // já assinou e pode ir embora, não fica esperando o resultado no totem.
+  await processarOuReterPagamentoTurno(turno.id, minutosArredondados);
 
   return { minutosTrabalhados, minutosArredondados, valorTotal };
 }

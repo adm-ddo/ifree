@@ -5,7 +5,7 @@
 
 import { dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { LIMIAR_PAUSA_MIN, DESCONTO_POR_MODO } from "@/lib/pausa";
-import type { EscalaTrabalho, ModoPausa } from "@/generated/prisma/enums";
+import type { EscalaTrabalho, ModoPausa, TurnoPredefinido } from "@/generated/prisma/enums";
 
 /** Converte "HH:MM" em minutos desde meia-noite — null se o formato não
  * bater. Usado nos formulários de horário (fechamento de turno, escala
@@ -163,13 +163,15 @@ type HorarioEsperadoClt = { entradaMin: number; saidaMin: number };
  * específico da pessoa (VinculoPessoaEmpresa.horarioEntradaMin/
  * horarioSaidaMin) tem prioridade; na ausência dele, cai pro padrão da
  * escala configurado na empresa, usando o par manhã ou noite conforme
- * `turno` (VinculoPessoaEmpresa.escalaTurno — null ou LIVRE cai no par da
- * manhã). Sem nenhum dos dois (ou escala OUTRA, que não tem padrão),
- * retorna null — nesse caso não há o que comparar, mesmo espírito
- * informativo de sempre. */
+ * `turno` (VinculoPessoaEmpresa.escalaTurno — null, LIVRE ou MADRUGADA cai
+ * no par da manhã; a UI de escala CLT só oferece Manhã/Noite mesmo, mas o
+ * tipo aceita TurnoPredefinido inteiro pra bater com o enum do schema).
+ * Sem nenhum dos dois (ou escala OUTRA, que não tem padrão), retorna null
+ * — nesse caso não há o que comparar, mesmo espírito informativo de
+ * sempre. */
 export function horarioEsperadoClt(
   escala: EscalaTrabalho | null,
-  turno: "MANHA" | "NOITE" | "LIVRE" | null,
+  turno: TurnoPredefinido | null,
   overrideEntradaMin: number | null,
   overrideSaidaMin: number | null,
   empresa: {

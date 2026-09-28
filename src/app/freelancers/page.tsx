@@ -6,17 +6,19 @@ import FreelancerRow from "./FreelancerRow";
 export default async function FreelancersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ desativados?: string }>;
+  searchParams: Promise<{ desativados?: string; bloqueado?: string }>;
 }) {
   const sessao = await requireModulo("freelancers");
-  const { desativados } = await searchParams;
+  const { desativados, bloqueado } = await searchParams;
   const mostrarDesativados = desativados === "1";
+  const somenteBloqueados = bloqueado === "1";
 
   const vinculos = await prisma.vinculoPessoaEmpresa.findMany({
     where: { empresaId: sessao.empresaEfetivoId, tipoVinculo: "EXTRA" },
     orderBy: { pessoa: { nome: "asc" } },
     select: {
       ativo: true,
+      bloqueadoSuspeitaFraudeEm: true,
       pessoa: {
         select: {
           id: true,
@@ -34,7 +36,12 @@ export default async function FreelancersPage({
   });
 
   const totalDesativados = vinculos.filter((v) => !v.ativo).length;
-  const listaExibida = mostrarDesativados ? vinculos : vinculos.filter((v) => v.ativo);
+  const totalBloqueados = vinculos.filter((v) => v.bloqueadoSuspeitaFraudeEm !== null).length;
+  const listaExibida = somenteBloqueados
+    ? vinculos.filter((v) => v.bloqueadoSuspeitaFraudeEm !== null)
+    : mostrarDesativados
+      ? vinculos
+      : vinculos.filter((v) => v.ativo);
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,7 +55,24 @@ export default async function FreelancersPage({
         </p>
       </div>
 
-      {totalDesativados > 0 && (
+      {somenteBloqueados && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex items-center justify-between gap-3">
+          <span>🚨 Mostrando só quem está bloqueado por suspeita de fraude no totem.</span>
+          <Link href="/freelancers" className="underline font-medium shrink-0">
+            Ver todos
+          </Link>
+        </div>
+      )}
+
+      {!somenteBloqueados && totalBloqueados > 0 && (
+        <div>
+          <Link href="/freelancers?bloqueado=1" className="text-sm text-red-700 font-medium hover:underline">
+            🚨 {totalBloqueados} {totalBloqueados === 1 ? "pessoa bloqueada" : "pessoas bloqueadas"} por suspeita de fraude
+          </Link>
+        </div>
+      )}
+
+      {!somenteBloqueados && totalDesativados > 0 && (
         <div>
           <Link
             href={mostrarDesativados ? "/freelancers" : "/freelancers?desativados=1"}
@@ -63,9 +87,11 @@ export default async function FreelancersPage({
 
       {listaExibida.length === 0 && (
         <p className="text-stone-500 text-sm">
-          {mostrarDesativados || totalDesativados === 0
-            ? "Nenhum freelancer cadastrado ainda."
-            : "Nenhum freelancer ativo — todos estão desativados."}
+          {somenteBloqueados
+            ? "Ninguém bloqueado por suspeita de fraude no momento."
+            : mostrarDesativados || totalDesativados === 0
+              ? "Nenhum freelancer cadastrado ainda."
+              : "Nenhum freelancer ativo — todos estão desativados."}
         </p>
       )}
 
@@ -84,6 +110,7 @@ export default async function FreelancersPage({
               temFoto: Boolean(v.pessoa.fotoPerfilUrl),
               sexo: v.pessoa.sexo,
               ativo: v.ativo,
+              bloqueadoSuspeitaFraude: v.bloqueadoSuspeitaFraudeEm !== null,
             }}
           />
         ))}

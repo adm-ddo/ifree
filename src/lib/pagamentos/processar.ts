@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { paymentService } from "@/lib/pagamentos";
+import { LIMIAR_DURACAO_SUSPEITA_MIN } from "@/lib/turno";
+import { enviarEmailTurnoRetido } from "@/lib/email";
 import type { FrequenciaPagamento } from "@/generated/prisma/enums";
 
 /** Sem PAYMENT_PROVIDER configurado (padrão hoje, sem credenciais de
@@ -167,5 +169,49 @@ export async function processarPagamentoTurno(turnoId: number): Promise<{ sucess
       prisma.turno.update({ where: { id: turno.id }, data: { status: "ERRO_PAGAMENTO" } }),
     ]);
     return { sucesso: false };
+  }
+}
+
+/** Ponto único de decisão "pagar normal ou reter pra revisão" — chamada
+ * pelas duas rotas que encerram um turno e disparariam pagamento
+ * automático (concluirTurno no totem, src/app/t/[token]/actions.ts; e o
+ * cron de fechamento, fecharTurnosAtrasados, src/lib/fechamento-
+ * automatico.ts), NUNCA direto em processarPagamentoTurno pra essas duas.
+ *
+ * Caso real que motivou isso (Thiago, 2026-09-28): pessoa não bateu
+ * entrada do turno normal de sexta, bateu só às 23:31 (virou entrada de
+ * um turno NOVO por engano) e no sábado às 15:59 essa entrada errada foi
+ * fechada como se fosse saída — ~16h30 de turno, pago automático, valor
+ * completamente errado. Acima de LIMIAR_DURACAO_SUSPEITA_MIN, marca
+ * pagamentoRetidoRevisao e avisa todo usuário da empresa por e-mail — o
+ * pagamento só sai depois que alguém revisar e chamar
+ * liberarPagamentoRetido (src/app/turnos/actions.ts) manualmente. */
+export async function processarOuReterPagamentoTurno(
+  turnoId: number,
+  minutosArredondados: number
+): Promise<void> {
+  const suspeito = minutosArredondados > LIMIAR_DURACAO_SUSPEITA_MIN;
+  await prisma.turno.update({
+    where: { id: turnoId },
+    data: { pagamentoRetidoRevisao: suspeito },
+  });
+
+  if (!suspeito) {
+    await processarPagamentoTurno(turnoId);
+    return;
+  }
+
+  const turno = await prisma.turno.findUnique({
+    where: { id: turnoId },
+    select: {
+      pessoa: { select: { nome: true } },
+      empresa: { select: { usuarios: { select: { usuario: { select: { email: true } } } } } },
+    },
+  });
+  if (!turno) return;
+
+  const horas = minutosArredondados / 60;
+  for (const { usuario } of turno.empresa.usuarios) {
+    await enviarEmailTurnoRetido(usuario.email, turno.pessoa.nome, horas, turnoId);
   }
 }
