@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requirePessoaComTermosAceitos } from "@/lib/auth-pessoa";
-import { formatarDataHora } from "@/lib/data";
+import { formatarDataHora, inicioDoDiaBrasil } from "@/lib/data";
 import { calcularMatch } from "@/lib/match";
 import { formatarEnderecoCompleto, linkGoogleMapsTransit } from "@/lib/endereco";
 import FiltroVagas from "./FiltroVagas";
@@ -104,8 +104,18 @@ export default async function VagasPortalPage() {
       where: { pessoaId: sessao.pessoaId },
       select: { id: true, empresaId: true },
     }),
+    // Só o que ainda vai acontecer (data >= hoje) — pedido do Thiago em
+    // 2026-09-28: "o que passou, passou". O que já passou vira
+    // CUMPRIDO/NAO_COMPARECEU sozinho (ver iniciarTurno e
+    // marcarFaltasExtraMarcado) e já sairia do filtro de status mesmo,
+    // mas o filtro de data garante isso na hora, sem depender do cron já
+    // ter rodado.
     prisma.extraMarcado.findMany({
-      where: { pessoaId: sessao.pessoaId, status: { in: ["AGUARDANDO_PESSOA", "CONFIRMADO"] } },
+      where: {
+        pessoaId: sessao.pessoaId,
+        status: { in: ["AGUARDANDO_PESSOA", "CONFIRMADO"] },
+        data: { gte: inicioDoDiaBrasil(new Date()) },
+      },
       orderBy: { data: "asc" },
       select: {
         id: true,

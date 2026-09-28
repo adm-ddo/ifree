@@ -3,6 +3,7 @@ import { requireModulo } from "@/lib/requireModulo";
 import VagaRowV2 from "@/components/v2/VagaRowV2";
 import NovaVagaForm from "@/app/vagas/NovaVagaForm";
 import MatchesRecentesBanner from "@/app/vagas/MatchesRecentesBanner";
+import ProximosExtrasMarcadosEmpresa from "@/app/vagas/ProximosExtrasMarcadosEmpresa";
 
 /** Espelho completo de src/app/vagas/page.tsx (v1, não tocado) — mesma
  * query (agora incluindo as funções ativas da empresa, pro select de
@@ -53,6 +54,8 @@ export default async function V2VagasPage() {
           disponíveis podem se candidatar.
         </p>
       </div>
+
+      <ProximosExtrasMarcadosEmpresa empresaId={sessao.empresaEfetivoId} vagaHrefBase="/v2/vagas" />
 
       <MatchesRecentesBanner empresaId={sessao.empresaEfetivoId} perfilHrefBase="/v2/vagas" />
 

@@ -3,6 +3,7 @@ import { requireModulo } from "@/lib/requireModulo";
 import VagaRow from "./VagaRow";
 import NovaVagaForm from "./NovaVagaForm";
 import MatchesRecentesBanner from "./MatchesRecentesBanner";
+import ProximosExtrasMarcadosEmpresa from "./ProximosExtrasMarcadosEmpresa";
 
 export default async function VagasPage() {
   const sessao = await requireModulo("vagas");
@@ -48,6 +49,8 @@ export default async function VagasPage() {
           candidatar.
         </p>
       </div>
+
+      <ProximosExtrasMarcadosEmpresa empresaId={sessao.empresaEfetivoId} vagaHrefBase="/vagas" />
 
       <MatchesRecentesBanner empresaId={sessao.empresaEfetivoId} perfilHrefBase="/vagas" />
 

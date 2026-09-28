@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requirePessoaComTermosAceitos } from "@/lib/auth-pessoa";
 import { formatarDocumento, LABEL_TIPO_CHAVE_PIX, LABEL_TIPO_DOCUMENTO } from "@/lib/documento";
-import { formatarDataHoraComDiaSemana } from "@/lib/data";
+import { formatarDataHoraComDiaSemana, inicioDoDiaBrasil } from "@/lib/data";
 import { baixarComoDataUrl } from "@/lib/blob";
 import { calcularCompletude } from "@/lib/perfil-completude";
 import { HABILIDADES_SUGERIDAS, VAGAS_SUGERIDAS } from "@/lib/habilidades";
@@ -13,6 +13,7 @@ import PerfilProfissionalForm from "./PerfilProfissionalForm";
 import DisponibilidadeToggle from "./DisponibilidadeToggle";
 import IndicacaoCard from "./IndicacaoCard";
 import SugestaoInstalarApp from "./SugestaoInstalarApp";
+import ExtraMarcadoPessoa from "./vagas/ExtraMarcadoPessoa";
 
 const LABEL_STATUS_TURNO: Record<string, string> = {
   ABERTO: "Em andamento",
@@ -73,7 +74,7 @@ export default async function PortalHomePage() {
     },
   });
 
-  const [avaliacoesRecebidas, totalIndicacoes, turnos, registrosPonto, fotoDataUrl] = await Promise.all([
+  const [avaliacoesRecebidas, totalIndicacoes, turnos, registrosPonto, fotoDataUrl, meusExtrasMarcados] = await Promise.all([
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: sessao.pessoaId } },
       select: {
@@ -112,6 +113,25 @@ export default async function PortalHomePage() {
       },
     }),
     pessoa.fotoPerfilUrl ? baixarComoDataUrl(pessoa.fotoPerfilUrl) : Promise.resolve(null),
+    // Lembrete logo na home — pedido do Thiago em 2026-09-28: sem isso ela
+    // só via o Extra Marcado 🤝 entrando em /portal/vagas, fácil de
+    // esquecer. Só o que ainda vai acontecer (data >= hoje, "o que passou
+    // passou") — mesmo filtro de /portal/vagas/page.tsx.
+    prisma.extraMarcado.findMany({
+      where: {
+        pessoaId: sessao.pessoaId,
+        status: { in: ["AGUARDANDO_PESSOA", "CONFIRMADO"] },
+        data: { gte: inicioDoDiaBrasil(new Date()) },
+      },
+      orderBy: { data: "asc" },
+      select: {
+        id: true,
+        data: true,
+        turnoTipo: true,
+        status: true,
+        empresa: { select: { nome: true } },
+      },
+    }),
   ]);
 
   const conversas = await prisma.conversa.findMany({
@@ -175,6 +195,26 @@ export default async function PortalHomePage() {
       />
 
       <SugestaoInstalarApp />
+
+      {meusExtrasMarcados.length > 0 && (
+        <div>
+          <h2 className="font-semibold text-white text-sm mb-2">🤝 Meus extras marcados</h2>
+          <ul className="flex flex-col gap-2">
+            {meusExtrasMarcados.map((e) => (
+              <ExtraMarcadoPessoa
+                key={e.id}
+                extra={{
+                  id: e.id,
+                  data: e.data,
+                  turnoTipo: e.turnoTipo,
+                  status: e.status as "AGUARDANDO_PESSOA" | "CONFIRMADO",
+                  empresaNome: e.empresa.nome,
+                }}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
 
       {conversas.length > 0 && (
         <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-2">
