@@ -63,7 +63,7 @@ function layoutEmail({
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#FFFFFF;border-radius:16px;overflow:hidden;">
           <tr>
             <td style="background:#0D1B2A;padding:28px 32px;" align="left">
-              <img src="${ICONE_URL}" width="36" height="30" alt="iFREE" style="display:block;" />
+              <img src="${ICONE_URL}" width="36" height="36" alt="iFREE" style="display:block;" />
             </td>
           </tr>
           <tr>
