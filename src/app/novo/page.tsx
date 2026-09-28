@@ -16,10 +16,11 @@ const sora = Sora({
 export const metadata: Metadata = {
   title: "iFREE — Ecossistema de gestão e contratação de pessoas",
   description:
-    "Freelancer sem vínculo e time CLT no mesmo painel: contratação, ponto, PIX automático e conformidade com a NR-1. A ferramenta ideal pro seu RH ou pra quem é dono do próprio negócio.",
+    "Freelancer e time CLT no mesmo painel: contratação, ponto, PIX automático e conformidade com a NR-1. A ferramenta ideal pro seu RH ou pra quem é dono do próprio negócio.",
 };
 
-const MENSAGEM_PADRAO = "Olá! Vi a nova página do iFREE e quero saber mais.";
+const MENSAGEM_EMPRESA =
+  "Olá, eu tenho uma empresa e gostaria de saber como funciona para colocar na minha empresa o iFREE.";
 
 /** Rascunho de uma segunda versão da home (/) — pedido do Thiago em
  * 2026-09-28: reposicionar o iFREE como ecossistema (freelancer + CLT +
@@ -127,12 +128,13 @@ export default async function NovaHomePage() {
             <LogoIcon size={15} />
             O maior ecossistema de gestão e contratação de pessoas
           </span>
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-white leading-[1.1]">
-            Freelancer sem vínculo. Time CLT. <span className="text-brand-400">No mesmo painel.</span>
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl xl:text-8xl font-black tracking-tight text-white leading-[1.05]">
+            Entrou. <span className="text-brand-400">Trabalhou.</span> Recebeu.
           </h1>
           <p className="text-navy-200 max-w-xl lg:max-w-3xl text-lg sm:text-xl lg:text-2xl">
-            Contratação, ponto, pagamento em PIX e a conformidade da NR-1 — tudo o que hoje se resolve
-            em planilha, papel e grupo de WhatsApp, reunido num ecossistema só.
+            Um sistema que conecta todo mundo e organiza: é o match perfeito entre empresa e freelancer.
+            Controlamos o turno e pagamos por hora — conectamos quem quer trabalhar com quem precisa de
+            gente.
           </p>
           <div className="flex flex-wrap justify-center gap-3 lg:gap-4 mt-2">
             <Link
@@ -150,6 +152,28 @@ export default async function NovaHomePage() {
           </div>
           <p className="text-navy-400 text-sm lg:text-base">
             7 dias grátis · Sem cartão de crédito · Configuração em minutos
+          </p>
+        </div>
+      </section>
+
+      {/* Duas metades, uma plataforma só */}
+      <section className="bg-white border-b border-stone-200">
+        <div className="mx-auto max-w-4xl px-4 py-16 sm:py-20 lg:py-24 flex flex-col items-center text-center gap-5 lg:gap-6">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-navy-900">
+            Duas metades. Uma plataforma só.
+          </h2>
+          <p className="text-stone-600 text-base sm:text-lg leading-relaxed">
+            iFREE é uma plataforma só, com duas metades que se completam: o <strong>iFREE</strong>, motor
+            operacional que garante que todo turno seja batido, calculado e pago certo — e o{" "}
+            <strong>iFREE Conecta</strong>, a rede que dá ao freelancer uma identidade, uma reputação e
+            um jeito de ser encontrado. Uma empresa nunca precisou escolher entre controle e conexão.
+            Agora não precisa mesmo.
+          </p>
+          <p className="text-stone-600 text-base sm:text-lg leading-relaxed">
+            É o match perfeito: o famoso combinado não sai caro, e cada lado tem a liberdade de escolher
+            — quem busca uma fonte de renda e quem busca gente pra trabalhar. No iFREE, o freelancer
+            ganha uma identidade dentro da plataforma, e é pela reputação que constrói que as
+            oportunidades chegam até ele.
           </p>
         </div>
       </section>
@@ -252,17 +276,17 @@ export default async function NovaHomePage() {
         />
         <div className="relative mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-28 grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <div className="flex flex-col gap-4 lg:gap-5">
-            <p className="text-brand-400 font-semibold text-sm lg:text-base tracking-wide uppercase">
-              Conformidade sem dor de cabeça
-            </p>
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-brand-400/30 bg-brand-400/10 px-3.5 py-1 text-[11px] lg:text-xs font-bold uppercase tracking-wider text-brand-300">
+              Novidade · Proteção que vira diferencial
+            </span>
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.15]">
-              A NR-1 já cobra isso.
-              <br />
-              <span className="text-brand-400">O iFREE já resolve.</span>
+              O único sistema de gestão de extras do mercado que <span className="text-brand-400">já nasce alinhado à NR-1</span>.
             </h2>
             <p className="text-navy-200 text-base lg:text-lg max-w-md">
-              Sem depender de consultoria avulsa toda vez que precisa mostrar que está em dia — fica
-              registrado no mesmo sistema onde você já gerencia as pessoas.
+              Enquanto o setor trata assédio, discriminação e risco psicossocial como &quot;problema de
+              outro sistema&quot;, o iFREE já vem com um canal de ética embutido — pra proteger quem bate
+              o turno, seja freelancer ou CLT, sem custar nada a mais e sem precisar contratar nenhuma
+              ferramenta à parte.
             </p>
           </div>
           <div className="flex flex-col gap-4 lg:gap-5">
@@ -347,17 +371,11 @@ export default async function NovaHomePage() {
           </p>
           <div className="flex flex-wrap justify-center gap-3 lg:gap-4 mt-2">
             <WhatsAppButton
-              mensagem={MENSAGEM_PADRAO}
+              mensagem={MENSAGEM_EMPRESA}
               className="inline-flex items-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-navy-900 text-base lg:text-lg font-bold px-7 py-4 lg:px-9 lg:py-5 transition-colors shadow-lg shadow-brand-500/20"
             >
-              Falar no WhatsApp
-            </WhatsAppButton>
-            <Link
-              href="/cadastro"
-              className="rounded-xl border border-white/20 text-white hover:bg-white/10 text-base lg:text-lg font-bold px-7 py-4 lg:px-9 lg:py-5 transition-colors"
-            >
               Cadastrar minha empresa
-            </Link>
+            </WhatsAppButton>
           </div>
         </div>
       </section>
@@ -385,7 +403,7 @@ export default async function NovaHomePage() {
               Termos de Uso
             </Link>
             <a
-              href={linkWhatsApp(MENSAGEM_PADRAO)}
+              href={linkWhatsApp(MENSAGEM_EMPRESA)}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-brand-700 transition-colors"
