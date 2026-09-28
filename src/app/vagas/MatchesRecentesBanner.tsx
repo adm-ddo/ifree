@@ -35,9 +35,19 @@ export default async function MatchesRecentesBanner({
   const desdeRecente = new Date(agora - JANELA_RECENTE_HORAS * 60 * 60 * 1000);
   const desdeMaxima = new Date(agora - JANELA_MAXIMA_HORAS * 60 * 60 * 1000);
 
+  // pessoa.disponivelParaOportunidades:true em toda consulta desta tela —
+  // pedido do Thiago em 2026-09-28: quem já combinou um Extra Marcado (e
+  // por isso teve a disponibilidade desligada automaticamente, ver
+  // confirmarExtraMarcado em src/app/portal/vagas/actions.ts) some das
+  // buscas de OUTRAS empresas até reativar manualmente, mesmo que o
+  // perfil continue tecnicamente compatível.
   const [matches, temMaisAlgum] = await Promise.all([
     prisma.vagaMatchPassivo.findMany({
-      where: { vaga: { empresaId }, criadoEm: { gte: desdeRecente } },
+      where: {
+        vaga: { empresaId },
+        criadoEm: { gte: desdeRecente },
+        pessoa: { disponivelParaOportunidades: true },
+      },
       orderBy: { criadoEm: "desc" },
       select: {
         id: true,
@@ -52,7 +62,11 @@ export default async function MatchesRecentesBanner({
     // JANELA_MAXIMA_HORAS; match mais velho que isso já não conta mais
     // aqui, mesmo critério de buscarMaisCandidatosCompativeis).
     prisma.vagaMatchPassivo.findFirst({
-      where: { vaga: { empresaId }, criadoEm: { gte: desdeMaxima } },
+      where: {
+        vaga: { empresaId },
+        criadoEm: { gte: desdeMaxima },
+        pessoa: { disponivelParaOportunidades: true },
+      },
       select: { id: true },
     }),
   ]);

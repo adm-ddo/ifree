@@ -7,6 +7,7 @@ import { formatarEnderecoCompleto, linkGoogleMapsTransit } from "@/lib/endereco"
 import FiltroVagas from "./FiltroVagas";
 import VagaCard from "./VagaCard";
 import ExtraMarcadoPessoa from "./ExtraMarcadoPessoa";
+import ChamarParaConversarBotao from "./ChamarParaConversarBotao";
 
 const LABEL_STATUS_CANDIDATURA: Record<string, string> = {
   ENVIADA: "Aguardando resposta",
@@ -38,44 +39,16 @@ export default async function VagasPortalPage() {
   });
   const enderecoOrigem = pessoa.endereco?.trim() ? formatarEnderecoCompleto(pessoa) : null;
 
-  if (!pessoa.disponivelParaOportunidades) {
-    return (
-      <div className="flex flex-col gap-3">
-        <h1 className="text-2xl font-semibold text-navy-900">Vagas</h1>
-        <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm flex flex-col gap-2">
-          <p className="text-sm text-stone-600">
-            Você ainda não ativou &quot;Disponível para novas
-            oportunidades&quot; — por isso não vê o quadro de vagas.
-          </p>
-          <Link href="/portal" className="text-brand-700 underline text-sm self-start">
-            Voltar e ativar
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // Quem se cadastrou antes de cidade/CEP virarem obrigatórios (ou veio
-  // pelo totem, que nunca pede isso) fica sem dado nenhum pro filtro de
-  // localização — pede pra completar antes de mostrar o quadro, mesmo
-  // padrão do aviso de disponibilidade acima.
-  if (!pessoa.cidade?.trim()) {
-    return (
-      <div className="flex flex-col gap-3">
-        <h1 className="text-2xl font-semibold text-navy-900">Vagas</h1>
-        <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm flex flex-col gap-2">
-          <p className="text-sm text-stone-600">
-            Complete seu endereço (CEP e cidade) no seu perfil pra ver o
-            quadro de vagas — usamos isso pra mostrar oportunidades perto de
-            você.
-          </p>
-          <Link href="/portal" className="text-brand-700 underline text-sm self-start">
-            Completar meu cadastro
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  // Quadro de vagas (abertas + convites) só aparece com disponibilidade
+  // ligada E endereço completo — mas "Meus extras marcados" e "Minhas
+  // candidaturas" (mais abaixo) continuam visíveis mesmo sem isso: pedido
+  // do Thiago em 2026-09-28, quando um Extra Marcado é confirmado dos
+  // dois lados a disponibilidade é desligada automaticamente (ver
+  // confirmarExtraMarcado, ./actions.ts) pra ela sumir das buscas de
+  // OUTRAS empresas enquanto já tem um extra combinado — mas ela ainda
+  // precisa continuar vendo o próprio compromisso e indo lá confirmar
+  // presença, não faz sentido esconder isso dela.
+  const quadroLiberado = pessoa.disponivelParaOportunidades && Boolean(pessoa.cidade?.trim());
 
   const [vagasAbertas, minhasCandidaturas, minhasConversas, meusExtrasMarcados, convitesRecebidos] = await Promise.all([
     prisma.vaga.findMany({
@@ -233,7 +206,34 @@ export default async function VagasPortalPage() {
         </div>
       )}
 
-      {itensConvites.length > 0 && (
+      {!pessoa.disponivelParaOportunidades && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm flex flex-col gap-2">
+          <p className="text-sm text-stone-600">
+            Você está com &quot;Disponível para novas oportunidades&quot; desligado — por isso não vê o
+            quadro de vagas nem aparece pra outras empresas.
+            {meusExtrasMarcados.some((e) => e.status === "CONFIRMADO") &&
+              " Isso foi desligado automaticamente quando você combinou um extra — reative quando quiser buscar mais oportunidades."}
+          </p>
+          <Link href="/portal" className="text-brand-700 underline text-sm self-start">
+            Ir pro meu perfil e reativar
+          </Link>
+        </div>
+      )}
+
+      {pessoa.disponivelParaOportunidades && !pessoa.cidade?.trim() && (
+        <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm flex flex-col gap-2">
+          <p className="text-sm text-stone-600">
+            Complete seu endereço (CEP e cidade) no seu perfil pra ver o
+            quadro de vagas — usamos isso pra mostrar oportunidades perto de
+            você.
+          </p>
+          <Link href="/portal" className="text-brand-700 underline text-sm self-start">
+            Completar meu cadastro
+          </Link>
+        </div>
+      )}
+
+      {quadroLiberado && itensConvites.length > 0 && (
         <div>
           <h2 className="font-semibold text-navy-900 text-sm mb-3">🤝 Convites pra você</h2>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -242,6 +242,11 @@ export default async function VagasPortalPage() {
                 <span className="text-xs font-medium text-brand-700">
                   🤝 {vaga.empresaConviteNome} quer te chamar a atenção pra essa vaga
                 </span>
+                <ChamarParaConversarBotao
+                  vagaId={vaga.id}
+                  jaCandidatou={vaga.jaCandidatou}
+                  conversaIdExistente={vaga.conversaId}
+                />
                 <VagaCard
                   vaga={vaga}
                   jaCandidatou={vaga.jaCandidatou}
@@ -255,7 +260,7 @@ export default async function VagasPortalPage() {
         </div>
       )}
 
-      <FiltroVagas itens={itensVagas} />
+      {quadroLiberado && <FiltroVagas itens={itensVagas} />}
 
       {minhasCandidaturas.length > 0 && (
         <div>

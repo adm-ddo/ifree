@@ -6,7 +6,9 @@ import { calcularMatch } from "@/lib/match";
 import { pessoaProntaParaCandidatura } from "@/lib/perfil-completude";
 import { revalidatePath } from "next/cache";
 
-export type CandidatarSeResultado = { sucesso: true; match: boolean } | { erro: string };
+export type CandidatarSeResultado =
+  | { sucesso: true; match: boolean; conversaId: number | null }
+  | { erro: string };
 
 /** Chamada direto pelo botão (não via form). O @@unique([vagaId, pessoaId])
  * no schema é a rede de segurança final contra candidatura duplicada —
@@ -16,7 +18,10 @@ export type CandidatarSeResultado = { sucesso: true; match: boolean } | { erro: 
  * Se der match (calcularMatch, src/lib/match.ts), a Conversa entre a
  * empresa e a pessoa é criada (upsert) na hora — é por par empresa+pessoa,
  * não por candidatura, então continua valendo pra vagas futuras mesmo que
- * esta em particular seja recusada depois. */
+ * esta em particular seja recusada depois. `conversaId` no retorno (desde
+ * 2026-09-28) deixa quem chamou (ver ChamarParaConversarBotao.tsx) levar a
+ * pessoa direto pro chat assim que o match acontece, sem precisar navegar
+ * de novo pra achar o link. */
 export async function candidatarSe(vagaId: number): Promise<CandidatarSeResultado> {
   const sessao = await requirePessoaComTermosAceitos();
 
@@ -28,7 +33,15 @@ export async function candidatarSe(vagaId: number): Promise<CandidatarSeResultad
   const existente = await prisma.candidatura.findUnique({
     where: { vagaId_pessoaId: { vagaId, pessoaId: sessao.pessoaId } },
   });
-  if (existente) return { sucesso: true, match: existente.match };
+  if (existente) {
+    const conversaExistente = existente.match
+      ? await prisma.conversa.findUnique({
+          where: { empresaId_pessoaId: { empresaId: vaga.empresaId, pessoaId: sessao.pessoaId } },
+          select: { id: true },
+        })
+      : null;
+    return { sucesso: true, match: existente.match, conversaId: conversaExistente?.id ?? null };
+  }
 
   const pessoa = await prisma.pessoa.findUniqueOrThrow({
     where: { id: sessao.pessoaId },
@@ -57,16 +70,18 @@ export async function candidatarSe(vagaId: number): Promise<CandidatarSeResultad
 
   await prisma.candidatura.create({ data: { vagaId, pessoaId: sessao.pessoaId, match } });
 
+  let conversaId: number | null = null;
   if (match) {
-    await prisma.conversa.upsert({
+    const conversa = await prisma.conversa.upsert({
       where: { empresaId_pessoaId: { empresaId: vaga.empresaId, pessoaId: sessao.pessoaId } },
       update: {},
       create: { empresaId: vaga.empresaId, pessoaId: sessao.pessoaId },
     });
+    conversaId = conversa.id;
   }
 
   revalidatePath("/portal/vagas");
-  return { sucesso: true, match };
+  return { sucesso: true, match, conversaId };
 }
 
 async function extraMarcadoDaPessoa(extraMarcadoId: number) {
@@ -84,7 +99,16 @@ async function extraMarcadoDaPessoa(extraMarcadoId: number) {
  * isso é responsável por mostrar o aviso de reputação ANTES do clique —
  * ver AlertaExtraMarcado no Portal — porque não ter aviso nenhum não seria
  * justo: faltar depois de confirmar aqui vira falta automática (ver
- * marcarFaltasExtraMarcado, src/lib/fechamento-automatico.ts). */
+ * marcarFaltasExtraMarcado, src/lib/fechamento-automatico.ts).
+ *
+ * Desliga disponivelParaOportunidades na mesma hora (pedido do Thiago em
+ * 2026-09-28): quem já combinou um extra some das buscas de OUTRAS
+ * empresas (MatchesRecentesBanner.tsx e buscarMaisCandidatosCompativeis,
+ * src/app/vagas/, já filtram por esse campo) até ela mesma reativar
+ * manualmente no Portal — evita ela ser chamada pra mais um extra bem em
+ * cima do que já assumiu. Não bloqueia ela de se candidatar por conta
+ * própria a outra vaga se quiser (isso continua liberado), só para de
+ * empurrar oportunidade nova pra cima dela sem pedir. */
 export async function confirmarExtraMarcado(extraMarcadoId: number) {
   const extra = await extraMarcadoDaPessoa(extraMarcadoId);
   if (extra.status !== "AGUARDANDO_PESSOA") {
@@ -101,9 +125,14 @@ export async function confirmarExtraMarcado(extraMarcadoId: number) {
       update: {},
       create: { pessoaId: extra.pessoaId, empresaId: extra.empresaId },
     }),
+    prisma.pessoa.update({
+      where: { id: extra.pessoaId },
+      data: { disponivelParaOportunidades: false },
+    }),
   ]);
 
   revalidatePath("/portal/vagas");
+  revalidatePath("/portal");
 }
 
 /** Ela decide não ir — nunca vira falta (falta automática só existe pra

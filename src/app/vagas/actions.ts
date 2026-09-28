@@ -208,9 +208,13 @@ export async function buscarMaisCandidatosCompativeis(pagina: number): Promise<B
   const ate = new Date(agora - JANELA_RECENTE_HORAS * 60 * 60 * 1000);
   const paginaValida = Number.isInteger(pagina) && pagina > 0 ? pagina : 1;
 
+  // pessoa.disponivelParaOportunidades:true de propósito — mesmo motivo
+  // do MatchesRecentesBanner.tsx: quem já combinou um Extra Marcado some
+  // das buscas de outras empresas até reativar manualmente.
   const where = {
     vaga: { empresaId: sessao.empresaEfetivoId },
     criadoEm: { gte: desde, lt: ate },
+    pessoa: { disponivelParaOportunidades: true },
   } as const;
 
   const [itens, total] = await Promise.all([
