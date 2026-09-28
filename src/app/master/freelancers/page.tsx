@@ -28,11 +28,13 @@ function calcularPeriodo(preset: Preset, agora: Date): { inicio: Date; fim: Date
 export default async function MasterFreelancersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ portal?: string; preset?: string; inicio?: string; fim?: string }>;
+  searchParams: Promise<{ portal?: string; conta?: string; preset?: string; inicio?: string; fim?: string }>;
 }) {
   await requireMaster();
-  const { portal, preset, inicio, fim } = await searchParams;
+  const { portal, conta, preset, inicio, fim } = await searchParams;
   const soPortalAtivo = portal === "1";
+  const soDesativadas = conta === "desativadas";
+  const soExcluidas = conta === "excluidas";
 
   // Mesmo padrão de filtro de período já usado em /pagamentos — "todos os
   // períodos" (padrão) não restringe nada, cada preset filtra pelo
@@ -52,6 +54,8 @@ export default async function MasterFreelancersPage({
   const pessoas = await prisma.pessoa.findMany({
     where: {
       ...(soPortalAtivo ? { senhaHash: { not: null } } : {}),
+      ...(soDesativadas ? { contaDesativadaEm: { not: null } } : {}),
+      ...(soExcluidas ? { contaExcluidaEm: { not: null } } : {}),
       ...filtroPeriodo,
     },
     // Recém-cadastradas primeiro — é o que mais ajuda a acompanhar quem vai
@@ -67,6 +71,8 @@ export default async function MasterFreelancersPage({
       criadoEm: true,
       senhaHash: true,
       disponivelParaOportunidades: true,
+      contaDesativadaEm: true,
+      contaExcluidaEm: true,
       fotoPerfilUrl: true,
       _count: { select: { turnos: true, vinculos: true } },
     },
@@ -75,6 +81,12 @@ export default async function MasterFreelancersPage({
   const totalComPortal = soPortalAtivo
     ? pessoas.length
     : await prisma.pessoa.count({ where: { senhaHash: { not: null }, ...filtroPeriodo } });
+  const totalDesativadas = soDesativadas
+    ? pessoas.length
+    : await prisma.pessoa.count({ where: { contaDesativadaEm: { not: null }, ...filtroPeriodo } });
+  const totalExcluidas = soExcluidas
+    ? pessoas.length
+    : await prisma.pessoa.count({ where: { contaExcluidaEm: { not: null }, ...filtroPeriodo } });
 
   // Mesma prioridade de sempre: fotoPerfilUrl (cadastro do Portal/iFREE
   // Conecta) é a foto "de verdade" — fotoUrl (totem) nunca entra aqui de
@@ -100,41 +112,40 @@ export default async function MasterFreelancersPage({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Link
-          href={{
-            pathname: "/master/freelancers",
-            query: periodoCustomizado ? { inicio, fim } : presetValido !== "todos" ? { preset: presetValido } : {},
-          }}
-          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-            !soPortalAtivo
-              ? "bg-stone-800 text-white border-stone-800"
-              : "border-stone-300 text-stone-600 hover:bg-stone-50"
-          }`}
-        >
-          Todos
-        </Link>
-        <Link
-          href={{
-            pathname: "/master/freelancers",
-            query: {
-              portal: "1",
-              ...(periodoCustomizado ? { inicio, fim } : presetValido !== "todos" ? { preset: presetValido } : {}),
-            },
-          }}
-          className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-            soPortalAtivo
-              ? "bg-brand-700 text-white border-brand-700"
-              : "border-stone-300 text-stone-600 hover:bg-stone-50"
-          }`}
-        >
-          🔗 Com Portal ativo (Conecta) ({totalComPortal})
-        </Link>
+        {[
+          { valor: null as "portal" | "desativadas" | "excluidas" | null, label: "Todos", total: null },
+          { valor: "portal" as const, label: `🔗 Com Portal ativo (Conecta) (${totalComPortal})`, total: totalComPortal },
+          { valor: "desativadas" as const, label: `⏸️ Desativadas (${totalDesativadas})`, total: totalDesativadas },
+          { valor: "excluidas" as const, label: `🗑️ Excluídas (${totalExcluidas})`, total: totalExcluidas },
+        ].map((f) => {
+          const ativo = f.valor === null ? !soPortalAtivo && !soDesativadas && !soExcluidas : f.valor === "portal" ? soPortalAtivo : f.valor === "desativadas" ? soDesativadas : soExcluidas;
+          return (
+            <Link
+              key={f.label}
+              href={{
+                pathname: "/master/freelancers",
+                query: {
+                  ...(f.valor === "portal" ? { portal: "1" } : {}),
+                  ...(f.valor === "desativadas" || f.valor === "excluidas" ? { conta: f.valor } : {}),
+                  ...(periodoCustomizado ? { inicio, fim } : presetValido !== "todos" ? { preset: presetValido } : {}),
+                },
+              }}
+              className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                ativo ? "bg-stone-800 text-white border-stone-800" : "border-stone-300 text-stone-600 hover:bg-stone-50"
+              }`}
+            >
+              {f.label}
+            </Link>
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {PRESETS.map((p) => {
           const params = new URLSearchParams();
           if (soPortalAtivo) params.set("portal", "1");
+          if (soDesativadas) params.set("conta", "desativadas");
+          if (soExcluidas) params.set("conta", "excluidas");
           if (p.valor !== "todos") params.set("preset", p.valor);
           const query = params.toString();
           return (
@@ -153,6 +164,9 @@ export default async function MasterFreelancersPage({
         })}
         <form method="GET" className="flex flex-wrap items-center gap-2">
           {soPortalAtivo && <input type="hidden" name="portal" value="1" />}
+          {(soDesativadas || soExcluidas) && (
+            <input type="hidden" name="conta" value={soDesativadas ? "desativadas" : "excluidas"} />
+          )}
           <input
             type="date"
             name="inicio"
@@ -181,13 +195,17 @@ export default async function MasterFreelancersPage({
 
       {pessoas.length === 0 && (
         <p className="text-stone-500 text-sm">
-          {soPortalAtivo && temFiltroPeriodo
-            ? "Ninguém ativou o Portal nesse período."
-            : soPortalAtivo
-              ? "Ninguém ativou o Portal ainda."
-              : temFiltroPeriodo
-                ? "Nenhum freelancer cadastrado nesse período."
-                : "Nenhum freelancer cadastrado ainda."}
+          {soDesativadas
+            ? "Ninguém com a conta desativada."
+            : soExcluidas
+              ? "Ninguém com a conta excluída."
+              : soPortalAtivo && temFiltroPeriodo
+                ? "Ninguém ativou o Portal nesse período."
+                : soPortalAtivo
+                  ? "Ninguém ativou o Portal ainda."
+                  : temFiltroPeriodo
+                    ? "Nenhum freelancer cadastrado nesse período."
+                    : "Nenhum freelancer cadastrado ainda."}
         </p>
       )}
 
@@ -204,6 +222,8 @@ export default async function MasterFreelancersPage({
               criadoEmLabel: formatarDataHora(p.criadoEm),
               temPortalAtivo: p.senhaHash !== null,
               disponivelParaOportunidades: p.disponivelParaOportunidades,
+              contaDesativadaEm: p.contaDesativadaEm,
+              contaExcluidaEm: p.contaExcluidaEm,
               totalTurnos: p._count.turnos,
               totalEmpresas: p._count.vinculos,
               fotoDataUrl: fotosDataUrl[i],

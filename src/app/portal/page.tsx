@@ -12,6 +12,7 @@ import FotoPerfilForm from "./FotoPerfilForm";
 import PerfilProfissionalForm from "./PerfilProfissionalForm";
 import DisponibilidadeToggle from "./DisponibilidadeToggle";
 import IndicacaoCard from "./IndicacaoCard";
+import EncerrarContaCard from "./EncerrarContaCard";
 import SugestaoInstalarApp from "./SugestaoInstalarApp";
 import ExtraMarcadoPessoa from "./vagas/ExtraMarcadoPessoa";
 import { contarDesmarquesEmpresaEmLote, contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extra";
@@ -433,6 +434,8 @@ export default async function PortalHomePage() {
           </ul>
         </div>
       )}
+
+      <EncerrarContaCard />
     </div>
   );
 }

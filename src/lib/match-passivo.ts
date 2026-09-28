@@ -22,7 +22,7 @@ export async function notificarPessoasSobreVagaNova(vagaId: number): Promise<{ n
   if (!vaga) return { notificadas: 0 };
 
   const pessoas = await prisma.pessoa.findMany({
-    where: { disponivelParaOportunidades: true },
+    where: { disponivelParaOportunidades: true, contaDesativadaEm: null, contaExcluidaEm: null },
     select: { id: true, nome: true, email: true, habilidades: true },
   });
 
@@ -52,9 +52,16 @@ export async function notificarPessoasSobreVagaNova(vagaId: number): Promise<{ n
 export async function notificarEmpresasSobreNovoPerfil(pessoaId: number): Promise<{ notificadas: number }> {
   const pessoa = await prisma.pessoa.findUnique({
     where: { id: pessoaId },
-    select: { habilidades: true, disponivelParaOportunidades: true },
+    select: {
+      habilidades: true,
+      disponivelParaOportunidades: true,
+      contaDesativadaEm: true,
+      contaExcluidaEm: true,
+    },
   });
-  if (!pessoa || !pessoa.disponivelParaOportunidades) return { notificadas: 0 };
+  if (!pessoa || !pessoa.disponivelParaOportunidades || pessoa.contaDesativadaEm || pessoa.contaExcluidaEm) {
+    return { notificadas: 0 };
+  }
 
   const vagas = await prisma.vaga.findMany({
     where: { status: "ABERTA" },

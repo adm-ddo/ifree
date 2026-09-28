@@ -40,13 +40,15 @@ export default async function MatchesRecentesBanner({
   // por isso teve a disponibilidade desligada automaticamente, ver
   // confirmarExtraMarcado em src/app/portal/vagas/actions.ts) some das
   // buscas de OUTRAS empresas até reativar manualmente, mesmo que o
-  // perfil continue tecnicamente compatível.
+  // perfil continue tecnicamente compatível. contaDesativadaEm/
+  // contaExcluidaEm:null — mesmo raciocínio pra quem pausou ou encerrou a
+  // própria conta (src/app/portal/actions.ts).
   const [matches, temMaisAlgum] = await Promise.all([
     prisma.vagaMatchPassivo.findMany({
       where: {
         vaga: { empresaId },
         criadoEm: { gte: desdeRecente },
-        pessoa: { disponivelParaOportunidades: true },
+        pessoa: { disponivelParaOportunidades: true, contaDesativadaEm: null, contaExcluidaEm: null },
       },
       orderBy: { criadoEm: "desc" },
       select: {
@@ -65,7 +67,7 @@ export default async function MatchesRecentesBanner({
       where: {
         vaga: { empresaId },
         criadoEm: { gte: desdeMaxima },
-        pessoa: { disponivelParaOportunidades: true },
+        pessoa: { disponivelParaOportunidades: true, contaDesativadaEm: null, contaExcluidaEm: null },
       },
       select: { id: true },
     }),

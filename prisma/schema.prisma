@@ -768,6 +768,27 @@ model Pessoa {
   /// versionamento por enquanto) — gate em requirePessoaComTermosAceitos
   /// (src/lib/auth-pessoa.ts), tela em /portal/termos.
   termosAceitosEm             DateTime?
+  /// Conta desativada pela própria pessoa, no Portal (ver EncerrarContaCard.tsx
+  /// e desativarMinhaConta/reativarMinhaConta em src/app/portal/actions.ts) —
+  /// reversível, ela mesma reativa fazendo login de novo. Enquanto setado:
+  /// some de toda busca/match/convite de vaga pras empresas (mesmo
+  /// espírito de disponivelParaOportunidades=false, só que por decisão de
+  /// pausar a conta inteira, não só "ocupada num Extra"), e ela mesma fica
+  /// bloqueada de navegar o resto do Portal — requirePessoaComTermosAceitos
+  /// redireciona pra /portal/conta, com botão de reativar. Nunca setado ao
+  /// mesmo tempo que contaExcluidaEm (exclusão é mais forte).
+  contaDesativadaEm           DateTime?
+  /// Conta excluída pela própria pessoa — irreversível PRA ELA (sem botão
+  /// de desfazer no Portal; login continua funcionando, mas só mostra que
+  /// a conta foi excluída). Nenhum dado é apagado de verdade (histórico de
+  /// turnos/candidaturas/conversas continua intacto, mesmo espírito de
+  /// Empresa.desativadaEm) — some de toda busca/match/convite de vaga pras
+  /// empresas, igual contaDesativadaEm, mas só o master consegue ver essas
+  /// contas de novo (lista de excluídos em /master/freelancers) e
+  /// reativar em nome dela se for pedido de suporte. Documento (CPF/CNPJ)
+  /// fica travado pra sempre — é @unique, não dá pra recadastrar com o
+  /// mesmo depois (mesma trava que já existe hoje pra cadastro duplicado).
+  contaExcluidaEm             DateTime?
   /// Quem indicou esta pessoa a usar o iFREE Conecta — setado
   /// automaticamente quando o cadastro veio por um link de indicação
   /// (?ref=<pessoaId> em /portal/cadastro, ver criarCadastroPortal), nunca

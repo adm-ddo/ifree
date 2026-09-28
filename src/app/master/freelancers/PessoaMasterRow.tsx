@@ -2,8 +2,9 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
-import { excluirPessoaMaster } from "./actions";
+import { excluirPessoaMaster, reativarPessoaMaster } from "./actions";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO } from "@/lib/documento";
+import { formatarDataHora } from "@/lib/data";
 import type { TipoDocumentoPessoa } from "@/generated/prisma/enums";
 
 type Pessoa = {
@@ -15,6 +16,8 @@ type Pessoa = {
   criadoEmLabel: string;
   temPortalAtivo: boolean;
   disponivelParaOportunidades: boolean;
+  contaDesativadaEm: Date | null;
+  contaExcluidaEm: Date | null;
   totalTurnos: number;
   totalEmpresas: number;
   fotoDataUrl: string | null;
@@ -24,6 +27,7 @@ export default function PessoaMasterRow({ pessoa }: { pessoa: Pessoa }) {
   const [pending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
   const podeExcluir = pessoa.totalTurnos === 0;
+  const contaEncerrada = pessoa.contaDesativadaEm || pessoa.contaExcluidaEm;
 
   return (
     <li className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -60,26 +64,55 @@ export default function PessoaMasterRow({ pessoa }: { pessoa: Pessoa }) {
               📋 Disponível pra vagas
             </span>
           )}
+          {pessoa.contaExcluidaEm && (
+            <span className="text-[11px] rounded-full border border-red-200 bg-red-50 text-red-700 px-2 py-0.5">
+              🗑️ Excluída em {formatarDataHora(pessoa.contaExcluidaEm)}
+            </span>
+          )}
+          {!pessoa.contaExcluidaEm && pessoa.contaDesativadaEm && (
+            <span className="text-[11px] rounded-full border border-amber-200 bg-amber-50 text-amber-700 px-2 py-0.5">
+              ⏸️ Desativada em {formatarDataHora(pessoa.contaDesativadaEm)}
+            </span>
+          )}
         </div>
         {erro && <p className="text-xs text-red-600 mt-1">{erro}</p>}
         </div>
       </div>
-      <button
-        disabled={pending || !podeExcluir}
-        title={podeExcluir ? undefined : "Tem turnos registrados — não pode ser excluída"}
-        onClick={() => {
-          if (confirm(`Excluir permanentemente o cadastro de "${pessoa.nome}"?`)) {
-            setErro(null);
-            startTransition(async () => {
-              const res = await excluirPessoaMaster(pessoa.id);
-              if ("erro" in res) setErro(res.erro);
-            });
-          }
-        }}
-        className="text-sm text-red-600 hover:text-red-800 disabled:opacity-40 disabled:cursor-not-allowed inline-block py-1.5 px-2 shrink-0"
-      >
-        Excluir permanentemente
-      </button>
+      <div className="flex items-center gap-2 shrink-0">
+        {contaEncerrada && (
+          <button
+            disabled={pending}
+            onClick={() => {
+              if (confirm(`Reativar a conta de "${pessoa.nome}"? Ela volta a aparecer pras empresas.`)) {
+                setErro(null);
+                startTransition(async () => {
+                  const res = await reativarPessoaMaster(pessoa.id);
+                  if (res?.erro) setErro(res.erro);
+                });
+              }
+            }}
+            className="text-sm text-brand-700 hover:text-brand-800 disabled:opacity-40 inline-block py-1.5 px-2"
+          >
+            Reativar
+          </button>
+        )}
+        <button
+          disabled={pending || !podeExcluir}
+          title={podeExcluir ? undefined : "Tem turnos registrados — não pode ser excluída"}
+          onClick={() => {
+            if (confirm(`Excluir permanentemente o cadastro de "${pessoa.nome}"?`)) {
+              setErro(null);
+              startTransition(async () => {
+                const res = await excluirPessoaMaster(pessoa.id);
+                if ("erro" in res) setErro(res.erro);
+              });
+            }
+          }}
+          className="text-sm text-red-600 hover:text-red-800 disabled:opacity-40 disabled:cursor-not-allowed inline-block py-1.5 px-2"
+        >
+          Excluir permanentemente
+        </button>
+      </div>
     </li>
   );
 }

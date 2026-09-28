@@ -178,11 +178,16 @@ export async function convidarParaVaga(matchPassivoId: number): Promise<Convidar
     select: {
       convidadoEm: true,
       vaga: { select: { empresaId: true, cargo: true, nomeFantasia: true, empresa: { select: { nome: true } } } },
-      pessoa: { select: { nome: true, email: true } },
+      pessoa: {
+        select: { nome: true, email: true, contaDesativadaEm: true, contaExcluidaEm: true },
+      },
     },
   });
   if (!match || match.vaga.empresaId !== sessao.empresaEfetivoId) {
     return { erro: "Esse candidato não pertence a uma vaga desta empresa." };
+  }
+  if (match.pessoa.contaDesativadaEm || match.pessoa.contaExcluidaEm) {
+    return { erro: "Esse freelancer não está mais com a conta ativa." };
   }
   if (match.convidadoEm) return { erro: "Convite já enviado." };
   if (!match.pessoa.email) return { erro: "Esse freelancer não tem e-mail cadastrado." };
@@ -210,11 +215,14 @@ export async function buscarMaisCandidatosCompativeis(pagina: number): Promise<B
 
   // pessoa.disponivelParaOportunidades:true de propósito — mesmo motivo
   // do MatchesRecentesBanner.tsx: quem já combinou um Extra Marcado some
-  // das buscas de outras empresas até reativar manualmente.
+  // das buscas de outras empresas até reativar manualmente. contaDesativadaEm/
+  // contaExcluidaEm:null — quem pausou ou encerrou a própria conta (ver
+  // src/app/portal/actions.ts) some de qualquer busca de candidato, mesmo
+  // que o toggle de disponibilidade tenha ficado ligado de antes.
   const where = {
     vaga: { empresaId: sessao.empresaEfetivoId },
     criadoEm: { gte: desde, lt: ate },
-    pessoa: { disponivelParaOportunidades: true },
+    pessoa: { disponivelParaOportunidades: true, contaDesativadaEm: null, contaExcluidaEm: null },
   } as const;
 
   const [itens, total] = await Promise.all([

@@ -89,13 +89,19 @@ export async function requirePessoa(): Promise<SessaoPessoaAtual> {
 
 /** Use no topo de toda page/rota do Portal que mostra ou gera dado de
  * perfil (home, PDF do currículo) — /portal/termos em si usa requirePessoa
- * puro, senão ninguém conseguiria chegar lá pra aceitar. */
+ * puro, senão ninguém conseguiria chegar lá pra aceitar. Mesmo motivo
+ * pro /portal/conta ficar de fora: é lá que ela reativa a própria conta
+ * desativada, então essa tela não pode redirecionar pra si mesma.
+ *
+ * Checa conta desativada/excluída ANTES de termos — não faz sentido
+ * mandar quem já pausou/encerrou a conta pra aceitar termos de novo. */
 export async function requirePessoaComTermosAceitos(): Promise<SessaoPessoaAtual> {
   const sessao = await requirePessoa();
   const pessoa = await prisma.pessoa.findUnique({
     where: { id: sessao.pessoaId },
-    select: { termosAceitosEm: true },
+    select: { termosAceitosEm: true, contaDesativadaEm: true, contaExcluidaEm: true },
   });
+  if (pessoa?.contaDesativadaEm || pessoa?.contaExcluidaEm) redirect("/portal/conta");
   if (!pessoa?.termosAceitosEm) redirect("/portal/termos");
   return sessao;
 }

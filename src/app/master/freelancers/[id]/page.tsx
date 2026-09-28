@@ -49,6 +49,8 @@ export default async function PessoaMasterPerfilPage({
       disponivelParaOportunidades: true,
       senhaHash: true,
       termosAceitosEm: true,
+      contaDesativadaEm: true,
+      contaExcluidaEm: true,
       criadoEm: true,
       vinculos: {
         select: {
@@ -155,6 +157,16 @@ export default async function PessoaMasterPerfilPage({
               ? `Termos do Portal aceitos em ${formatarDataHora(pessoa.termosAceitosEm)}`
               : "Termos do Portal ainda não aceitos"}
           </span>
+          {pessoa.contaExcluidaEm && (
+            <span className="text-xs rounded-full border border-red-200 bg-red-50 text-red-700 px-2.5 py-1">
+              🗑️ Conta excluída em {formatarDataHora(pessoa.contaExcluidaEm)}
+            </span>
+          )}
+          {!pessoa.contaExcluidaEm && pessoa.contaDesativadaEm && (
+            <span className="text-xs rounded-full border border-amber-200 bg-amber-50 text-amber-700 px-2.5 py-1">
+              ⏸️ Conta desativada em {formatarDataHora(pessoa.contaDesativadaEm)}
+            </span>
+          )}
         </div>
 
         {pessoa.biografia && <p className="text-sm text-stone-600">{pessoa.biografia}</p>}

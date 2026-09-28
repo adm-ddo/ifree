@@ -25,3 +25,19 @@ export async function excluirPessoaMaster(pessoaId: number): Promise<ResultadoEx
   revalidatePath("/master/freelancers");
   return { sucesso: true };
 }
+
+/** Reverte contaDesativadaEm/contaExcluidaEm em nome da pessoa — pedido
+ * de suporte ("desativei/excluí sem querer, dá pra voltar?"). Diferente
+ * de reativarMinhaConta (src/app/portal/actions.ts), que a própria pessoa
+ * só consegue usar enquanto NÃO estiver excluída — aqui o master pode
+ * reverter os dois estados. */
+export async function reativarPessoaMaster(pessoaId: number): Promise<{ erro?: string }> {
+  await requireMaster();
+  await prisma.pessoa.update({
+    where: { id: pessoaId },
+    data: { contaDesativadaEm: null, contaExcluidaEm: null },
+  });
+  revalidatePath("/master/freelancers");
+  revalidatePath(`/master/freelancers/${pessoaId}`);
+  return {};
+}

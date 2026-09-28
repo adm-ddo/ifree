@@ -11,6 +11,7 @@ import { criarTokenAutenticacaoPessoa, tokenRecenteExistePessoa } from "@/lib/to
 import { enviarEmailTrocaEmailPessoa } from "@/lib/email";
 import { notificarEmpresasSobreNovoPerfil } from "@/lib/match-passivo";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 export type AtualizarMeusDadosState = { erro?: string; sucesso?: boolean } | undefined;
 
@@ -227,4 +228,56 @@ export async function atualizarDisponibilidade(disponivel: boolean): Promise<voi
   });
   revalidatePath("/portal");
   revalidatePath("/portal/vagas");
+}
+
+/** Pausa a própria conta (reversível) — chamada direto pelo botão em
+ * EncerrarContaCard.tsx. A partir daqui, requirePessoaComTermosAceitos
+ * (src/lib/auth-pessoa.ts) redireciona toda tela do Portal pra
+ * /portal/conta até ela reativar, e as buscas de candidato/match das
+ * empresas (ver contaDesativadaEm no schema) param de trazer essa pessoa —
+ * sem mexer em disponivelParaOportunidades, que é um toggle independente
+ * (fica do jeito que estava, pronto pra quando reativar). */
+export async function desativarMinhaConta(): Promise<void> {
+  const sessao = await requirePessoa();
+  await prisma.pessoa.update({
+    where: { id: sessao.pessoaId },
+    data: { contaDesativadaEm: new Date() },
+  });
+  revalidatePath("/portal", "layout");
+  redirect("/portal/conta");
+}
+
+/** Desfaz desativarMinhaConta acima — só funciona pra conta desativada,
+ * nunca pra excluída (essa não tem volta pelo próprio Portal, só o master
+ * consegue reverter em /master/freelancers). */
+export async function reativarMinhaConta(): Promise<{ erro?: string }> {
+  const sessao = await requirePessoa();
+  const pessoa = await prisma.pessoa.findUnique({
+    where: { id: sessao.pessoaId },
+    select: { contaExcluidaEm: true },
+  });
+  if (pessoa?.contaExcluidaEm) {
+    return { erro: "Essa conta foi excluída — fale com o suporte pra reativar." };
+  }
+  await prisma.pessoa.update({
+    where: { id: sessao.pessoaId },
+    data: { contaDesativadaEm: null },
+  });
+  revalidatePath("/portal", "layout");
+  redirect("/portal");
+}
+
+/** Encerra a própria conta de vez — irreversível pelo Portal (mesmo
+ * espírito de contaExcluidaEm no schema: nenhum dado é apagado de
+ * verdade, só o master ainda enxerga essa pessoa, em /master/freelancers).
+ * Chamada direto pelo botão em EncerrarContaCard.tsx, com confirmação
+ * (digitar "EXCLUIR") já feita no cliente antes de chegar aqui. */
+export async function excluirMinhaConta(): Promise<void> {
+  const sessao = await requirePessoa();
+  await prisma.pessoa.update({
+    where: { id: sessao.pessoaId },
+    data: { contaExcluidaEm: new Date() },
+  });
+  revalidatePath("/portal", "layout");
+  redirect("/portal/conta");
 }
