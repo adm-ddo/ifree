@@ -52,7 +52,7 @@ export async function criarExtraMarcado(
 ): Promise<CriarExtraMarcadoState> {
   const candidatura = await candidaturaDaEmpresa(candidaturaId);
   if (candidatura.status !== "ACEITA") {
-    return { erro: "Aceite a candidatura antes de marcar um extra." };
+    return { erro: "Aceite a candidatura antes de marcar um Free." };
   }
 
   const dataISO = String(formData.get("data") ?? "");
@@ -85,19 +85,25 @@ export async function criarExtraMarcado(
   return { sucesso: true };
 }
 
-/** Empresa desiste de um Extra Marcado antes da pessoa confirmar (ou
- * mesmo depois, se o combinado mudar) — nunca vira falta, é diferente de
- * NAO_COMPARECEU (que só acontece quando os dois já confirmaram e ela
- * simplesmente não apareceu). */
+/** Empresa desmarca um Free antes da pessoa confirmar (ou mesmo depois, se
+ * o combinado mudar) — nunca vira falta, é diferente de NAO_COMPARECEU
+ * (que só acontece quando os dois já confirmaram e ela simplesmente não
+ * apareceu). Grava canceladoPor:"EMPRESA" — base do contador "essa
+ * empresa já desmarcou N vezes" mostrado pro freelancer antes dele
+ * confirmar um novo Free com ela (pedido do Thiago em 2026-09-28, ver
+ * ExtraMarcadoPessoa.tsx). */
 export async function cancelarExtraMarcadoEmpresa(extraMarcadoId: number) {
   const sessao = await requireTenant();
   const extra = await prisma.extraMarcado.findUnique({ where: { id: extraMarcadoId } });
   if (!extra || extra.empresaId !== sessao.empresaEfetivoId) {
-    throw new Error("Esse Extra Marcado não pertence a esta empresa.");
+    throw new Error("Esse Free não pertence a esta empresa.");
   }
   if (extra.status !== "AGUARDANDO_PESSOA" && extra.status !== "CONFIRMADO") {
-    throw new Error("Esse Extra Marcado não pode mais ser cancelado.");
+    throw new Error("Esse Free não pode mais ser desmarcado.");
   }
-  await prisma.extraMarcado.update({ where: { id: extraMarcadoId }, data: { status: "CANCELADO" } });
+  await prisma.extraMarcado.update({
+    where: { id: extraMarcadoId },
+    data: { status: "CANCELADO", canceladoPor: "EMPRESA" },
+  });
   revalidatePath(`/vagas/${extra.vagaId}`);
 }

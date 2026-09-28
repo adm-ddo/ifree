@@ -7,7 +7,7 @@ export type AvaliacaoRecebida = {
   empresaNome: string;
 };
 
-/** Falta automática 🚫 num Extra Marcado confirmado (ver
+/** Falta automática 🚫 num Free Marcado confirmado (ver
  * marcarFaltasExtraMarcado, src/lib/fechamento-automatico.ts) — conta como
  * nota 1 na média, mas mostrada com rótulo próprio na linha do tempo em
  * vez de virar uma avaliação de 1 estrela solta sem contexto (pedido do
@@ -25,23 +25,35 @@ export type FaltaExtraMarcado = {
  *
  * `faltas` (opcional) entra na média como nota 1 cada, mas some na
  * timeline com rótulo próprio em vez de estrelas — é o principal sinal de
- * credibilidade do freelancer perante as empresas desde que o Extra
+ * credibilidade do freelancer perante as empresas desde que o Free
  * Marcado existe.
+ *
+ * `desmarquesDepoisDeAceitar` (opcional, pedido do Thiago em 2026-09-28) —
+ * quantas vezes a pessoa confirmou um Free e DEPOIS desmarcou (ver
+ * desmarcarFreeConfirmado, src/app/portal/vagas/actions.ts e
+ * contarDesmarquesPessoaDepoisDeAceitar, src/lib/confiabilidade-extra.ts).
+ * Diferente de falta (ela pelo menos avisou), mas ainda é sinal de
+ * confiabilidade — por isso fica visível à parte, sem entrar na média de
+ * estrelas (não é uma "nota", é só uma contagem).
  *
  * `totalIndicacoes` (opcional) mostra à parte, nunca somado/misturado na
  * média de estrelas — são coisas diferentes (nota de trabalho vs. quantas
  * pessoas essa pessoa trouxe pro iFREE). Card aparece mesmo com 0
- * avaliações se houver indicação ou falta pra mostrar. */
+ * avaliações se houver indicação, falta ou desmarque pra mostrar. */
 export default function ReputacaoCard({
   avaliacoes,
   faltas = [],
+  desmarquesDepoisDeAceitar = 0,
   totalIndicacoes = 0,
 }: {
   avaliacoes: AvaliacaoRecebida[];
   faltas?: FaltaExtraMarcado[];
+  desmarquesDepoisDeAceitar?: number;
   totalIndicacoes?: number;
 }) {
-  if (avaliacoes.length === 0 && faltas.length === 0 && totalIndicacoes === 0) return null;
+  if (avaliacoes.length === 0 && faltas.length === 0 && desmarquesDepoisDeAceitar === 0 && totalIndicacoes === 0) {
+    return null;
+  }
 
   const totalNotas = avaliacoes.length + faltas.length;
   const media =
@@ -81,6 +93,13 @@ export default function ReputacaoCard({
             </span>
           </div>
         </div>
+      )}
+
+      {desmarquesDepoisDeAceitar > 0 && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+          ↩️ Já confirmou e depois desmarcou um Free {desmarquesDepoisDeAceitar}{" "}
+          {desmarquesDepoisDeAceitar === 1 ? "vez" : "vezes"}
+        </p>
       )}
 
       {totalIndicacoes > 0 && (

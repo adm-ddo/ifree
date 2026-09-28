@@ -6,6 +6,7 @@ import { baixarComoDataUrl } from "@/lib/blob";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
 import FiltroCandidaturas from "./FiltroCandidaturas";
 import EditarVagaForm from "./EditarVagaForm";
+import { contarDesmarquesPessoaEmLote } from "@/lib/confiabilidade-extra";
 
 export default async function VagaDetalhePage({
   params,
@@ -81,9 +82,11 @@ export default async function VagaDetalhePage({
   });
   const conversaIdPorPessoa = new Map(conversas.map((c) => [c.pessoaId, c.id]));
 
+  const desmarquesPorPessoa = await contarDesmarquesPessoaEmLote(vaga.candidaturas.map((c) => c.pessoa.id));
+
   const candidaturasComDados = await Promise.all(
     vaga.candidaturas.map(async (c) => {
-      const [fotoDataUrl, avaliacoesRecebidas] = await Promise.all([
+      const [fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado] = await Promise.all([
         c.pessoa.fotoPerfilUrl ? baixarComoDataUrl(c.pessoa.fotoPerfilUrl) : Promise.resolve(null),
         prisma.avaliacao.findMany({
           where: { autor: "EMPRESA", turno: { pessoaId: c.pessoa.id } },
@@ -95,8 +98,13 @@ export default async function VagaDetalhePage({
           },
           orderBy: { criadoEm: "desc" },
         }),
+        prisma.extraMarcado.findMany({
+          where: { pessoaId: c.pessoa.id, status: "NAO_COMPARECEU" },
+          select: { data: true, empresa: { select: { nome: true } } },
+          orderBy: { data: "desc" },
+        }),
       ]);
-      return { ...c, fotoDataUrl, avaliacoesRecebidas };
+      return { ...c, fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado };
     })
   );
 
@@ -164,6 +172,8 @@ export default async function VagaDetalhePage({
                   criadoEm: a.criadoEm,
                   empresaNome: a.turno.empresa.nome,
                 }))}
+                faltas={c.faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
+                desmarquesDepoisDeAceitar={desmarquesPorPessoa.get(c.pessoa.id) ?? 0}
               />
             ),
           }))}

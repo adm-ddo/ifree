@@ -8,6 +8,7 @@ import FiltroVagas from "./FiltroVagas";
 import VagaCard from "./VagaCard";
 import ExtraMarcadoPessoa from "./ExtraMarcadoPessoa";
 import ChamarParaConversarBotao from "./ChamarParaConversarBotao";
+import { contarDesmarquesEmpresaEmLote } from "@/lib/confiabilidade-extra";
 
 const LABEL_STATUS_CANDIDATURA: Record<string, string> = {
   ENVIADA: "Aguardando resposta",
@@ -122,6 +123,7 @@ export default async function VagasPortalPage() {
         data: true,
         turnoTipo: true,
         status: true,
+        empresaId: true,
         empresa: { select: { nome: true } },
       },
     }),
@@ -139,6 +141,10 @@ export default async function VagasPortalPage() {
       },
     }),
   ]);
+
+  const desmarquesPorEmpresa = await contarDesmarquesEmpresaEmLote(
+    [...new Set(meusExtrasMarcados.map((e) => e.empresaId))]
+  );
 
   const vagaIdsComCandidatura = new Set(minhasCandidaturas.map((c) => c.vagaId));
   const conversaIdPorEmpresa = new Map(minhasConversas.map((c) => [c.empresaId, c.id]));
@@ -198,7 +204,7 @@ export default async function VagasPortalPage() {
 
       {meusExtrasMarcados.length > 0 && (
         <div>
-          <h2 className="font-semibold text-navy-900 text-sm mb-3">🤝 Meus extras marcados</h2>
+          <h2 className="font-semibold text-navy-900 text-sm mb-3">🤝 Meus Frees marcados</h2>
           <ul className="flex flex-col gap-2">
             {meusExtrasMarcados.map((e) => (
               <ExtraMarcadoPessoa
@@ -209,6 +215,7 @@ export default async function VagasPortalPage() {
                   turnoTipo: e.turnoTipo,
                   status: e.status as "AGUARDANDO_PESSOA" | "CONFIRMADO",
                   empresaNome: e.empresa.nome,
+                  empresaJaDesmarcouVezes: desmarquesPorEmpresa.get(e.empresaId) ?? 0,
                 }}
               />
             ))}
@@ -222,7 +229,7 @@ export default async function VagasPortalPage() {
             Você está com &quot;Disponível para novas oportunidades&quot; desligado — por isso não vê o
             quadro de vagas nem aparece pra outras empresas.
             {meusExtrasMarcados.some((e) => e.status === "CONFIRMADO") &&
-              " Isso foi desligado automaticamente quando você combinou um extra — reative quando quiser buscar mais oportunidades."}
+              " Isso foi desligado automaticamente quando você combinou um Free — reative quando quiser buscar mais oportunidades."}
           </p>
           <Link href="/portal" className="text-brand-700 underline text-sm self-start">
             Ir pro meu perfil e reativar

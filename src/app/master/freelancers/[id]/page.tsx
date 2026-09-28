@@ -7,6 +7,7 @@ import { formatarDocumento, LABEL_TIPO_DOCUMENTO } from "@/lib/documento";
 import { formatarEnderecoCompleto } from "@/lib/endereco";
 import { formatarDataHora } from "@/lib/data";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
+import { contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extra";
 
 /** Perfil completo de uma pessoa, visão master — mesmo conteúdo que uma
  * empresa vê do candidato numa vaga (foto, bio, habilidades, reputação),
@@ -68,7 +69,7 @@ export default async function PessoaMasterPerfilPage({
   // Thiago em 2026-09-26: esta tela buscava só fotoUrl, então freelancer
   // com foto do Conecta aparecia sem foto nenhuma aqui.
   const fotoParaExibir = pessoa.fotoPerfilUrl ?? pessoa.fotoUrl;
-  const [fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado] = await Promise.all([
+  const [fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado, desmarquesDepoisDeAceitar] = await Promise.all([
     fotoParaExibir ? baixarComoDataUrl(fotoParaExibir) : Promise.resolve(null),
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: pessoa.id } },
@@ -85,6 +86,7 @@ export default async function PessoaMasterPerfilPage({
       select: { data: true, empresa: { select: { nome: true } } },
       orderBy: { data: "desc" },
     }),
+    contarDesmarquesPessoaDepoisDeAceitar(pessoa.id),
   ]);
 
   const temPortalAtivo = pessoa.senhaHash !== null;
@@ -220,6 +222,7 @@ export default async function PessoaMasterPerfilPage({
           empresaNome: a.turno.empresa.nome,
         }))}
         faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
+        desmarquesDepoisDeAceitar={desmarquesDepoisDeAceitar}
         totalIndicacoes={pessoa._count.indicados}
       />
     </div>

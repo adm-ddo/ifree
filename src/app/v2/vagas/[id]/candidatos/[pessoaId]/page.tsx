@@ -7,6 +7,7 @@ import { formatarEnderecoCompleto } from "@/lib/endereco";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
 import AvatarPessoa from "@/components/AvatarPessoa";
 import ConvidarParaVagaBotao from "@/app/vagas/ConvidarParaVagaBotao";
+import { contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extra";
 
 /** Espelho completo de src/app/vagas/[id]/candidatos/[pessoaId]/page.tsx
  * (v1, não tocado) — mesma lógica de fallback pra match passivo (ver
@@ -82,7 +83,7 @@ export default async function V2CandidatoPerfilPage({
   const pessoa = candidatura ? candidatura.pessoa : matchPassivo!.pessoa;
   const cargo = candidatura ? candidatura.vaga.cargo : matchPassivo!.vaga.cargo;
 
-  const [avaliacoesRecebidas, faltasExtraMarcado, conversa] = await Promise.all([
+  const [avaliacoesRecebidas, faltasExtraMarcado, desmarquesDepoisDeAceitar, conversa] = await Promise.all([
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: pessoa.id } },
       select: { nota: true, tags: true, criadoEm: true, turno: { select: { empresa: { select: { nome: true } } } } },
@@ -93,6 +94,7 @@ export default async function V2CandidatoPerfilPage({
       select: { data: true, empresa: { select: { nome: true } } },
       orderBy: { data: "desc" },
     }),
+    contarDesmarquesPessoaDepoisDeAceitar(pessoa.id),
     candidatura
       ? prisma.conversa.findUnique({
           where: { empresaId_pessoaId: { empresaId: empresaIdDaVaga, pessoaId: pessoa.id } },
@@ -207,6 +209,7 @@ export default async function V2CandidatoPerfilPage({
           empresaNome: a.turno.empresa.nome,
         }))}
         faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
+        desmarquesDepoisDeAceitar={desmarquesDepoisDeAceitar}
       />
     </div>
   );

@@ -7,6 +7,7 @@ import { formatarDocumento, LABEL_TIPO_DOCUMENTO } from "@/lib/documento";
 import { formatarEnderecoCompleto } from "@/lib/endereco";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
 import ConvidarParaVagaBotao from "@/app/vagas/ConvidarParaVagaBotao";
+import { contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extra";
 
 /** Perfil do candidato — dois casos possíveis pra mesma URL
  * (/vagas/:id/candidatos/:pessoaId):
@@ -93,7 +94,7 @@ export default async function CandidatoPerfilPage({
   const pessoa = candidatura ? candidatura.pessoa : matchPassivo!.pessoa;
   const cargo = candidatura ? candidatura.vaga.cargo : matchPassivo!.vaga.cargo;
 
-  const [fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado, conversa] = await Promise.all([
+  const [fotoDataUrl, avaliacoesRecebidas, faltasExtraMarcado, desmarquesDepoisDeAceitar, conversa] = await Promise.all([
     pessoa.fotoPerfilUrl ? baixarComoDataUrl(pessoa.fotoPerfilUrl) : Promise.resolve(null),
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: pessoa.id } },
@@ -110,6 +111,7 @@ export default async function CandidatoPerfilPage({
       select: { data: true, empresa: { select: { nome: true } } },
       orderBy: { data: "desc" },
     }),
+    contarDesmarquesPessoaDepoisDeAceitar(pessoa.id),
     candidatura
       ? prisma.conversa.findUnique({
           where: { empresaId_pessoaId: { empresaId: empresaIdDaVaga, pessoaId: pessoa.id } },
@@ -233,6 +235,7 @@ export default async function CandidatoPerfilPage({
           empresaNome: a.turno.empresa.nome,
         }))}
         faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
+        desmarquesDepoisDeAceitar={desmarquesDepoisDeAceitar}
       />
     </div>
   );

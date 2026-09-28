@@ -55,7 +55,7 @@ export default async function ProximosExtrasMarcadosEmpresa({
   return (
     <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-2">
       <p className="text-sm font-semibold text-brand-800">
-        🤝 {extras.length} extra{extras.length > 1 ? "s" : ""} marcado{extras.length > 1 ? "s" : ""} pra frente
+        🤝 {extras.length} Free{extras.length > 1 ? "s" : ""} marcado{extras.length > 1 ? "s" : ""} pra frente
       </p>
       <ul className="flex flex-col">
         {extras.map((e) => (

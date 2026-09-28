@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { confirmarExtraMarcado, recusarExtraMarcado } from "./actions";
+import { confirmarExtraMarcado, recusarExtraMarcado, desmarcarFreeConfirmado } from "./actions";
 import { formatarDataSemHora } from "@/lib/data";
 
 export type ExtraMarcadoPendente = {
@@ -10,41 +10,100 @@ export type ExtraMarcadoPendente = {
   turnoTipo: "DIA" | "NOITE";
   status: "AGUARDANDO_PESSOA" | "CONFIRMADO";
   empresaNome: string;
+  /// Quantas vezes ESSA empresa já desmarcou um Free (antes ou depois de
+  /// alguém confirmar) — sinal de confiabilidade do lado dela, mostrado
+  /// ANTES da pessoa confirmar (pedido do Thiago em 2026-09-28, ver
+  /// contarDesmarquesEmpresaEmLote em src/lib/confiabilidade-extra.ts).
+  empresaJaDesmarcouVezes: number;
 };
 
-/** Card de um Extra Marcado pendente ou já confirmado, na tela de vagas do
+/** Card de um Free Marcado pendente ou já confirmado, na tela de vagas do
  * Portal — o aviso de reputação (⚠️) só aparece depois que ela clica em
  * "Confirmar" pela primeira vez, nunca escondido: pedido do Thiago em
  * 2026-09-26, ela precisa ver a consequência de faltar ANTES de confirmar,
  * não descobrir depois. Confirmar de verdade (confirmarExtraMarcado) só
- * roda no segundo clique, dentro do aviso. */
+ * roda no segundo clique, dentro do aviso.
+ *
+ * Depois de confirmado, ela também pode desmarcar (pedido do Thiago em
+ * 2026-09-28) — mesmo padrão de dois cliques com aviso, já que desmarcar
+ * depois de confirmar fica registrado e visível pra empresa (ver
+ * desmarcarFreeConfirmado, ./actions.ts). */
 export default function ExtraMarcadoPessoa({ extra }: { extra: ExtraMarcadoPendente }) {
   const [mostrarAviso, setMostrarAviso] = useState(false);
+  const [mostrarAvisoDesmarcar, setMostrarAvisoDesmarcar] = useState(false);
   const [pending, startTransition] = useTransition();
   const [erro, setErro] = useState<string | null>(null);
 
   if (extra.status === "CONFIRMADO") {
     return (
-      <li className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-1">
-        <p className="text-sm font-semibold text-navy-900">
-          ✅ Extra combinado com {extra.empresaNome}
-        </p>
+      <li className="rounded-2xl border border-brand-200 bg-brand-50 p-4 flex flex-col gap-2">
+        <p className="text-sm font-semibold text-navy-900">✅ Free combinado com {extra.empresaNome}</p>
         <p className="text-sm text-stone-700">
           {formatarDataSemHora(extra.data)} · {extra.turnoTipo === "DIA" ? "☀️ Turno do dia" : "🌙 Turno da noite"}
         </p>
         <p className="text-xs text-stone-500">
           Chegue nesse dia/turno e bata seu CPF no totem — se não aparecer, isso pesa na sua reputação.
         </p>
+
+        {!mostrarAvisoDesmarcar ? (
+          <button
+            type="button"
+            onClick={() => setMostrarAvisoDesmarcar(true)}
+            className="text-xs text-stone-500 hover:text-red-600 underline self-start"
+          >
+            Não vou poder ir mais
+          </button>
+        ) : (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 flex flex-col gap-2">
+            <p className="text-sm text-red-800">
+              ⚠️ Você já tinha confirmado esse Free — desmarcar agora fica registrado e a empresa
+              consegue ver que você desmarcou depois de aceitar.
+            </p>
+            {erro && <p className="text-sm text-red-700 font-medium">{erro}</p>}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    setErro(null);
+                    try {
+                      await desmarcarFreeConfirmado(extra.id);
+                    } catch {
+                      setErro("Não foi possível desmarcar agora — tenta de novo.");
+                    }
+                  })
+                }
+                className="rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-50 transition-colors"
+              >
+                {pending ? "Desmarcando..." : "Sim, desmarcar"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMostrarAvisoDesmarcar(false)}
+                className="rounded-lg border border-stone-300 text-sm px-4 py-2"
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        )}
       </li>
     );
   }
 
   return (
     <li className="rounded-2xl border border-amber-300 bg-amber-50 p-4 flex flex-col gap-2">
-      <p className="text-sm font-semibold text-navy-900">🤝 {extra.empresaNome} marcou um extra pra você</p>
+      <p className="text-sm font-semibold text-navy-900">🤝 {extra.empresaNome} marcou um Free pra você</p>
       <p className="text-sm text-stone-700">
         {formatarDataSemHora(extra.data)} · {extra.turnoTipo === "DIA" ? "☀️ Turno do dia" : "🌙 Turno da noite"}
       </p>
+      {extra.empresaJaDesmarcouVezes > 0 && (
+        <p className="text-xs text-amber-700">
+          ⚠️ {extra.empresaNome} já desmarcou {extra.empresaJaDesmarcouVezes}{" "}
+          {extra.empresaJaDesmarcouVezes === 1 ? "vez" : "vezes"} antes.
+        </p>
+      )}
 
       {!mostrarAviso ? (
         <div className="flex gap-2">

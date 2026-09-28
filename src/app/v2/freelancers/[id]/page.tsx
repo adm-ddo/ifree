@@ -18,6 +18,7 @@ import AlertaRiscoCltPessoa from "@/app/freelancers/[id]/AlertaRiscoCltPessoa";
 import RestricaoHorarioForm from "@/components/RestricaoHorarioForm";
 import AvatarPessoa from "@/components/AvatarPessoa";
 import { atualizarRestricaoHorario } from "@/app/funcionarios/actions";
+import { contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extra";
 
 /** Espelho completo de src/app/freelancers/[id]/page.tsx (v1, não
  * tocado) — mesmas 5 queries em paralelo, mesmos formulários/cartões
@@ -32,7 +33,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
   const pessoaId = Number(id);
   if (!Number.isInteger(pessoaId)) notFound();
 
-  const [vinculo, avaliacoesRecebidas, faltasExtraMarcado, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
+  const [vinculo, avaliacoesRecebidas, faltasExtraMarcado, desmarquesDepoisDeAceitar, totalIndicacoes, turnos, funcoesAtivas, responsavelGed, riscoClt] = await Promise.all([
     prisma.vinculoPessoaEmpresa.findUnique({
       where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
       select: {
@@ -75,6 +76,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
       select: { data: true, empresa: { select: { nome: true } } },
       orderBy: { data: "desc" },
     }),
+    contarDesmarquesPessoaDepoisDeAceitar(pessoaId),
     prisma.pessoa.count({ where: { indicadoPorPessoaId: pessoaId } }),
     prisma.turno.findMany({
       where: { pessoaId, empresaId: sessao.empresaEfetivoId },
@@ -158,6 +160,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
       <ReputacaoCard
         avaliacoes={avaliacoesRecebidas.map((a) => ({ nota: a.nota, tags: a.tags, criadoEm: a.criadoEm, empresaNome: a.turno.empresa.nome }))}
         faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
+        desmarquesDepoisDeAceitar={desmarquesDepoisDeAceitar}
         totalIndicacoes={totalIndicacoes}
       />
 

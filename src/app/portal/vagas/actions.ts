@@ -88,7 +88,7 @@ async function extraMarcadoDaPessoa(extraMarcadoId: number) {
   const sessao = await requirePessoaComTermosAceitos();
   const extra = await prisma.extraMarcado.findUnique({ where: { id: extraMarcadoId } });
   if (!extra || extra.pessoaId !== sessao.pessoaId) {
-    throw new Error("Esse Extra Marcado não pertence a esta pessoa.");
+    throw new Error("Esse Free não pertence a esta pessoa.");
   }
   return extra;
 }
@@ -112,7 +112,7 @@ async function extraMarcadoDaPessoa(extraMarcadoId: number) {
 export async function confirmarExtraMarcado(extraMarcadoId: number) {
   const extra = await extraMarcadoDaPessoa(extraMarcadoId);
   if (extra.status !== "AGUARDANDO_PESSOA") {
-    throw new Error("Esse Extra Marcado não está mais esperando confirmação.");
+    throw new Error("Esse Free não está mais esperando confirmação.");
   }
 
   await prisma.$transaction([
@@ -135,13 +135,41 @@ export async function confirmarExtraMarcado(extraMarcadoId: number) {
   revalidatePath("/portal");
 }
 
-/** Ela decide não ir — nunca vira falta (falta automática só existe pra
- * quem confirmou e depois não apareceu, ver StatusExtraMarcado no schema). */
+/** Ela decide não ir ANTES de ter confirmado — nunca vira falta nem conta
+ * no contador de "desmarcou depois de aceitar" (esse só existe pra quem
+ * já tinha confirmado, ver desmarcarFreeConfirmado abaixo); ela nunca
+ * chegou a se comprometer de verdade. */
 export async function recusarExtraMarcado(extraMarcadoId: number) {
   const extra = await extraMarcadoDaPessoa(extraMarcadoId);
   if (extra.status !== "AGUARDANDO_PESSOA") {
-    throw new Error("Esse Extra Marcado não está mais esperando confirmação.");
+    throw new Error("Esse Free não está mais esperando confirmação.");
   }
-  await prisma.extraMarcado.update({ where: { id: extraMarcadoId }, data: { status: "CANCELADO" } });
+  await prisma.extraMarcado.update({
+    where: { id: extraMarcadoId },
+    data: { status: "CANCELADO", canceladoPor: "PESSOA" },
+  });
   revalidatePath("/portal/vagas");
+}
+
+/** Ela desmarca um Free que JÁ tinha confirmado — pedido do Thiago em
+ * 2026-09-28: antes só a empresa podia desmarcar depois da confirmação,
+ * ela ficava travada nisso. Diferente de recusarExtraMarcado (que só
+ * vale ANTES de confirmar): aqui confirmadoPessoaEm já está preenchido,
+ * então esse cancelamento conta no contador "desmarcou depois de
+ * aceitar" mostrado pra empresa na reputação dela (ver ReputacaoCard.tsx
+ * e candidatoDesmarcouDepoisDeAceitar em src/lib/confiabilidade-extra.ts).
+ * Não mexe no VinculoPessoaEmpresa nem reativa disponivelParaOportunidades
+ * sozinho — ela pode ter outros compromissos/histórico com a mesma
+ * empresa, e reativar disponibilidade é decisão dela, não automática. */
+export async function desmarcarFreeConfirmado(extraMarcadoId: number) {
+  const extra = await extraMarcadoDaPessoa(extraMarcadoId);
+  if (extra.status !== "CONFIRMADO") {
+    throw new Error("Esse Free não está confirmado.");
+  }
+  await prisma.extraMarcado.update({
+    where: { id: extraMarcadoId },
+    data: { status: "CANCELADO", canceladoPor: "PESSOA" },
+  });
+  revalidatePath("/portal/vagas");
+  revalidatePath("/portal");
 }

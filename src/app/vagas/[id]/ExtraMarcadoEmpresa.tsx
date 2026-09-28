@@ -54,7 +54,7 @@ export default function ExtraMarcadoEmpresa({
 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-dashed border-stone-300 p-3">
-      <p className="text-xs font-bold uppercase tracking-wide text-stone-500">🤝 Extra Marcado</p>
+      <p className="text-xs font-bold uppercase tracking-wide text-stone-500">🤝 Free Marcado</p>
 
       {ativos.length > 0 && (
         <ul className="flex flex-col gap-1.5">
@@ -74,7 +74,7 @@ export default function ExtraMarcadoEmpresa({
                     onClick={() => startTransition(() => cancelarExtraMarcadoEmpresa(e.id))}
                     className="text-xs text-stone-400 hover:text-red-600 underline disabled:opacity-50"
                   >
-                    cancelar
+                    desmarcar
                   </button>
                 )}
               </span>
@@ -114,13 +114,13 @@ export default function ExtraMarcadoEmpresa({
             disabled={pending}
             className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-3 py-1.5 disabled:opacity-50 transition-colors"
           >
-            {pending ? "Marcando..." : "🤝 Marcar extra"}
+            {pending ? "Marcando..." : "🤝 Marcar Free"}
           </button>
         </form>
       )}
       {state?.erro && <p className="text-xs text-red-600">{state.erro}</p>}
       {state?.sucesso && (
-        <p className="text-xs text-brand-700">Extra marcado! Agora é só esperar ela confirmar do lado dela.</p>
+        <p className="text-xs text-brand-700">Free marcado! Agora é só esperar ela confirmar do lado dela.</p>
       )}
     </div>
   );

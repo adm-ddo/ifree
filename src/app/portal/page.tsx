@@ -14,6 +14,7 @@ import DisponibilidadeToggle from "./DisponibilidadeToggle";
 import IndicacaoCard from "./IndicacaoCard";
 import SugestaoInstalarApp from "./SugestaoInstalarApp";
 import ExtraMarcadoPessoa from "./vagas/ExtraMarcadoPessoa";
+import { contarDesmarquesEmpresaEmLote, contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extra";
 
 const LABEL_STATUS_TURNO: Record<string, string> = {
   ABERTO: "Em andamento",
@@ -74,7 +75,7 @@ export default async function PortalHomePage() {
     },
   });
 
-  const [avaliacoesRecebidas, totalIndicacoes, turnos, registrosPonto, fotoDataUrl, meusExtrasMarcados] = await Promise.all([
+  const [avaliacoesRecebidas, faltasExtraMarcado, desmarquesDepoisDeAceitar, totalIndicacoes, turnos, registrosPonto, fotoDataUrl, meusExtrasMarcados] = await Promise.all([
     prisma.avaliacao.findMany({
       where: { autor: "EMPRESA", turno: { pessoaId: sessao.pessoaId } },
       select: {
@@ -85,6 +86,12 @@ export default async function PortalHomePage() {
       },
       orderBy: { criadoEm: "desc" },
     }),
+    prisma.extraMarcado.findMany({
+      where: { pessoaId: sessao.pessoaId, status: "NAO_COMPARECEU" },
+      select: { data: true, empresa: { select: { nome: true } } },
+      orderBy: { data: "desc" },
+    }),
+    contarDesmarquesPessoaDepoisDeAceitar(sessao.pessoaId),
     prisma.pessoa.count({ where: { indicadoPorPessoaId: sessao.pessoaId } }),
     prisma.turno.findMany({
       where: { pessoaId: sessao.pessoaId },
@@ -129,10 +136,14 @@ export default async function PortalHomePage() {
         data: true,
         turnoTipo: true,
         status: true,
+        empresaId: true,
         empresa: { select: { nome: true } },
       },
     }),
   ]);
+  const desmarquesPorEmpresa = await contarDesmarquesEmpresaEmLote(
+    [...new Set(meusExtrasMarcados.map((e) => e.empresaId))]
+  );
 
   const conversas = await prisma.conversa.findMany({
     where: { pessoaId: sessao.pessoaId },
@@ -198,7 +209,7 @@ export default async function PortalHomePage() {
 
       {meusExtrasMarcados.length > 0 && (
         <div>
-          <h2 className="font-semibold text-white text-sm mb-2">🤝 Meus extras marcados</h2>
+          <h2 className="font-semibold text-white text-sm mb-2">🤝 Meus Frees marcados</h2>
           <ul className="flex flex-col gap-2">
             {meusExtrasMarcados.map((e) => (
               <ExtraMarcadoPessoa
@@ -209,6 +220,7 @@ export default async function PortalHomePage() {
                   turnoTipo: e.turnoTipo,
                   status: e.status as "AGUARDANDO_PESSOA" | "CONFIRMADO",
                   empresaNome: e.empresa.nome,
+                  empresaJaDesmarcouVezes: desmarquesPorEmpresa.get(e.empresaId) ?? 0,
                 }}
               />
             ))}
@@ -345,6 +357,8 @@ export default async function PortalHomePage() {
           criadoEm: a.criadoEm,
           empresaNome: a.turno.empresa.nome,
         }))}
+        faltas={faltasExtraMarcado.map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
+        desmarquesDepoisDeAceitar={desmarquesDepoisDeAceitar}
         totalIndicacoes={totalIndicacoes}
       />
 

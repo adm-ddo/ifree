@@ -1582,6 +1582,15 @@ model ExtraMarcado {
   /// iniciarTurno) — o que diferencia CUMPRIDO de NAO_COMPARECEU quando o
   /// prazo passa.
   turnoId             Int?               @unique
+  /// Quem desmarcou, só quando status=CANCELADO — base dos contadores de
+  /// confiabilidade mostrados pro outro lado (pedido do Thiago em
+  /// 2026-09-28): EMPRESA soma no contador "essa empresa já desmarcou N
+  /// vezes" (mostrado pro freelancer antes de confirmar, ver
+  /// ExtraMarcadoPessoa.tsx); PESSOA + confirmadoPessoaEm já preenchido
+  /// soma no contador "desmarcou depois de aceitar" (mostrado pra empresa
+  /// na reputação da pessoa, ver ReputacaoCard.tsx) — diferente de recusar
+  /// ainda AGUARDANDO_PESSOA (nunca confirmou, não pesa em nada).
+  canceladoPor        CanceladoPor?
   criadoEm            DateTime           @default(now())
 
   candidatura Candidatura @relation(fields: [candidaturaId], references: [id], onDelete: Cascade)
@@ -1593,6 +1602,11 @@ model ExtraMarcado {
   @@index([candidaturaId])
   @@index([pessoaId])
   @@index([status, data])
+}
+
+enum CanceladoPor {
+  EMPRESA
+  PESSOA
 }
 
 /// Registra que uma Pessoa e uma Vaga já foram identificadas como match

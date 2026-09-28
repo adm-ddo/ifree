@@ -5,6 +5,7 @@ import { requireModulo } from "@/lib/requireModulo";
 import ReputacaoCard from "@/app/freelancers/[id]/ReputacaoCard";
 import EditarVagaForm from "@/app/vagas/[id]/EditarVagaForm";
 import FiltroCandidaturasV2 from "@/components/v2/FiltroCandidaturasV2";
+import { contarDesmarquesPessoaEmLote } from "@/lib/confiabilidade-extra";
 
 /** Espelho completo de src/app/vagas/[id]/page.tsx (v1, não tocado) —
  * reaproveita EditarVagaForm e ReputacaoCard diretamente (genéricos, sem
@@ -89,6 +90,16 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
       })
     )
   );
+  const faltasPorPessoa = await Promise.all(
+    vaga.candidaturas.map((c) =>
+      prisma.extraMarcado.findMany({
+        where: { pessoaId: c.pessoa.id, status: "NAO_COMPARECEU" },
+        select: { data: true, empresa: { select: { nome: true } } },
+        orderBy: { data: "desc" },
+      })
+    )
+  );
+  const desmarquesPorPessoa = await contarDesmarquesPessoaEmLote(vaga.candidaturas.map((c) => c.pessoa.id));
 
   return (
     <div className="flex flex-col gap-4 max-w-3xl">
@@ -155,6 +166,8 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
                   criadoEm: a.criadoEm,
                   empresaNome: a.turno.empresa.nome,
                 }))}
+                faltas={faltasPorPessoa[i].map((f) => ({ data: f.data, empresaNome: f.empresa.nome }))}
+                desmarquesDepoisDeAceitar={desmarquesPorPessoa.get(c.pessoa.id) ?? 0}
               />
             ),
           }))}
