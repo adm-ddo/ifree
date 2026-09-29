@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { textoParaTermos, termosParaTexto } from "@/lib/termos";
+import { formatarDataSemHora } from "@/lib/data";
 import type { Pessoa, VinculoPessoaEmpresa } from "@/generated/prisma/client";
 
 /** Confere se o usuário é responsável pelo GED NESTA empresa — sem
@@ -239,7 +240,84 @@ export const TERMOS_CIENCIA_PADRAO: readonly { slug: string; nome: string; parag
       "O(A) profissional tem ciência de que poderá manifestar, a qualquer momento, interesse em ser considerado(a) para uma futura contratação pelo regime CLT, ficando eventual contratação sujeita à existência de vaga disponível e a novo acordo entre as partes.",
     ],
   },
+  {
+    // Pedido de demissão a pedido do(a) próprio(a) funcionário(a) — mesmo
+    // espírito de "opcao-autonomo-apos-oferta-clt" logo acima: a
+    // declaração final não vem impressa aqui, é escrita de próprio punho
+    // pela pessoa (mais peso como prova de que foi decisão livre dela,
+    // não da empresa) — ver FRASES_PROPRIO_PUNHO_RESCISAO abaixo e o
+    // roteamento pro PDF de 2 páginas (gerarPdfDeclaracaoOfertaClt) em
+    // src/app/ged/documentos/[id]/pdf/route.ts. Gerado a partir de
+    // /funcionarios/[id] (RescisaoCard.tsx), não do fluxo normal de
+    // "gerar termo" avulso. Ainda não revisado por advogado trabalhista
+    // — mesma ressalva do resto do catálogo.
+    slug: "pedido-demissao-cumpre-aviso",
+    nome: "Pedido de Demissão — Aviso Prévio a Ser Cumprido",
+    paragrafos: [
+      "O(A) profissional abaixo identificado(a), atualmente empregado(a) da empresa {{EMPRESA_NOME}}, inscrita no CNPJ nº {{EMPRESA_CNPJ}}, com sede em {{EMPRESA_ENDERECO}}, comunica por meio deste documento sua decisão de pedir demissão do cargo que ocupa.",
+      "Nos termos do art. 487 da Consolidação das Leis do Trabalho (CLT), o(a) empregado(a) declara que cumprirá o aviso prévio de 30 (trinta) dias, permanecendo à disposição da empresa nesse período, salvo eventual acordo diverso entre as partes.",
+      "Este documento deve ser complementado com a declaração de próprio punho do(a) empregado(a), redigida no espaço abaixo, confirmando o pedido de demissão e a opção por cumprir o aviso prévio.",
+    ],
+  },
+  {
+    slug: "pedido-demissao-dispensado-aviso",
+    nome: "Pedido de Demissão — Dispensa do Aviso Prévio",
+    paragrafos: [
+      "O(A) profissional abaixo identificado(a), atualmente empregado(a) da empresa {{EMPRESA_NOME}}, inscrita no CNPJ nº {{EMPRESA_CNPJ}}, com sede em {{EMPRESA_ENDERECO}}, comunica por meio deste documento sua decisão de pedir demissão do cargo que ocupa.",
+      "O(A) empregado(a) solicita, de livre e espontânea vontade, a dispensa do cumprimento do aviso prévio previsto no art. 487 da CLT, ciente de que a legislação faculta à empresa descontar das verbas rescisórias o valor correspondente ao aviso prévio não cumprido (art. 487, §2º, da CLT), salvo se a empresa optar por não realizar esse desconto.",
+      "Este documento deve ser complementado com a declaração de próprio punho do(a) empregado(a), redigida no espaço abaixo, confirmando o pedido de demissão e a opção pela dispensa do aviso prévio.",
+    ],
+  },
+  {
+    // Documento comum (impresso e assinado, sem cópia à mão) — a
+    // declaração final padrão de termo-ciencia-pdf.tsx serve bem aqui
+    // (nome/CPF/assinatura/data). Tokens {{DATA_PEDIDO}}/
+    // {{DATA_ULTIMO_DIA}} só resolvidos por este grupo de 3 termos (ver
+    // resolverTermoCiencia abaixo), vindos de
+    // VinculoPessoaEmpresa.rescisaoDataPedido/dataRescisao. Ainda não
+    // revisado por advogado trabalhista — mesma ressalva do resto do
+    // catálogo.
+    slug: "aviso-previo-empresa-saida-2h",
+    nome: "Aviso Prévio de Dispensa — Redução de 2 Horas Diárias",
+    paragrafos: [
+      "A empresa {{EMPRESA_NOME}}, inscrita no CNPJ nº {{EMPRESA_CNPJ}}, com sede em {{EMPRESA_ENDERECO}}, comunica ao(à) empregado(a) abaixo identificado(a) a dispensa sem justa causa, com concessão do aviso prévio nos termos do art. 487 da Consolidação das Leis do Trabalho (CLT).",
+      "Data da comunicação: {{DATA_PEDIDO}}. Último dia de trabalho previsto: {{DATA_ULTIMO_DIA}}.",
+      "Durante o período de aviso prévio trabalhado, fica assegurada ao(à) empregado(a), nos termos do art. 488 da CLT, a redução de 2 (duas) horas diárias na jornada de trabalho, sem prejuízo do salário integral, podendo o horário de saída antecipada ser combinado entre as partes.",
+      "O presente aviso não dispensa a observância das demais verbas rescisórias devidas, cujo prazo legal de pagamento/assinatura está sujeito ao disposto no art. 477, §6º, da CLT.",
+    ],
+  },
+  {
+    slug: "aviso-previo-empresa-7-dias",
+    nome: "Aviso Prévio de Dispensa — 7 Dias Corridos de Folga",
+    paragrafos: [
+      "A empresa {{EMPRESA_NOME}}, inscrita no CNPJ nº {{EMPRESA_CNPJ}}, com sede em {{EMPRESA_ENDERECO}}, comunica ao(à) empregado(a) abaixo identificado(a) a dispensa sem justa causa, com concessão do aviso prévio nos termos do art. 487 da Consolidação das Leis do Trabalho (CLT).",
+      "Data da comunicação: {{DATA_PEDIDO}}. Último dia de trabalho previsto: {{DATA_ULTIMO_DIA}}.",
+      "Nos termos do parágrafo único do art. 488 da CLT, fica assegurado ao(à) empregado(a), em substituição à redução diária de jornada, o direito de faltar ao serviço por 7 (sete) dias corridos durante o período de aviso prévio trabalhado, sem prejuízo do salário integral.",
+      "O presente aviso não dispensa a observância das demais verbas rescisórias devidas, cujo prazo legal de pagamento/assinatura está sujeito ao disposto no art. 477, §6º, da CLT.",
+    ],
+  },
+  {
+    slug: "aviso-previo-empresa-indenizado",
+    nome: "Aviso Prévio Indenizado",
+    paragrafos: [
+      "A empresa {{EMPRESA_NOME}}, inscrita no CNPJ nº {{EMPRESA_CNPJ}}, com sede em {{EMPRESA_ENDERECO}}, comunica ao(à) empregado(a) abaixo identificado(a) a dispensa sem justa causa, com aviso prévio indenizado, nos termos do art. 487, §1º, da CLT.",
+      "Data da comunicação: {{DATA_PEDIDO}}. Último dia efetivamente trabalhado: {{DATA_ULTIMO_DIA}}.",
+      "O(A) empregado(a) fica dispensado(a) do comparecimento ao trabalho durante o período de aviso prévio, que será pago de forma indenizada, integrando o tempo de serviço para todos os efeitos legais, inclusive na projeção do aviso prévio sobre férias e 13º salário.",
+      "O presente aviso não dispensa a observância das demais verbas rescisórias devidas, cujo prazo legal de pagamento/assinatura está sujeito ao disposto no art. 477, §6º, da CLT.",
+    ],
+  },
 ];
+
+/// Frase que o(a) funcionário(a) escreve de próprio punho no PDF de
+/// pedido de demissão (mesmo mecanismo de FRASE_PROPRIO_PUNHO em
+/// src/lib/declaracao-oferta-clt-pdf.tsx, uma por opção de aviso prévio)
+/// — usada em src/app/ged/documentos/[id]/pdf/route.ts, nunca aqui.
+export const FRASES_PROPRIO_PUNHO_RESCISAO: Record<"pedido-demissao-cumpre-aviso" | "pedido-demissao-dispensado-aviso", string> = {
+  "pedido-demissao-cumpre-aviso":
+    "Declaro que estou pedindo demissão do meu cargo nesta empresa, por minha própria vontade, e que vou cumprir o aviso prévio de 30 dias, permanecendo à disposição da empresa durante esse período.",
+  "pedido-demissao-dispensado-aviso":
+    "Declaro que estou pedindo demissão do meu cargo nesta empresa, por minha própria vontade, e que solicito a dispensa do cumprimento do aviso prévio.",
+};
 
 /** `valorPremioMensal` só é usado pelo termo "premio-assiduidade-
  * desempenho" (ver token {{VALOR_PREMIO}}/{{VALOR_PREMIO_QUINZENA}}
@@ -251,7 +329,12 @@ export function resolverTermoCiencia(
   empresaNome: string,
   empresaCnpj: string,
   empresaEndereco: string | null,
-  valorPremioMensal?: number | null
+  valorPremioMensal?: number | null,
+  /// Só usados pelos 3 termos "aviso-previo-empresa-*" (ver
+  /// VinculoPessoaEmpresa.rescisaoDataPedido/dataRescisao) — mesmo
+  /// espírito opcional de valorPremioMensal.
+  dataPedido?: Date | null,
+  dataUltimoDia?: Date | null
 ): { nome: string; paragrafos: string[] } | null {
   const termo = TERMOS_CIENCIA_PADRAO.find((t) => t.slug === slug);
   if (!termo) return null;
@@ -261,12 +344,16 @@ export function resolverTermoCiencia(
     valorPremioMensal != null
       ? formatarReais(valorPremioMensal / 2)
       : "[valor do prêmio não configurado no cadastro]";
+  const dataPedidoLabel = dataPedido ? formatarDataSemHora(dataPedido) : "[data não informada]";
+  const dataUltimoDiaLabel = dataUltimoDia ? formatarDataSemHora(dataUltimoDia) : "[data não informada]";
   return {
     nome: termo.nome,
     paragrafos: termo.paragrafos.map((p) =>
       substituirDadosEmpresa(p, empresaNome, empresaCnpj, empresaEndereco ?? undefined)
         .replaceAll("{{VALOR_PREMIO_QUINZENA}}", valorPremioQuinzena)
         .replaceAll("{{VALOR_PREMIO}}", valorPremio)
+        .replaceAll("{{DATA_PEDIDO}}", dataPedidoLabel)
+        .replaceAll("{{DATA_ULTIMO_DIA}}", dataUltimoDiaLabel)
     ),
   };
 }

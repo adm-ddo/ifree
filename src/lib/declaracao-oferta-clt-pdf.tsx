@@ -31,35 +31,29 @@ const styles = StyleSheet.create({
   },
 });
 
-/// Frase-base pedida pelo Thiago em 2026-09-21, com um trecho a mais
-/// (liberdade de comparecer ou não a cada turno + pagamento estritamente
-/// pelas horas trabalhadas) que ele pediu logo em seguida por reforçar
-/// justamente os dois pontos que mais pesam pra caracterizar autonomia
-/// de verdade (ausência de subordinação/horário fixo, remuneração não
-/// fixa) — e o fato de vir escrito à mão pela própria pessoa (não
-/// impresso, não redigido pela empresa) tem mais peso como prova do que
-/// uma cláusula qualquer do contrato. Nunca usa aspas na página 2 (pedido
-/// do Thiago): se a pessoa copiar literalmente o que vê, aspas no texto
-/// dela ficariam estranhas.
-const FRASE_PROPRIO_PUNHO =
-  "Declaro que a empresa me ofereceu uma oportunidade de contratação pelo regime CLT. Por minha própria escolha, neste momento não desejo assumir uma vaga fixa e prefiro continuar aceitando serviços avulsos conforme minha disponibilidade. Tenho liberdade para comparecer ou não a cada turno oferecido, aceitando ou recusando conforme minha vontade, e recebo de acordo com as horas efetivamente trabalhadas.";
-
-/** PDF de 2 páginas específico do termo "opcao-autonomo-apos-oferta-clt"
- * (ver TERMOS_CIENCIA_PADRAO em src/lib/ged.ts) — diferente do renderer
- * genérico gerarPdfTermoCiencia (que serve pro resto do catálogo), esse
- * documento precisa de uma segunda página só com o molde da frase que a
- * pessoa escreve de próprio punho na página 1: página 1 tem o contexto +
- * a caixa em branco pra escrever a declaração à mão (sem citar a
- * página 2 — pedido do Thiago, 2026-09-21: a instrução é dada de viva
- * voz por quem aplica o documento, não impressa ali) + nome/CPF/
- * assinatura/data; página 2 é só o texto de referência pra quem aplica
- * o documento conferir/ditar, nunca é ela mesma assinada. */
+/** PDF de 2 páginas pra qualquer termo que precise de uma declaração
+ * escrita de próprio punho — usado hoje por "opcao-autonomo-apos-oferta-
+ * clt" (freelancer que recusa virar CLT) e pelos dois termos de pedido
+ * de demissão ("pedido-demissao-cumpre-aviso"/"pedido-demissao-
+ * dispensado-aviso", ver FRASES_PROPRIO_PUNHO_RESCISAO em src/lib/ged.ts)
+ * — diferente do renderer genérico gerarPdfTermoCiencia (que serve pro
+ * resto do catálogo), esse documento precisa de uma segunda página só
+ * com o molde da frase que a pessoa escreve de próprio punho na
+ * página 1: página 1 tem o contexto + a caixa em branco pra escrever a
+ * declaração à mão (sem citar a página 2 — pedido do Thiago, 2026-09-21,
+ * pro caso original: a instrução é dada de viva voz por quem aplica o
+ * documento, não impressa ali) + nome/CPF/assinatura/data; página 2 é só
+ * o texto de referência pra quem aplica o documento conferir/ditar,
+ * nunca é ela mesma assinada. `fraseProprioPunho` nunca deve usar aspas
+ * (pedido original do Thiago): se a pessoa copiar literalmente o que vê,
+ * aspas no texto dela ficariam estranhas. */
 export async function gerarPdfDeclaracaoOfertaClt(params: {
   titulo: string;
   paragrafos: string[];
   pessoaNome: string;
   pessoaDocumento: string;
   dataDocumento: Date;
+  fraseProprioPunho: string;
 }): Promise<Buffer> {
   return renderToBuffer(
     <Document>
@@ -123,7 +117,7 @@ export async function gerarPdfDeclaracaoOfertaClt(params: {
         </Text>
 
         <View style={styles.moldeCaixa}>
-          <Text style={styles.moldeTexto}>{FRASE_PROPRIO_PUNHO}</Text>
+          <Text style={styles.moldeTexto}>{params.fraseProprioPunho}</Text>
         </View>
 
         <Text

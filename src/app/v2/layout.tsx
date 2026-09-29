@@ -63,6 +63,7 @@ export default async function V2Layout({ children }: { children: React.ReactNode
           feriasAlerta: null,
           candidaturasEConversas: { candidaturasPendentes: 0, candidaturasPendentesComMatch: 0, mensagensConectaNaoLidas: 0 },
           experienciaAlerta: null,
+          rescisaoAlerta: null,
           assinaturaAlerta: null,
           denunciasNovas: 0,
           turnosRetidos: 0,
@@ -81,6 +82,7 @@ export default async function V2Layout({ children }: { children: React.ReactNode
     feriasAlerta,
     candidaturasEConversas: { candidaturasPendentes, candidaturasPendentesComMatch },
     experienciaAlerta,
+    rescisaoAlerta,
     assinaturaAlerta,
     denunciasNovas,
     turnosRetidos,
@@ -124,6 +126,7 @@ export default async function V2Layout({ children }: { children: React.ReactNode
             pagamentosPendentes={pagamentosPendentes}
             feriasAlerta={feriasAlerta}
             experienciaAlerta={experienciaAlerta}
+            rescisaoAlerta={rescisaoAlerta}
             pgrAlerta={pgrAlerta}
             turnosRetidos={turnosRetidos}
             bloqueiosSuspeitaFraude={bloqueiosSuspeitaFraude}

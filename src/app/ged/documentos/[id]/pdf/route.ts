@@ -7,7 +7,7 @@ import { gerarPdfSuspensao, gerarPdfSuspensaoFaltaInjustificada } from "@/lib/su
 import { gerarPdfTermoCiencia } from "@/lib/termo-ciencia-pdf";
 import { gerarPdfDeclaracaoOfertaClt } from "@/lib/declaracao-oferta-clt-pdf";
 import { sanitizarNomeArquivo } from "@/lib/texto";
-import { MODELO_SUSPENSAO_FALTA_INJUSTIFICADA_ID } from "@/lib/ged";
+import { MODELO_SUSPENSAO_FALTA_INJUSTIFICADA_ID, FRASES_PROPRIO_PUNHO_RESCISAO } from "@/lib/ged";
 import type { SnapshotDadosGed, SnapshotSuspensaoGed, SnapshotTermoCienciaGed } from "@/lib/ged";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -59,6 +59,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         pessoaNome: s.pessoaNome,
         pessoaDocumento: s.pessoaDocumento,
         dataDocumento: documento.dataDocumento,
+        fraseProprioPunho:
+          "Declaro que a empresa me ofereceu uma oportunidade de contratação pelo regime CLT. Por minha própria escolha, neste momento não desejo assumir uma vaga fixa e prefiro continuar aceitando serviços avulsos conforme minha disponibilidade. Tenho liberdade para comparecer ou não a cada turno oferecido, aceitando ou recusando conforme minha vontade, e recebo de acordo com as horas efetivamente trabalhadas.",
+      });
+    } else if (s.termoSlug === "pedido-demissao-cumpre-aviso" || s.termoSlug === "pedido-demissao-dispensado-aviso") {
+      pdfBytes = await gerarPdfDeclaracaoOfertaClt({
+        titulo: s.termoNome,
+        paragrafos,
+        pessoaNome: s.pessoaNome,
+        pessoaDocumento: s.pessoaDocumento,
+        dataDocumento: documento.dataDocumento,
+        fraseProprioPunho: FRASES_PROPRIO_PUNHO_RESCISAO[s.termoSlug],
       });
     } else {
       pdfBytes = await gerarPdfTermoCiencia({

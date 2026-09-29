@@ -9,6 +9,7 @@ import BeneficiosForm from "./BeneficiosForm";
 import FeriasCard from "./FeriasCard";
 import ExperienciaCard from "./ExperienciaCard";
 import RescisaoCard from "./RescisaoCard";
+import EspelhoPontoBotoes from "./EspelhoPontoBotoes";
 import DadosFuncionarioForm from "./DadosFuncionarioForm";
 import RegistroPontoHistorico from "./RegistroPontoHistorico";
 import ExtraDiarioForm from "./ExtraDiarioForm";
@@ -275,14 +276,7 @@ export default async function FuncionarioDetalhePage({
             CPF {formatarCpf(vinculo.pessoa.documento)} · {vinculo.pessoa.telefone}
           </p>
         </div>
-        <a
-          href={`/relatorios/espelho/${pessoaId}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-lg border border-stone-300 text-sm px-4 py-2 hover:bg-stone-50 shrink-0"
-        >
-          🖨️ Espelho de ponto (mês passado)
-        </a>
+        <EspelhoPontoBotoes pessoaId={pessoaId} />
       </div>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
@@ -488,6 +482,10 @@ export default async function FuncionarioDetalhePage({
         }
         emPeriodoExperiencia={statusExperiencia !== null && statusExperiencia.fase !== "EFETIVADO"}
         contratoFimLabel={statusExperiencia?.contratoFimLabel ?? null}
+        rescisaoIniciativa={vinculo.rescisaoIniciativa}
+        rescisaoAvisoPrevio={vinculo.rescisaoAvisoPrevio}
+        rescisaoDataPedidoLabel={vinculo.rescisaoDataPedido ? formatarDataUTC(vinculo.rescisaoDataPedido) : null}
+        documentosAssinados={vinculo.rescisaoDocumentosAssinadosEm !== null}
       />
 
       {registros.length === 0 ? (

@@ -13,7 +13,13 @@ import { dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { STATUS_PENDENTES } from "@/lib/financeiro";
 import { parseRestricoesFormData } from "@/lib/restricao-horario";
 import type { RestricaoHorarioState } from "@/components/RestricaoHorarioForm";
-import type { EscalaTrabalho, ModoPausa, TipoChavePix } from "@/generated/prisma/enums";
+import type {
+  EscalaTrabalho,
+  ModoPausa,
+  TipoChavePix,
+  IniciativaRescisao,
+  TipoAvisoPrevioRescisao,
+} from "@/generated/prisma/enums";
 
 /** "Hoje" como data-calendário (meia-noite UTC), no fuso de Brasília —
  * mesma representação usada pelos campos @db.Date (dataAdmissao,
@@ -787,6 +793,15 @@ export type RescisaoState = { erro?: string; sucesso?: boolean } | undefined;
  * corrigida depois. Desativa o vínculo (mesmo campo `ativo` do toggle
  * manual em /funcionarios) pra a pessoa não conseguir mais bater ponto
  * aqui. */
+/// Quais valores de rescisaoAvisoPrevio cada iniciativa aceita — usado só
+/// pra validar o formulário (RescisaoCard.tsx já só mostra as opções
+/// certas pra cada iniciativa, isso aqui é a rede de segurança do lado
+/// do servidor).
+const AVISO_PREVIO_POR_INICIATIVA: Record<"FUNCIONARIO" | "EMPRESA", readonly TipoAvisoPrevioRescisao[]> = {
+  FUNCIONARIO: ["FUNCIONARIO_CUMPRE", "FUNCIONARIO_DISPENSADO"],
+  EMPRESA: ["EMPRESA_SAIDA_2H", "EMPRESA_SETE_DIAS", "EMPRESA_INDENIZADO"],
+};
+
 export async function registrarRescisao(
   _prev: RescisaoState,
   formData: FormData
@@ -797,11 +812,32 @@ export async function registrarRescisao(
   const { vinculo } = await vinculoCltDaEmpresa(pessoaId);
 
   const dataBruta = String(formData.get("dataRescisao") ?? "").trim();
-  if (!dataBruta) return { erro: "Informe a data da rescisão." };
+  if (!dataBruta) return { erro: "Informe o último dia de trabalho." };
   const dataRescisao = instanteBrasil(dataBruta);
   if (Number.isNaN(dataRescisao.getTime())) return { erro: "Informe uma data válida." };
   if (vinculo.dataAdmissao && dataRescisao < vinculo.dataAdmissao) {
     return { erro: "A data da rescisão não pode ser antes da admissão." };
+  }
+
+  const iniciativa = String(formData.get("iniciativa") ?? "") as IniciativaRescisao | "";
+  if (iniciativa !== "FUNCIONARIO" && iniciativa !== "EMPRESA") {
+    return { erro: "Informe quem está pedindo o desligamento." };
+  }
+  const avisoPrevio = String(formData.get("avisoPrevio") ?? "") as TipoAvisoPrevioRescisao | "";
+  if (!AVISO_PREVIO_POR_INICIATIVA[iniciativa].includes(avisoPrevio as TipoAvisoPrevioRescisao)) {
+    return { erro: "Informe como fica o aviso prévio." };
+  }
+
+  // Só a iniciativa da empresa pede a data do pedido separada na tela
+  // (pode ser bem antes do último dia trabalhado, ex.: aviso prévio
+  // trabalhado de 30 dias) — pedido do funcionário assume que o pedido
+  // foi feito no mesmo dia registrado aqui, sem campo extra na UI.
+  let dataPedido = dataRescisao;
+  if (iniciativa === "EMPRESA") {
+    const dataPedidoBruta = String(formData.get("dataPedido") ?? "").trim();
+    if (!dataPedidoBruta) return { erro: "Informe a data do pedido/decisão." };
+    dataPedido = instanteBrasil(dataPedidoBruta);
+    if (Number.isNaN(dataPedido.getTime())) return { erro: "Informe uma data válida pro pedido." };
   }
 
   await prisma.vinculoPessoaEmpresa.update({
@@ -810,6 +846,9 @@ export async function registrarRescisao(
       dataRescisao,
       rescisaoRegistradaEm: new Date(),
       rescisaoRegistradaPorEmail: sessao.email,
+      rescisaoIniciativa: iniciativa,
+      rescisaoAvisoPrevio: avisoPrevio as TipoAvisoPrevioRescisao,
+      rescisaoDataPedido: dataPedido,
       ativo: false,
     },
   });
@@ -817,6 +856,28 @@ export async function registrarRescisao(
   revalidatePath(`/funcionarios/${pessoaId}`);
   revalidatePath("/funcionarios");
   return { sucesso: true };
+}
+
+/** Marca que a papelada da rescisão já foi assinada — encerra o alerta
+ * proativo (ver buscarRescisaoPendenteAlerta em src/lib/alertas.ts).
+ * Chamada direto pelo botão, sem <form>, mesmo padrão de
+ * cancelarRescisao logo abaixo. */
+export async function marcarRescisaoDocumentosAssinados(pessoaId: number): Promise<CancelarRescisaoState> {
+  const sessao = await requireModulo("funcionarios");
+  const vinculo = await prisma.vinculoPessoaEmpresa.findUnique({
+    where: { pessoaId_empresaId: { pessoaId, empresaId: sessao.empresaEfetivoId } },
+  });
+  if (!vinculo || vinculo.tipoVinculo !== "CLT") {
+    return { erro: "Esse funcionário não pertence a esta empresa." };
+  }
+
+  await prisma.vinculoPessoaEmpresa.update({
+    where: { id: vinculo.id },
+    data: { rescisaoDocumentosAssinadosEm: new Date() },
+  });
+
+  revalidatePath(`/funcionarios/${pessoaId}`);
+  return undefined;
 }
 
 export type CancelarRescisaoState = { erro: string } | undefined;
@@ -839,6 +900,10 @@ export async function cancelarRescisao(pessoaId: number): Promise<CancelarRescis
       dataRescisao: null,
       rescisaoRegistradaEm: null,
       rescisaoRegistradaPorEmail: null,
+      rescisaoIniciativa: null,
+      rescisaoAvisoPrevio: null,
+      rescisaoDataPedido: null,
+      rescisaoDocumentosAssinadosEm: null,
       ativo: true,
     },
   });

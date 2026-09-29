@@ -115,7 +115,15 @@ export async function gerarDocumentoGed(
     const termoSlug = String(formData.get("termoSlug") ?? "");
     const valorPremioMensal =
       vinculo.valorPremioAssiduidade !== null ? Number(vinculo.valorPremioAssiduidade) : null;
-    const termo = resolverTermoCiencia(termoSlug, empresa.nome, empresa.cnpj, empresa.endereco, valorPremioMensal);
+    const termo = resolverTermoCiencia(
+      termoSlug,
+      empresa.nome,
+      empresa.cnpj,
+      empresa.endereco,
+      valorPremioMensal,
+      vinculo.rescisaoDataPedido,
+      vinculo.dataRescisao
+    );
     if (!termo) return { erro: "Selecione o termo." };
 
     const documento = await prisma.documentoGed.create({

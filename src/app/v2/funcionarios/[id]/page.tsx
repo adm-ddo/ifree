@@ -9,6 +9,7 @@ import BeneficiosForm from "@/app/funcionarios/[id]/BeneficiosForm";
 import FeriasCard from "@/app/funcionarios/[id]/FeriasCard";
 import ExperienciaCard from "@/app/funcionarios/[id]/ExperienciaCard";
 import RescisaoCard from "@/app/funcionarios/[id]/RescisaoCard";
+import EspelhoPontoBotoes from "@/app/funcionarios/[id]/EspelhoPontoBotoes";
 import DadosFuncionarioForm from "@/app/funcionarios/[id]/DadosFuncionarioForm";
 import RegistroPontoHistorico from "@/app/funcionarios/[id]/RegistroPontoHistorico";
 import ExtraDiarioForm from "@/app/funcionarios/[id]/ExtraDiarioForm";
@@ -231,14 +232,7 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
             CPF {formatarCpf(vinculo.pessoa.documento)} · {vinculo.pessoa.telefone}
           </p>
         </div>
-        <a
-          href={`/relatorios/espelho/${pessoaId}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-full border border-stone-200 text-xs font-bold px-4 py-2 shrink-0"
-        >
-          🖨️ Espelho de ponto (mês passado)
-        </a>
+        <EspelhoPontoBotoes pessoaId={pessoaId} />
       </div>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
@@ -383,6 +377,10 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
         registradaEmLabel={vinculo.rescisaoRegistradaEm ? formatarDataHora(vinculo.rescisaoRegistradaEm) : null}
         emPeriodoExperiencia={statusExperiencia !== null && statusExperiencia.fase !== "EFETIVADO"}
         contratoFimLabel={statusExperiencia?.contratoFimLabel ?? null}
+        rescisaoIniciativa={vinculo.rescisaoIniciativa}
+        rescisaoAvisoPrevio={vinculo.rescisaoAvisoPrevio}
+        rescisaoDataPedidoLabel={vinculo.rescisaoDataPedido ? formatarDataUTC(vinculo.rescisaoDataPedido) : null}
+        documentosAssinados={vinculo.rescisaoDocumentosAssinadosEm !== null}
       />
 
       {registros.length === 0 ? (

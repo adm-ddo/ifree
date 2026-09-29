@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
 import { formatarCpf } from "@/lib/cpf";
-import { instanteBrasil, dataISOBrasil } from "@/lib/data";
+import { instanteBrasil, dataISOBrasil, formatarDataSemHora } from "@/lib/data";
 import { calcularMinutosNoturnos } from "@/lib/ponto";
 import { calcularMetaMinutos } from "@/lib/resumo-horas";
 import { sanitizarNomeArquivo } from "@/lib/texto";
@@ -30,6 +30,20 @@ export async function GET(
   if (!Number.isInteger(pessoaId)) notFound();
 
   const url = new URL(req.url);
+
+  // Período customizado (?de=&ate=) tem prioridade sobre ?mes= — usado
+  // pelo botão "Por período" (ver EspelhoPontoBotoes.tsx). Sem meta de
+  // horas nesse caso (calcularMetaMinutos é pensado pra mês fechado; um
+  // intervalo arbitrário pode cruzar meses ou ser parcial, e arriscar uma
+  // proporção errada não vale a pena — o PDF já trata metaMinutos null
+  // sem comparação nenhuma).
+  const deParam = url.searchParams.get("de");
+  const ateParam = url.searchParams.get("ate");
+  const periodoValido =
+    deParam && ateParam && /^\d{4}-\d{2}-\d{2}$/.test(deParam) && /^\d{4}-\d{2}-\d{2}$/.test(ateParam) && ateParam >= deParam
+      ? { de: deParam, ate: ateParam }
+      : null;
+
   const mesParam = url.searchParams.get("mes");
   const mesValido = mesParam && /^\d{4}-\d{2}$/.test(mesParam) ? mesParam : mesPassadoISO(new Date());
   const [ano, mes] = mesValido.split("-").map(Number);
@@ -51,12 +65,14 @@ export async function GET(
     select: { nome: true, cnpj: true },
   });
 
-  const inicioMes = instanteBrasil(`${mesValido}-01`);
+  const inicioPeriodo = periodoValido ? instanteBrasil(periodoValido.de) : instanteBrasil(`${mesValido}-01`);
   const ultimoDiaMes = new Date(ano, mes, 0).getDate();
-  const fimMes = new Date(inicioMes.getTime() + ultimoDiaMes * 24 * 60 * 60 * 1000);
+  const fimPeriodo = periodoValido
+    ? new Date(instanteBrasil(periodoValido.ate).getTime() + 24 * 60 * 60 * 1000)
+    : new Date(inicioPeriodo.getTime() + ultimoDiaMes * 24 * 60 * 60 * 1000);
 
   const registros = await prisma.registroPonto.findMany({
-    where: { pessoaId, empresaId: sessao.empresaEfetivoId, horaEntrada: { gte: inicioMes, lt: fimMes } },
+    where: { pessoaId, empresaId: sessao.empresaEfetivoId, horaEntrada: { gte: inicioPeriodo, lt: fimPeriodo } },
     orderBy: { horaEntrada: "asc" },
     select: {
       horaEntrada: true,
@@ -85,21 +101,30 @@ export async function GET(
   }
 
   const diasDoMes: Date[] = [];
-  for (let dia = 1; dia <= ultimoDiaMes; dia++) {
-    diasDoMes.push(instanteBrasil(`${mesValido}-${String(dia).padStart(2, "0")}`));
+  if (periodoValido) {
+    for (let t = inicioPeriodo.getTime(); t < fimPeriodo.getTime(); t += 24 * 60 * 60 * 1000) {
+      diasDoMes.push(new Date(t));
+    }
+  } else {
+    for (let dia = 1; dia <= ultimoDiaMes; dia++) {
+      diasDoMes.push(instanteBrasil(`${mesValido}-${String(dia).padStart(2, "0")}`));
+    }
   }
 
-  const mesReferenciaLabel = new Intl.DateTimeFormat("pt-BR", {
-    month: "long",
-    year: "numeric",
-    timeZone: "America/Sao_Paulo",
-  }).format(inicioMes);
+  const mesReferenciaLabel = periodoValido
+    ? `${formatarDataSemHora(inicioPeriodo)} a ${formatarDataSemHora(new Date(fimPeriodo.getTime() - 24 * 60 * 60 * 1000))}`
+    : new Intl.DateTimeFormat("pt-BR", {
+        month: "long",
+        year: "numeric",
+        timeZone: "America/Sao_Paulo",
+      }).format(inicioPeriodo);
 
-  // Meta proporcional ao mês pedido (?mes=), a partir da carga semanal
-  // configurada pra essa pessoa — mesma conta de /relatorios/resumo (ver
-  // calcularMetaMinutos em src/lib/resumo-horas.ts), null quando a pessoa
-  // não tem carga configurada (nesse caso o PDF não mostra comparação).
-  const metaMinutos = calcularMetaMinutos(vinculo.cargaHorariaSemanalMin, ultimoDiaMes);
+  // Meta proporcional só faz sentido pro mês inteiro (?mes=) — período
+  // customizado (?de=&ate=) pode cruzar meses ou ser parcial, então fica
+  // sem meta (metaMinutos null, o PDF já trata isso sem comparação
+  // nenhuma) em vez de arriscar uma proporção errada. Ver
+  // calcularMetaMinutos em src/lib/resumo-horas.ts.
+  const metaMinutos = periodoValido ? null : calcularMetaMinutos(vinculo.cargaHorariaSemanalMin, ultimoDiaMes);
 
   const pdfBytes = await gerarPdfEspelhoPonto({
     empresaNome: empresa.nome,
@@ -120,7 +145,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdfBytes), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="espelho-ponto-${sanitizarNomeArquivo(vinculo.pessoa.nome)}-${mesValido}.pdf"`,
+      "Content-Disposition": `inline; filename="espelho-ponto-${sanitizarNomeArquivo(vinculo.pessoa.nome)}-${periodoValido ? `${periodoValido.de}_a_${periodoValido.ate}` : mesValido}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });

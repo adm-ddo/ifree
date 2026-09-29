@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { calcularStatusFerias } from "@/lib/ferias";
 import { calcularStatusExperiencia } from "@/lib/experiencia";
+import { calcularPrazoLimiteRescisao } from "@/lib/rescisao";
 import { diasParaVencer, GRACA_DIAS } from "@/lib/assinatura";
 import { usuarioEhResponsavelEtica } from "@/lib/etica";
 import { usuarioEhResponsavelGed } from "@/lib/ged";
@@ -175,6 +176,43 @@ export async function buscarExperienciaAlerta(
   }
 }
 
+/** Rescisões registradas cuja papelada ainda não foi marcada como
+ * assinada (ver VinculoPessoaEmpresa.rescisaoDocumentosAssinadosEm) —
+ * conta quantas já passaram do prazo legal de 10 dias corridos (art. 477
+ * §6º CLT, calcularPrazoLimiteRescisao em src/lib/rescisao.ts) vs
+ * quantas vencem em até 3 dias, mesmo formato de buscarExperienciaAlerta
+ * logo acima. Dinheiro parado esperando assinatura — mesmo peso de
+ * turnosRetidos no banner (ver AlertasV2.tsx). */
+export async function buscarRescisaoPendenteAlerta(
+  empresaId: number
+): Promise<{ vencidos: number; vencendoEmBreve: number } | null> {
+  try {
+    const vinculos = await prisma.vinculoPessoaEmpresa.findMany({
+      where: {
+        empresaId,
+        tipoVinculo: "CLT",
+        dataRescisao: { not: null },
+        rescisaoDocumentosAssinadosEm: null,
+      },
+      select: { dataRescisao: true },
+    });
+    const hoje = new Date();
+    const TRES_DIAS_MS = 3 * 24 * 60 * 60 * 1000;
+    let vencidos = 0;
+    let vencendoEmBreve = 0;
+    for (const v of vinculos) {
+      const { prazoLimite } = calcularPrazoLimiteRescisao(v.dataRescisao!);
+      const diff = prazoLimite.getTime() - hoje.getTime();
+      if (diff < 0) vencidos++;
+      else if (diff <= TRES_DIAS_MS) vencendoEmBreve++;
+    }
+    return vencidos > 0 || vencendoEmBreve > 0 ? { vencidos, vencendoEmBreve } : null;
+  } catch (err) {
+    console.error("Falha ao buscar rescisões pendentes de assinatura pro aviso do topo (v2):", err);
+    return null;
+  }
+}
+
 export async function buscarAssinaturaAlerta(
   empresaId: number
 ): Promise<{ diasRestantes: number; emTrial: boolean; horasParaBloqueio: number | null } | null> {
@@ -249,6 +287,7 @@ export type DadosLayoutV2 = {
   feriasAlerta: { vencidas: number; vencendoEmBreve: number } | null;
   candidaturasEConversas: CandidaturasEConversasAlerta;
   experienciaAlerta: { vencidos: number; vencendoEmBreve: number } | null;
+  rescisaoAlerta: { vencidos: number; vencendoEmBreve: number } | null;
   assinaturaAlerta: { diasRestantes: number; emTrial: boolean; horasParaBloqueio: number | null } | null;
   denunciasNovas: number;
   turnosRetidos: number;
@@ -283,6 +322,7 @@ async function buscarDadosLayoutV2SemCache(
     feriasAlerta,
     candidaturasEConversas,
     experienciaAlerta,
+    rescisaoAlerta,
     assinaturaAlerta,
     empresaPlano,
     turnosRetidos,
@@ -295,6 +335,7 @@ async function buscarDadosLayoutV2SemCache(
     buscarFeriasAlerta(empresaId),
     buscarCandidaturasEConversasAlerta(empresaId),
     buscarExperienciaAlerta(empresaId),
+    buscarRescisaoPendenteAlerta(empresaId),
     buscarAssinaturaAlerta(empresaId),
     prisma.empresa.findUnique({ where: { id: empresaId }, select: { planoEmpresa: true } }),
     buscarTurnosRetidosAlerta(empresaId),
@@ -327,6 +368,7 @@ async function buscarDadosLayoutV2SemCache(
     feriasAlerta,
     candidaturasEConversas,
     experienciaAlerta,
+    rescisaoAlerta,
     assinaturaAlerta,
     denunciasNovas,
     turnosRetidos,

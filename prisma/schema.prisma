@@ -45,6 +45,23 @@ enum TipoVinculo {
   CLT
 }
 
+/// Quem pediu o desligamento CLT — ver VinculoPessoaEmpresa.rescisaoIniciativa.
+enum IniciativaRescisao {
+  FUNCIONARIO
+  EMPRESA
+}
+
+/// Como fica o cumprimento do aviso prévio numa rescisão — ver
+/// VinculoPessoaEmpresa.rescisaoAvisoPrevio. Os 2 primeiros valores só
+/// fazem sentido com iniciativa FUNCIONARIO, os 3 últimos só com EMPRESA.
+enum TipoAvisoPrevioRescisao {
+  FUNCIONARIO_CUMPRE
+  FUNCIONARIO_DISPENSADO
+  EMPRESA_SAIDA_2H
+  EMPRESA_SETE_DIAS
+  EMPRESA_INDENIZADO
+}
+
 /// Turno fixo da pessoa (só relevante pra EXTRA) — usado pelo fechamento
 /// automático pra decidir qual horário de corte aplicar quando ela
 /// esquece de bater saída. LIVRE (padrão) deixa o sistema inferir pelo
@@ -985,6 +1002,30 @@ model VinculoPessoaEmpresa {
   dataRescisao               DateTime?           @db.Date
   rescisaoRegistradaEm       DateTime?
   rescisaoRegistradaPorEmail String?
+  /// Quem pediu o desligamento — decide o texto do documento gerado em
+  /// /ged (ver TERMOS_CIENCIA_PADRAO em src/lib/ged.ts) e as opções de
+  /// aviso prévio disponíveis no formulário. Null enquanto a rescisão
+  /// não foi registrada.
+  rescisaoIniciativa         IniciativaRescisao?
+  /// Como fica o cumprimento do aviso prévio — vocabulário depende de
+  /// rescisaoIniciativa (FUNCIONARIO_* só faz sentido com iniciativa
+  /// FUNCIONARIO, EMPRESA_* só com EMPRESA; validado na action, não aqui).
+  rescisaoAvisoPrevio        TipoAvisoPrevioRescisao?
+  /// Data em que o pedido/decisão de desligamento foi feito — distinta
+  /// de dataRescisao (último dia efetivamente trabalhado), que continua
+  /// digitada manualmente pelo admin (não calculada automaticamente a
+  /// partir de "30 dias de aviso", porque o prazo varia por Lei
+  /// 12.506/2011 conforme tempo de casa — o contador/RH confirma a data
+  /// exata).
+  rescisaoDataPedido         DateTime?           @db.Date
+  /// Marca que a papelada da rescisão já foi assinada (documento GED
+  /// gerado + devolvido assinado) — só isso encerra o alerta proativo de
+  /// "chamar pra assinar" (ver buscarRescisaoPendenteAlerta em
+  /// src/lib/alertas.ts). Não tenta amarrar num DocumentoGed específico
+  /// de propósito (pode ter mais de um documento envolvido na mesma
+  /// rescisão) — é um sinal manual, mesmo espírito de
+  /// experienciaEfetivadoEm/riscoCltDispensadoEm acima.
+  rescisaoDocumentosAssinadosEm DateTime?
   /// Turno fixo dessa pessoa — só EXTRA. Ver enum TurnoPredefinido. LIVRE
   /// (padrão) desliga a checagem de horário incomum abaixo por completo.
   turnoPredefinido           TurnoPredefinido    @default(LIVRE)

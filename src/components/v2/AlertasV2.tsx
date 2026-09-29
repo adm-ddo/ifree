@@ -14,6 +14,7 @@ export default function AlertasV2({
   pagamentosPendentes,
   feriasAlerta,
   experienciaAlerta,
+  rescisaoAlerta,
   pgrAlerta,
   turnosRetidos,
   bloqueiosSuspeitaFraude,
@@ -25,6 +26,12 @@ export default function AlertasV2({
   pagamentosPendentes: { quantidade: number; total: number } | null;
   feriasAlerta: { vencidas: number; vencendoEmBreve: number } | null;
   experienciaAlerta: { vencidos: number; vencendoEmBreve: number } | null;
+  /// Rescisões registradas cuja papelada ainda não foi marcada como
+  /// assinada, passadas do prazo legal (vencidos) ou vencendo em até 3
+  /// dias (vencendoEmBreve) — ver buscarRescisaoPendenteAlerta em
+  /// src/lib/alertas.ts. Mesmo vermelho de turnosRetidos: dinheiro
+  /// parado (verbas rescisórias) esperando decisão/assinatura.
+  rescisaoAlerta: { vencidos: number; vencendoEmBreve: number } | null;
   pgrAlerta: { nuncaFez: boolean; diasDesdeUltimoCiclo: number | null } | null;
   /// Turnos com pagamento retido por duração fora do normal — ver
   /// Turno.pagamentoRetidoRevisao no schema. Vermelho (mesmo peso de
@@ -97,6 +104,23 @@ export default function AlertasV2({
         >
           🚨 {bloqueiosSuspeitaFraude} {bloqueiosSuspeitaFraude === 1 ? "pessoa bloqueada" : "pessoas bloqueadas"} por
           suspeita de fraude no totem · clique para revisar
+        </Link>
+      )}
+
+      {rescisaoAlerta && (rescisaoAlerta.vencidos > 0 || rescisaoAlerta.vencendoEmBreve > 0) && (
+        <Link
+          href="/v2/funcionarios"
+          className="block bg-red-600 text-white text-xs font-bold px-4 py-2.5 text-center"
+        >
+          🚨{" "}
+          {[
+            rescisaoAlerta.vencidos > 0 &&
+              `${rescisaoAlerta.vencidos} rescisão(ões) com prazo de assinatura VENCIDO`,
+            rescisaoAlerta.vencendoEmBreve > 0 && `${rescisaoAlerta.vencendoEmBreve} vencendo em até 3 dias`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}{" "}
+          · chame a pessoa pra assinar os documentos
         </Link>
       )}
 
