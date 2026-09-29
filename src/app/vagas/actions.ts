@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import { normalizarTags } from "@/lib/habilidades";
 import { uploadDataUrl } from "@/lib/blob";
-import { notificarPessoasSobreVagaNova } from "@/lib/match-passivo";
+import { registrarMatchesVagaNova, processarNotificacoesPendentesVagaNova } from "@/lib/match-passivo";
 import { enviarEmailConviteVaga } from "@/lib/email";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import {
   JANELA_RECENTE_HORAS,
   JANELA_MAXIMA_HORAS,
@@ -82,14 +83,19 @@ export async function criarVaga(
     },
   });
 
-  // Avisa por e-mail quem já tem perfil compatível com essa vaga nova,
-  // antes mesmo de alguém se candidatar (ver src/lib/match-passivo.ts) —
-  // a vaga já foi criada com sucesso acima, então isso nunca pode travar
-  // a publicação nem devolver erro pra quem publicou.
+  // Registra quem já tem perfil compatível com essa vaga nova, antes
+  // mesmo de alguém se candidatar (ver src/lib/match-passivo.ts) — rápido
+  // (só grava linhas pendentes), por isso fica síncrono aqui. O envio dos
+  // e-mails em si é lento (um provedor externo por pessoa) e por isso
+  // roda depois da resposta já ter voltado pra empresa (after()), nunca
+  // travando a publicação nem devolvendo erro por causa de e-mail.
   try {
-    await notificarPessoasSobreVagaNova(novaVaga.id);
+    const { pendentes } = await registrarMatchesVagaNova(novaVaga.id);
+    if (pendentes > 0) {
+      after(() => processarNotificacoesPendentesVagaNova());
+    }
   } catch (err) {
-    console.error("Falha ao notificar pessoas sobre vaga nova:", err);
+    console.error("Falha ao registrar matches de vaga nova:", err);
   }
 
   revalidatePath("/vagas");

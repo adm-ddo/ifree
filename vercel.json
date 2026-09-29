@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/verificar-saldo-baixo",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/cron/enviar-notificacoes-pendentes",
+      "schedule": "*/20 * * * *"
     }
   ]
 }

@@ -3,53 +3,123 @@ import { prisma } from "@/lib/prisma";
 import { calcularMatch } from "@/lib/match";
 import { enviarEmailVagaCompativel, enviarEmailCandidatoCompativel } from "@/lib/email";
 
+/** Quantos e-mails desta leva mandar em paralelo por vez — alto o
+ * bastante pra não fazer uma leva de milhares de matches (empresa
+ * grande, vaga genérica) demorar uma eternidade, baixo o bastante pra
+ * não estourar limite de requisições/segundo da Resend. */
+const CONCORRENCIA_ENVIO = 5;
+
+/** Teto de quantos e-mails uma única chamada (dentro do after() da
+ * action, ou uma passada do cron) tenta mandar de uma vez. O resto fica
+ * com notificadoEm=null pro cron /api/cron/enviar-notificacoes-pendentes
+ * pegar na passada seguinte — existe pra nunca deixar uma leva gigante
+ * de matches rodando por tempo indefinido dentro do limite de duração
+ * da função serverless. */
+const TETO_ENVIO_POR_CHAMADA = 300;
+
+/** Manda os itens em lotes de CONCORRENCIA_ENVIO em paralelo, um lote de
+ * cada vez — bem mais rápido que um loop sequencial (era assim antes:
+ * um e-mail de cada vez, esperando cada um terminar), sem virar uma
+ * rajada de centenas de requisições simultâneas pra API da Resend. Uma
+ * falha isolada num item nunca derruba os outros do lote (cada callback
+ * já trata o próprio erro). */
+async function enviarEmLotes<T>(itens: T[], enviar: (item: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < itens.length; i += CONCORRENCIA_ENVIO) {
+    const lote = itens.slice(i, i + CONCORRENCIA_ENVIO);
+    await Promise.all(lote.map(enviar));
+  }
+}
+
 /** Roda logo depois de criarVaga (src/app/vagas/actions.ts) — acha toda
  * Pessoa disponível cujo perfil combina com esta vaga RECÉM-publicada
- * (mesma regra de calcularMatch já usada na candidatura) e ainda não foi
- * registrada como match pra ela, avisa por e-mail e grava
- * VagaMatchPassivo (dedupe — nunca avisa a mesma dupla duas vezes).
- * Prospectivo: só roda pra vaga nova, nunca varre vaga antiga. */
-export async function notificarPessoasSobreVagaNova(vagaId: number): Promise<{ notificadas: number }> {
+ * (mesma regra de calcularMatch já usada na candidatura) e registra
+ * VagaMatchPassivo pra cada uma (createMany + skipDuplicates faz o
+ * dedupe sem N idas ao banco). NÃO manda e-mail aqui — só grava quem
+ * está pendente; ver processarNotificacoesPendentesVagaNova pro envio de
+ * verdade. Rápido mesmo com milhares de pessoas cadastradas (é só um
+ * findMany leve + um INSERT em lote), por isso pode ficar síncrono
+ * dentro da action sem travar a resposta pra empresa. */
+export async function registrarMatchesVagaNova(vagaId: number): Promise<{ pendentes: number }> {
   const vaga = await prisma.vaga.findUnique({
     where: { id: vagaId },
-    select: {
-      cargo: true,
-      habilidadesProcuradas: true,
-      nomeFantasia: true,
-      empresa: { select: { nome: true } },
-    },
+    select: { habilidadesProcuradas: true },
   });
-  if (!vaga) return { notificadas: 0 };
+  if (!vaga) return { pendentes: 0 };
 
   const pessoas = await prisma.pessoa.findMany({
     where: { disponivelParaOportunidades: true, contaDesativadaEm: null, contaExcluidaEm: null },
-    select: { id: true, nome: true, email: true, habilidades: true },
+    select: { id: true, habilidades: true },
   });
 
-  const empresaNome = vaga.nomeFantasia || vaga.empresa.nome;
-  let notificadas = 0;
-  for (const pessoa of pessoas) {
-    if (!pessoa.email) continue; // Portal exige e-mail no cadastro, mas nunca é demais checar.
-    if (!calcularMatch(vaga.habilidadesProcuradas, pessoa.habilidades)) continue;
+  const idsCompativeis = pessoas
+    .filter((p) => calcularMatch(vaga.habilidadesProcuradas, p.habilidades))
+    .map((p) => p.id);
 
-    try {
-      await prisma.vagaMatchPassivo.create({ data: { vagaId, pessoaId: pessoa.id } });
-    } catch {
-      continue; // Já existia (corrida rara com atualizarPerfilProfissional) — não reenvia.
+  if (idsCompativeis.length === 0) return { pendentes: 0 };
+
+  await prisma.vagaMatchPassivo.createMany({
+    data: idsCompativeis.map((pessoaId) => ({ vagaId, pessoaId, origem: "VAGA_NOVA" as const })),
+    skipDuplicates: true,
+  });
+
+  const pendentes = await prisma.vagaMatchPassivo.count({
+    where: { vagaId, origem: "VAGA_NOVA", notificadoEm: null },
+  });
+  return { pendentes };
+}
+
+/** Manda de fato os e-mails de "vaga nova compatível" que ainda estão
+ * pendentes (notificadoEm=null) — chamada dentro de after() logo depois
+ * de registrarMatchesVagaNova (não bloqueia a resposta pra empresa) e
+ * de novo pelo cron de varredura, que pega qualquer sobra (ex.: a leva
+ * era grande demais pra caber no tempo do after(), ou a instância caiu
+ * no meio). Cada item só marca notificadoEm depois do envio confirmado
+ * — se falhar, fica pendente e uma passada futura tenta de novo. */
+export async function processarNotificacoesPendentesVagaNova(
+  limite = TETO_ENVIO_POR_CHAMADA
+): Promise<{ enviados: number }> {
+  const pendentes = await prisma.vagaMatchPassivo.findMany({
+    where: { origem: "VAGA_NOVA", notificadoEm: null },
+    take: limite,
+    select: {
+      id: true,
+      vagaId: true,
+      pessoaId: true,
+      pessoa: { select: { nome: true, email: true } },
+      vaga: {
+        select: { cargo: true, nomeFantasia: true, empresa: { select: { nome: true } } },
+      },
+    },
+  });
+  if (pendentes.length === 0) return { enviados: 0 };
+
+  let enviados = 0;
+  await enviarEmLotes(pendentes, async (match) => {
+    if (match.pessoa.email) {
+      const { sucesso } = await enviarEmailVagaCompativel(
+        match.pessoa.email,
+        match.pessoa.nome,
+        match.vaga.cargo,
+        match.vaga.nomeFantasia || match.vaga.empresa.nome
+      );
+      if (!sucesso) {
+        console.error(`Falha ao notificar pessoa ${match.pessoaId} sobre vaga ${match.vagaId} — fica pendente.`);
+        return;
+      }
     }
-    await enviarEmailVagaCompativel(pessoa.email, pessoa.nome, vaga.cargo, empresaNome);
-    notificadas++;
-  }
-  return { notificadas };
+    await prisma.vagaMatchPassivo.update({ where: { id: match.id }, data: { notificadoEm: new Date() } });
+    enviados++;
+  });
+  return { enviados };
 }
 
 /** Roda logo depois de atualizarPerfilProfissional (src/app/portal/actions.ts)
  * — acha toda Vaga ABERTA cujas habilidadesProcuradas combinam com o
- * perfil RECÉM-atualizado desta pessoa e ainda não foi registrada, avisa
- * todos os usuários da empresa dona da vaga por e-mail e grava
- * VagaMatchPassivo (dedupe). Prospectivo: só roda quando a pessoa mexe no
- * próprio perfil, nunca varre pessoa antiga. */
-export async function notificarEmpresasSobreNovoPerfil(pessoaId: number): Promise<{ notificadas: number }> {
+ * perfil RECÉM-atualizado desta pessoa e registra VagaMatchPassivo pra
+ * cada uma. Mesma divisão de registrarMatchesVagaNova: só grava quem
+ * está pendente, não manda e-mail aqui (ver
+ * processarNotificacoesPendentesPerfil). */
+export async function registrarMatchesNovoPerfil(pessoaId: number): Promise<{ pendentes: number }> {
   const pessoa = await prisma.pessoa.findUnique({
     where: { id: pessoaId },
     select: {
@@ -60,36 +130,77 @@ export async function notificarEmpresasSobreNovoPerfil(pessoaId: number): Promis
     },
   });
   if (!pessoa || !pessoa.disponivelParaOportunidades || pessoa.contaDesativadaEm || pessoa.contaExcluidaEm) {
-    return { notificadas: 0 };
+    return { pendentes: 0 };
   }
 
   const vagas = await prisma.vaga.findMany({
     where: { status: "ABERTA" },
+    select: { id: true, habilidadesProcuradas: true },
+  });
+
+  const idsCompativeis = vagas
+    .filter((v) => calcularMatch(v.habilidadesProcuradas, pessoa.habilidades))
+    .map((v) => v.id);
+
+  if (idsCompativeis.length === 0) return { pendentes: 0 };
+
+  await prisma.vagaMatchPassivo.createMany({
+    data: idsCompativeis.map((vagaId) => ({ vagaId, pessoaId, origem: "PERFIL_ATUALIZADO" as const })),
+    skipDuplicates: true,
+  });
+
+  const pendentes = await prisma.vagaMatchPassivo.count({
+    where: { pessoaId, origem: "PERFIL_ATUALIZADO", notificadoEm: null },
+  });
+  return { pendentes };
+}
+
+/** Manda de fato os e-mails de "candidato compatível" pendentes — mesmo
+ * espírito de processarNotificacoesPendentesVagaNova, só que aqui cada
+ * match avisa TODO usuário com acesso à empresa dona da vaga (empresas
+ * costumam ter poucos usuários, então esse loop interno não precisa de
+ * lote/concorrência — o gargalo de escala é sempre o número de matches,
+ * não de usuários por empresa). */
+export async function processarNotificacoesPendentesPerfil(
+  limite = TETO_ENVIO_POR_CHAMADA
+): Promise<{ enviados: number }> {
+  const pendentes = await prisma.vagaMatchPassivo.findMany({
+    where: { origem: "PERFIL_ATUALIZADO", notificadoEm: null },
+    take: limite,
     select: {
       id: true,
-      cargo: true,
-      habilidadesProcuradas: true,
-      nomeFantasia: true,
-      empresa: {
-        select: { nome: true, usuarios: { select: { usuario: { select: { email: true } } } } },
+      vagaId: true,
+      pessoaId: true,
+      vaga: {
+        select: {
+          cargo: true,
+          nomeFantasia: true,
+          empresa: {
+            select: { nome: true, usuarios: { select: { usuario: { select: { email: true } } } } },
+          },
+        },
       },
     },
   });
+  if (pendentes.length === 0) return { enviados: 0 };
 
-  let notificadas = 0;
-  for (const vaga of vagas) {
-    if (!calcularMatch(vaga.habilidadesProcuradas, pessoa.habilidades)) continue;
-
-    try {
-      await prisma.vagaMatchPassivo.create({ data: { vagaId: vaga.id, pessoaId } });
-    } catch {
-      continue; // Já existia — não reenvia.
+  let enviados = 0;
+  await enviarEmLotes(pendentes, async (match) => {
+    const empresaNome = match.vaga.nomeFantasia || match.vaga.empresa.nome;
+    const resultados = await Promise.all(
+      match.vaga.empresa.usuarios.map(({ usuario }) =>
+        enviarEmailCandidatoCompativel(usuario.email, empresaNome, match.vaga.cargo)
+      )
+    );
+    // Só marca enviado se pelo menos um usuário da empresa recebeu o aviso
+    // — empresa sem usuário nenhum (não deveria acontecer) ou com falha em
+    // todos os envios fica pendente pra tentar de novo depois.
+    if (resultados.length === 0 || !resultados.some((r) => r.sucesso)) {
+      console.error(`Falha ao notificar empresa sobre match no perfil ${match.pessoaId} / vaga ${match.vagaId} — fica pendente.`);
+      return;
     }
-    const empresaNome = vaga.nomeFantasia || vaga.empresa.nome;
-    for (const { usuario } of vaga.empresa.usuarios) {
-      await enviarEmailCandidatoCompativel(usuario.email, empresaNome, vaga.cargo);
-    }
-    notificadas++;
-  }
-  return { notificadas };
+    await prisma.vagaMatchPassivo.update({ where: { id: match.id }, data: { notificadoEm: new Date() } });
+    enviados++;
+  });
+  return { enviados };
 }

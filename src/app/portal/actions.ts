@@ -9,9 +9,10 @@ import { meiosTransporteValidos } from "@/lib/transporte";
 import { uploadDataUrl } from "@/lib/blob";
 import { criarTokenAutenticacaoPessoa, tokenRecenteExistePessoa } from "@/lib/tokenAutenticacaoPessoa";
 import { enviarEmailTrocaEmailPessoa } from "@/lib/email";
-import { notificarEmpresasSobreNovoPerfil } from "@/lib/match-passivo";
+import { registrarMatchesNovoPerfil, processarNotificacoesPendentesPerfil } from "@/lib/match-passivo";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 
 export type AtualizarMeusDadosState = { erro?: string; sucesso?: boolean } | undefined;
 
@@ -179,9 +180,12 @@ export async function atualizarPerfilProfissional(
     JSON.stringify([...(pessoaAntes?.habilidades ?? [])].sort()) !== JSON.stringify([...habilidades].sort());
   if (habilidadesMudaram) {
     try {
-      await notificarEmpresasSobreNovoPerfil(sessao.pessoaId);
+      const { pendentes } = await registrarMatchesNovoPerfil(sessao.pessoaId);
+      if (pendentes > 0) {
+        after(() => processarNotificacoesPendentesPerfil());
+      }
     } catch (err) {
-      console.error("Falha ao notificar empresas sobre novo perfil:", err);
+      console.error("Falha ao registrar matches de novo perfil:", err);
     }
   }
 

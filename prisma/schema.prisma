@@ -1703,11 +1703,30 @@ enum CanceladoPor {
 /// notificarEmpresasSobreNovoPerfil), ambas em src/lib/match-passivo.ts.
 /// @@unique garante isso mesmo se os dois gatilhos dispararem quase juntos
 /// pro mesmo par. Também alimenta o aviso no painel da empresa (/vagas).
+/// De qual lado veio o match passivo — decide quem recebe o aviso por
+/// e-mail (ver src/lib/match-passivo.ts). VAGA_NOVA: vaga acabou de ser
+/// publicada, avisa a Pessoa. PERFIL_ATUALIZADO: pessoa acabou de editar
+/// habilidades, avisa a Empresa. Uma dupla vaga+pessoa só pode gerar UM
+/// dos dois avisos (@@unique abaixo) — se o par já tinha sido descoberto
+/// pelo lado oposto antes, o segundo evento não reabre um aviso novo.
+enum OrigemMatchPassivo {
+  VAGA_NOVA
+  PERFIL_ATUALIZADO
+}
+
 model VagaMatchPassivo {
-  id       Int      @id @default(autoincrement())
+  id       Int                @id @default(autoincrement())
   vagaId   Int
   pessoaId Int
-  criadoEm DateTime @default(now())
+  criadoEm DateTime           @default(now())
+  origem   OrigemMatchPassivo @default(VAGA_NOVA)
+  /// Quando o e-mail de aviso deste match foi enviado com sucesso — null
+  /// enquanto pendente. Existe pra separar "achar o match" (rápido, síncrono,
+  /// dentro da action) de "mandar o e-mail" (lento, um por um, feito depois
+  /// via after() e reforçado pelo cron /api/cron/enviar-notificacoes-pendentes)
+  /// — ver src/lib/match-passivo.ts. Fica null pra sempre só se o envio
+  /// falhar repetidamente (log de erro no cron denuncia isso).
+  notificadoEm DateTime?
   /// Empresa clicou em "Convidar" pra essa dupla específica (ver
   /// convidarParaVaga, src/app/vagas/actions.ts) — null enquanto nunca
   /// convidou. Sem isso o banner de match passivo (MatchesRecentesBanner)
@@ -1722,6 +1741,7 @@ model VagaMatchPassivo {
 
   @@unique([vagaId, pessoaId])
   @@index([vagaId])
+  @@index([origem, notificadoEm])
 }
 
 /// Conversa entre uma Empresa e uma Pessoa — por par, não por
