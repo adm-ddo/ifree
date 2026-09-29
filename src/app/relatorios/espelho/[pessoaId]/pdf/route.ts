@@ -4,7 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
 import { formatarCpf } from "@/lib/cpf";
 import { instanteBrasil, dataISOBrasil, formatarDataSemHora } from "@/lib/data";
-import { calcularMinutosNoturnos, horarioEsperadoClt, calcularSaldoDiarioClt, pausaAplicadaEm } from "@/lib/ponto";
+import {
+  calcularMinutosNoturnos,
+  horarioEsperadoClt,
+  calcularDesvioPontoClt,
+  calcularHoraExtraPontoClt,
+} from "@/lib/ponto";
 import { sanitizarNomeArquivo } from "@/lib/texto";
 import { gerarPdfEspelhoPonto, type LinhaEspelhoPonto } from "@/lib/espelho-ponto-pdf";
 
@@ -57,6 +62,8 @@ export async function GET(
       escalaTurno: true,
       horarioEntradaMin: true,
       horarioSaidaMin: true,
+      ultimasFeriasGozadasEm: true,
+      feriasQuantidadeDias: true,
       pessoa: { select: { nome: true, documento: true, pisPasepNit: true, ctpsNumero: true, ctpsSerieUf: true } },
     },
   });
@@ -86,8 +93,8 @@ export async function GET(
   // (ver src/app/funcionarios/[id]/page.tsx) — horário esperado é fixo
   // pra pessoa (escala + turno + eventual override individual), não
   // recalculado por dia. Null quando não há escala nem override
-  // configurado, caso em que nenhuma linha ganha horaExtraMin/
-  // horasDevidasMin (ver horarioConfigurado abaixo).
+  // configurado, caso em que nenhuma linha ganha atraso/saída
+  // antecipada/hora extra (ver horarioConfigurado abaixo).
   const horarioEsperado = horarioEsperadoClt(
     vinculo.escalaTrabalho,
     vinculo.escalaTurno,
@@ -111,7 +118,6 @@ export async function GET(
       saidaIntervalo: true,
       horaSaida: true,
       minutosTrabalhados: true,
-      minutosDescontadosPausa: true,
       correcaoSaidaEm: true,
     },
   });
@@ -128,9 +134,31 @@ export async function GET(
       minutosTrabalhados: r.minutosTrabalhados,
       minutosNoturnos: r.horaSaida ? calcularMinutosNoturnos(r.horaEntrada, r.horaSaida) : null,
       encerradoManualmente: r.correcaoSaidaEm !== null,
-      ...calcularSaldoDiarioClt(r.minutosTrabalhados, horarioEsperado, pausaAplicadaEm(r)),
+      ...calcularDesvioPontoClt(r.horaEntrada, r.horaSaida, horarioEsperado),
+      ...calcularHoraExtraPontoClt(r.horaEntrada, r.horaSaida, horarioEsperado),
     };
     linhasPorDia.set(chave, [...(linhasPorDia.get(chave) ?? []), linha]);
+  }
+
+  // Dias sem nenhum registro que caem dentro das últimas férias
+  // registradas (ver VinculoPessoaEmpresa.ultimasFeriasGozadasEm/
+  // feriasQuantidadeDias, mesmos campos do FeriasCard em
+  // /funcionarios/[id]) — mostrados como "Férias" no PDF em vez de ficar
+  // em branco. Comparação por string ISO (não por Date) porque
+  // ultimasFeriasGozadasEm é @db.Date (meia-noite UTC) e os dias do
+  // período são instanteBrasil (meia-noite Brasília) — bases de fuso
+  // diferentes, string YYYY-MM-DD evita comparar timestamp com timestamp.
+  const diasFeriasISO = new Set<string>();
+  if (vinculo.ultimasFeriasGozadasEm && vinculo.feriasQuantidadeDias) {
+    const inicioFeriasISO = vinculo.ultimasFeriasGozadasEm.toISOString().slice(0, 10);
+    const fimFerias = new Date(
+      vinculo.ultimasFeriasGozadasEm.getTime() + vinculo.feriasQuantidadeDias * 24 * 60 * 60 * 1000
+    );
+    const fimFeriasISO = fimFerias.toISOString().slice(0, 10);
+    for (let t = inicioPeriodo.getTime(); t < fimPeriodo.getTime(); t += 24 * 60 * 60 * 1000) {
+      const diaISO = dataISOBrasil(new Date(t));
+      if (diaISO >= inicioFeriasISO && diaISO < fimFeriasISO) diasFeriasISO.add(diaISO);
+    }
   }
 
   const diasDoMes: Date[] = [];
@@ -166,6 +194,7 @@ export async function GET(
     horarioConfigurado: horarioEsperado !== null,
     diasDoMes,
     linhasPorDia,
+    diasFeriasISO,
   });
 
   return new NextResponse(new Uint8Array(pdfBytes), {

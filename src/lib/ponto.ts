@@ -281,6 +281,37 @@ export function calcularDesvioPontoClt(
   return { atrasoEntradaMin, saidaAntecipadaMin };
 }
 
+/** Hora extra realizada num turno CLT — o espelho (a mãe: chegar cedo,
+ * sair tarde) de calcularDesvioPontoClt acima, que de propósito ignora
+ * esses dois sentidos porque não são "problema" pra correção manual do
+ * admin. Aqui sim importam: é tempo trabalhado além do horário esperado,
+ * candidato a virar adicional de hora extra na folha — a decisão de
+ * pagar (e quanto) é sempre da contabilidade, isto aqui só mede o
+ * ocorrido. Deliberadamente NUNCA compensado contra atraso/saída
+ * antecipada do mesmo dia (pedido do Thiago, 2026-09-29): um dia que
+ * chegou atrasado E saiu tarde tem os dois eventos reportados cheios,
+ * não uma soma líquida — quem decide se um "compensa" o outro é a
+ * convenção coletiva/contabilidade, nunca o sistema sozinho. */
+export function calcularHoraExtraPontoClt(
+  horaEntrada: Date,
+  horaSaida: Date | null,
+  esperado: HorarioEsperadoClt | null
+): { horaExtraMin: number | null } {
+  if (!esperado) return { horaExtraMin: null };
+
+  const desvioEntrada = minutosDeDesvio(horaEntrada, esperado.entradaMin);
+  const extraChegouCedo = desvioEntrada < -TOLERANCIA_PONTO_CLT_MIN ? -desvioEntrada : 0;
+
+  let extraSaiuTarde = 0;
+  if (horaSaida) {
+    const desvioSaida = minutosDeDesvio(horaSaida, esperado.saidaMin);
+    extraSaiuTarde = desvioSaida > TOLERANCIA_PONTO_CLT_MIN ? desvioSaida : 0;
+  }
+
+  const total = extraChegouCedo + extraSaiuTarde;
+  return { horaExtraMin: total > 0 ? total : null };
+}
+
 export type SaldoDiarioClt = { horaExtraMin: number | null; horasDevidasMin: number | null };
 
 /** Saldo do dia pra um turno CLT: minutos trabalhados vs. a janela

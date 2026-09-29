@@ -44,16 +44,19 @@ const styles = StyleSheet.create({
     borderBottom: "0.5pt solid #e7e5e4",
   },
   linhaVazia: { color: "#a8a29e" },
-  colData: { width: "10%" },
-  colDia: { width: "7%" },
-  colEntrada: { width: "12%" },
-  colIntervalo: { width: "19%" },
-  colSaida: { width: "12%" },
-  colTotal: { width: "13%", textAlign: "right" },
-  colNoturno: { width: "13%", textAlign: "right" },
-  colSaldo: { width: "14%", textAlign: "right" },
-  saldoExtra: { color: "#92400e", fontWeight: 700 },
-  saldoDevida: { color: "#991b1b", fontWeight: 700 },
+  linhaFerias: { color: "#0369a1" },
+  colData: { width: "9%" },
+  colDia: { width: "6%" },
+  colEntrada: { width: "9%" },
+  colIntervalo: { width: "15%" },
+  colSaida: { width: "9%" },
+  colTotal: { width: "10%", textAlign: "right" },
+  colNoturno: { width: "10%", textAlign: "right" },
+  colAtraso: { width: "10%", textAlign: "right" },
+  colSaidaAntecipada: { width: "11%", textAlign: "right" },
+  colHoraExtra: { width: "11%", textAlign: "right" },
+  valorAtraso: { color: "#991b1b", fontWeight: 700 },
+  valorHoraExtra: { color: "#92400e", fontWeight: 700 },
   totalBox: {
     marginTop: 12,
     padding: 10,
@@ -120,13 +123,16 @@ export type LinhaEspelhoPonto = {
   /// Ver calcularMinutosNoturnos em src/lib/ponto.ts.
   minutosNoturnos: number | null;
   encerradoManualmente: boolean;
-  /// Saldo do dia contra o horário esperado (calcularSaldoDiarioClt em
-  /// src/lib/ponto.ts, mesma conta já usada no histórico de ponto da tela
-  /// de funcionário) — mutuamente exclusivos (um dia nunca tem os dois),
-  /// ambos null quando dentro da tolerância ou sem horário configurado
-  /// pra essa pessoa (ver horarioConfigurado abaixo).
+  /// Os três eventos abaixo vêm de calcularDesvioPontoClt/
+  /// calcularHoraExtraPontoClt (src/lib/ponto.ts) — DELIBERADAMENTE nunca
+  /// compensados entre si (pedido do Thiago, 2026-09-29): um dia que
+  /// chegou atrasado E saiu depois do esperado mostra os dois eventos
+  /// cheios, não uma soma líquida. Cabe à contabilidade decidir o que
+  /// cada um vira na folha (adicional de hora extra, desconto,
+  /// convenção coletiva) — isto aqui só registra o que aconteceu.
+  atrasoEntradaMin: number | null;
+  saidaAntecipadaMin: number | null;
   horaExtraMin: number | null;
-  horasDevidasMin: number | null;
 };
 
 /** Espelho de ponto mensal, por funcionário — um dia por linha (mesmo
@@ -147,35 +153,44 @@ export async function gerarPdfEspelhoPonto(params: {
   cargo: string | null;
   mesReferenciaLabel: string;
   /// false quando a pessoa não tem horário esperado configurado (nem
-  /// escala, nem horário individual) — nesse caso todo horaExtraMin/
-  /// horasDevidasMin das linhas vem null e a coluna Saldo/os totais
-  /// mostram um aviso em vez de "R$ 0,00 de saldo" (que seria enganoso:
-  /// não é que bateu certinho, é que não dá pra calcular).
+  /// escala, nem horário individual) — nesse caso todo
+  /// atrasoEntradaMin/saidaAntecipadaMin/horaExtraMin das linhas vem null
+  /// e os totais mostram um aviso em vez de "0h00min" (que seria
+  /// enganoso: não é que bateu certinho, é que não dá pra calcular).
   horarioConfigurado: boolean;
   diasDoMes: Date[];
   linhasPorDia: Map<string, LinhaEspelhoPonto[]>;
+  /// Dias (YYYY-MM-DD, fuso Brasília) cobertos pelas últimas férias
+  /// registradas dessa pessoa (VinculoPessoaEmpresa.ultimasFeriasGozadasEm
+  /// + feriasQuantidadeDias) que caem dentro do período deste espelho —
+  /// um dia sem registro nenhum aparece como "Férias" em vez de ficar em
+  /// branco, pra não parecer falta. Só cobre o período mais recente
+  /// registrado (o sistema não guarda histórico de férias anteriores).
+  diasFeriasISO: Set<string>;
 }): Promise<Buffer> {
   const dataISO = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", { timeZone: FUSO_BRASIL, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 
   let totalMinutos = 0;
   let totalMinutosNoturnos = 0;
+  let totalAtrasoMin = 0;
+  let totalSaidaAntecipadaMin = 0;
   let totalHoraExtraMin = 0;
-  let totalHorasDevidasMin = 0;
   let diasTrabalhados = 0;
   for (const linhas of params.linhasPorDia.values()) {
     if (linhas.length > 0) diasTrabalhados++;
     for (const l of linhas) {
       totalMinutos += l.minutosTrabalhados ?? 0;
       totalMinutosNoturnos += l.minutosNoturnos ?? 0;
+      totalAtrasoMin += l.atrasoEntradaMin ?? 0;
+      totalSaidaAntecipadaMin += l.saidaAntecipadaMin ?? 0;
       totalHoraExtraMin += l.horaExtraMin ?? 0;
-      totalHorasDevidasMin += l.horasDevidasMin ?? 0;
     }
   }
 
   return renderToBuffer(
     <Document>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" orientation="landscape" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.titulo}>Espelho de Ponto — {params.mesReferenciaLabel}</Text>
           <Text style={styles.subtitulo}>
@@ -228,26 +243,36 @@ export async function gerarPdfEspelhoPonto(params: {
             <Text style={styles.colSaida}>Saída</Text>
             <Text style={styles.colTotal}>Total</Text>
             <Text style={styles.colNoturno}>Noturnas</Text>
-            <Text style={styles.colSaldo}>Saldo do dia</Text>
+            <Text style={styles.colAtraso}>Atraso</Text>
+            <Text style={styles.colSaidaAntecipada}>Saída antec.</Text>
+            <Text style={styles.colHoraExtra}>Hora extra</Text>
           </View>
           {params.diasDoMes.map((dia) => {
-            const linhas = params.linhasPorDia.get(dataISO(dia)) ?? [];
+            const chave = dataISO(dia);
+            const linhas = params.linhasPorDia.get(chave) ?? [];
             if (linhas.length === 0) {
+              const emFerias = params.diasFeriasISO.has(chave);
               return (
-                <View key={dataISO(dia)} style={styles.linha}>
+                <View key={chave} style={styles.linha}>
                   <Text style={styles.colData}>{formatarDataCurta(dia)}</Text>
                   <Text style={styles.colDia}>{formatarDiaSemana(dia)}</Text>
-                  <Text style={[styles.colEntrada, styles.linhaVazia]}>—</Text>
-                  <Text style={[styles.colIntervalo, styles.linhaVazia]}>—</Text>
-                  <Text style={[styles.colSaida, styles.linhaVazia]}>—</Text>
+                  {emFerias ? (
+                    <Text style={[styles.colEntrada, styles.linhaFerias]}>Férias</Text>
+                  ) : (
+                    <Text style={[styles.colEntrada, styles.linhaVazia]}>—</Text>
+                  )}
+                  <Text style={[styles.colIntervalo, styles.linhaVazia]}>{emFerias ? "" : "—"}</Text>
+                  <Text style={[styles.colSaida, styles.linhaVazia]}>{emFerias ? "" : "—"}</Text>
                   <Text style={[styles.colTotal, styles.linhaVazia]}>—</Text>
                   <Text style={[styles.colNoturno, styles.linhaVazia]}>—</Text>
-                  <Text style={[styles.colSaldo, styles.linhaVazia]}>—</Text>
+                  <Text style={[styles.colAtraso, styles.linhaVazia]}>—</Text>
+                  <Text style={[styles.colSaidaAntecipada, styles.linhaVazia]}>—</Text>
+                  <Text style={[styles.colHoraExtra, styles.linhaVazia]}>—</Text>
                 </View>
               );
             }
             return linhas.map((l, i) => (
-              <View key={`${dataISO(dia)}-${i}`} style={styles.linha}>
+              <View key={`${chave}-${i}`} style={styles.linha}>
                 <Text style={styles.colData}>{i === 0 ? formatarDataCurta(dia) : ""}</Text>
                 <Text style={styles.colDia}>{i === 0 ? formatarDiaSemana(dia) : ""}</Text>
                 <Text style={styles.colEntrada}>{formatarHora(l.horaEntrada)}</Text>
@@ -268,20 +293,22 @@ export async function gerarPdfEspelhoPonto(params: {
                     ? formatarHoras(l.minutosNoturnos)
                     : "—"}
                 </Text>
+                <Text style={l.atrasoEntradaMin !== null ? [styles.colAtraso, styles.valorAtraso] : styles.colAtraso}>
+                  {l.atrasoEntradaMin !== null ? formatarHoras(l.atrasoEntradaMin) : "—"}
+                </Text>
                 <Text
                   style={
-                    l.horaExtraMin !== null
-                      ? [styles.colSaldo, styles.saldoExtra]
-                      : l.horasDevidasMin !== null
-                        ? [styles.colSaldo, styles.saldoDevida]
-                        : styles.colSaldo
+                    l.saidaAntecipadaMin !== null
+                      ? [styles.colSaidaAntecipada, styles.valorAtraso]
+                      : styles.colSaidaAntecipada
                   }
                 >
-                  {l.horaExtraMin !== null
-                    ? `+${formatarHoras(l.horaExtraMin)}`
-                    : l.horasDevidasMin !== null
-                      ? `-${formatarHoras(l.horasDevidasMin)}`
-                      : "—"}
+                  {l.saidaAntecipadaMin !== null ? formatarHoras(l.saidaAntecipadaMin) : "—"}
+                </Text>
+                <Text
+                  style={l.horaExtraMin !== null ? [styles.colHoraExtra, styles.valorHoraExtra] : styles.colHoraExtra}
+                >
+                  {l.horaExtraMin !== null ? formatarHoras(l.horaExtraMin) : "—"}
                 </Text>
               </View>
             ));
@@ -302,27 +329,32 @@ export async function gerarPdfEspelhoPonto(params: {
         {!params.horarioConfigurado ? (
           <View style={styles.metaBoxNeutro}>
             <Text style={styles.metaLabelNeutro}>
-              Horário de trabalho não configurado pra essa pessoa — sem cálculo de horas extras/devidas
+              Horário de trabalho não configurado pra essa pessoa — sem cálculo de atraso/saída antecipada/hora extra
             </Text>
           </View>
         ) : (
           <>
             <View style={styles.metaBoxExtra}>
-              <Text style={styles.metaLabelExtra}>Total de horas extras no período</Text>
-              <Text style={styles.metaValorExtra}>+{formatarHoras(totalHoraExtraMin)}</Text>
+              <Text style={styles.metaLabelExtra}>Total de horas extras realizadas no período</Text>
+              <Text style={styles.metaValorExtra}>{formatarHoras(totalHoraExtraMin)}</Text>
             </View>
             <View style={styles.metaBoxFalta}>
-              <Text style={styles.metaLabelFalta}>Total de horas devidas no período</Text>
-              <Text style={styles.metaValorFalta}>-{formatarHoras(totalHorasDevidasMin)}</Text>
+              <Text style={styles.metaLabelFalta}>Total de atrasos no período</Text>
+              <Text style={styles.metaValorFalta}>{formatarHoras(totalAtrasoMin)}</Text>
+            </View>
+            <View style={styles.metaBoxFalta}>
+              <Text style={styles.metaLabelFalta}>Total de saídas antecipadas no período</Text>
+              <Text style={styles.metaValorFalta}>{formatarHoras(totalSaidaAntecipadaMin)}</Text>
             </View>
           </>
         )}
 
         <Text style={styles.aviso}>
-          Horas noturnas: minuto-relógio real trabalhado dentro da janela
-          22h-5h (CLT art. 73), sem aplicar a hora noturna reduzida
-          (52min30s) nem o adicional — cálculo final de folha é com o
-          contador.
+          Cada evento (hora extra, atraso, saída antecipada) é mostrado separado, sem compensar um
+          contra o outro — cabe à contabilidade aplicar o adicional, o desconto e a convenção
+          coletiva de cada um. Horas noturnas: minuto-relógio real trabalhado dentro da janela
+          22h-5h (CLT art. 73), sem aplicar a hora noturna reduzida (52min30s) nem o adicional —
+          cálculo final de folha é com o contador.
         </Text>
 
         <View style={styles.assinaturas}>
