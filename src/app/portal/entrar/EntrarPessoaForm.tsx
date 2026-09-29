@@ -35,6 +35,12 @@ export default function EntrarPessoaForm() {
             Fazer novo cadastro
           </Link>
         </p>
+        <p className="text-sm text-stone-500 mt-1">
+          Não sabe como funciona?{" "}
+          <Link href="/freelancer" className="text-brand-700 underline">
+            Veja o passo a passo
+          </Link>
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">
