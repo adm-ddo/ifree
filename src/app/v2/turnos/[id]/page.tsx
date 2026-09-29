@@ -329,9 +329,9 @@ export default async function V2TurnoDetalhePage({ params }: { params: Promise<{
 
 function Linha({ label, valor, destaque }: { label: string; valor: string; destaque?: boolean }) {
   return (
-    <div className="flex items-center justify-between text-[12.5px]">
-      <span className="text-stone-500">{label}</span>
-      <span className={destaque ? "font-bold text-brand-700" : "text-navy-900 font-medium"}>{valor}</span>
+    <div className="flex items-start justify-between gap-3 text-[12.5px]">
+      <span className="text-stone-500 shrink-0">{label}</span>
+      <span className={`text-right ${destaque ? "font-bold text-brand-700" : "text-navy-900 font-medium"}`}>{valor}</span>
     </div>
   );
 }

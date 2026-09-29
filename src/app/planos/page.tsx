@@ -125,7 +125,7 @@ export default function PlanosPage() {
 
         .planos-page .fee-figure { display: flex; align-items: baseline; gap: 10px; margin-top: 14px; }
         .planos-page .fee-figure .pct-group { display: flex; align-items: baseline; gap: 8px; }
-        .planos-page .fee-figure .riscado { font-family: var(--font-planos-mono), monospace; font-size: 1.15rem; font-weight: 600; color: var(--text-faint); text-decoration: line-through; text-decoration-color: var(--text-faint); }
+        .planos-page .fee-figure .riscado, .planos-page .plan-price .riscado { font-family: var(--font-planos-mono), monospace; font-size: 1.15rem; font-weight: 600; color: var(--text-faint); text-decoration: line-through; text-decoration-color: var(--text-faint); }
         .planos-page .fee-figure .pct { font-family: var(--font-planos-mono), monospace; font-size: 2.4rem; font-weight: 700; color: var(--accent-strong); line-height: 1; }
         .planos-page .fee-figure .desc { font-size: 13.5px; color: var(--text-muted); max-width: 22ch; line-height: 1.45; }
         .planos-page .promo-tag {

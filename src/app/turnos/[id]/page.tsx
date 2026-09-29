@@ -382,9 +382,9 @@ export default async function TurnoDetalhePage({
 
 function Linha({ label, valor, destaque }: { label: string; valor: string; destaque?: boolean }) {
   return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-stone-500">{label}</span>
-      <span className={destaque ? "font-semibold text-brand-700" : "text-navy-900"}>
+    <div className="flex items-start justify-between gap-3 text-sm">
+      <span className="text-stone-500 shrink-0">{label}</span>
+      <span className={`text-right ${destaque ? "font-semibold text-brand-700" : "text-navy-900"}`}>
         {valor}
       </span>
     </div>

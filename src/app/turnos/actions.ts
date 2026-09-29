@@ -313,6 +313,13 @@ export async function corrigirEntradaTurno(
     diariaLimiarCompletaMin: turno.empresa.diariaLimiarCompletaMin,
   });
 
+  // Sem "if (turno.pagamento) { ... }" aqui de propósito — diferente de
+  // corrigirSaidaTurno acima (que corrige turno já PAGO de meses atrás),
+  // um turno só chega em pagamentoRetidoRevisao=true ANTES de qualquer
+  // Pagamento existir (processarOuReterPagamentoTurno nunca cria
+  // Pagamento quando retido; só liberarPagamentoRetido cria, e só depois
+  // de já ter zerado a flag) — então turno.pagamento é sempre null neste
+  // ponto. Atualizar um Pagamento que não pode existir seria código morto.
   await prisma.turno.update({
     where: { id: turno.id },
     data: {
@@ -326,10 +333,6 @@ export async function corrigirEntradaTurno(
       correcaoEntradaPorEmail: sessao.email,
     },
   });
-
-  if (turno.pagamento) {
-    await prisma.pagamento.update({ where: { id: turno.pagamento.id }, data: { valor: valorTotal } });
-  }
 
   revalidatePath(`/turnos/${turno.id}`);
   revalidatePath("/turnos");
