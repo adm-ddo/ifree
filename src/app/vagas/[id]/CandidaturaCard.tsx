@@ -2,7 +2,7 @@
 
 import { useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { aceitarCandidatura, recusarCandidatura } from "./actions";
+import { aceitarCandidatura, recusarCandidatura, reconsiderarCandidatura } from "./actions";
 import { formatarDataHora } from "@/lib/data";
 import ExtraMarcadoEmpresa, { type ExtraMarcadoItem } from "./ExtraMarcadoEmpresa";
 
@@ -131,6 +131,32 @@ export default function CandidaturaCard({
               Recusar
             </button>
           </>
+        )}
+        {candidatura.status === "ACEITA" && (
+          <button
+            disabled={pending}
+            onClick={() => {
+              if (
+                confirm(
+                  `Recusar ${pessoa.nome} depois de já ter aceitado? Ela some da lista ativa (vai pra "Recusados", dá pra reconsiderar depois). Qualquer Free marcado ainda pendente com ela é cancelado junto — conta como desmarque seu.`
+                )
+              ) {
+                startTransition(() => recusarCandidatura(candidatura.id));
+              }
+            }}
+            className="rounded-lg border border-red-200 text-sm px-4 py-2 text-red-700 hover:bg-red-50 disabled:opacity-50"
+          >
+            Recusar
+          </button>
+        )}
+        {candidatura.status === "RECUSADA" && (
+          <button
+            disabled={pending}
+            onClick={() => startTransition(() => reconsiderarCandidatura(candidatura.id))}
+            className="rounded-lg border border-stone-300 text-sm px-4 py-2 text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+          >
+            🔄 Reconsiderar
+          </button>
         )}
         {candidatura.match && conversaId && (
           <Link href={`/conversas/${conversaId}`} className="text-sm text-brand-700 underline">

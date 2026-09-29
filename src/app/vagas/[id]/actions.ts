@@ -23,16 +23,62 @@ async function candidaturaDaEmpresa(candidaturaId: number) {
  * vínculo agora só nasce quando os dois lados "apertam a mão" num Extra
  * Marcado específico (ver criarExtraMarcado abaixo e confirmarExtraMarcado
  * em src/app/portal/vagas/actions.ts) — aceitar sozinho não é mais
- * compromisso suficiente pra liberar o totem. */
+ * compromisso suficiente pra liberar o totem.
+ *
+ * Também libera o chat na hora (match:true + Conversa criada/reaproveitada)
+ * mesmo quando o perfil dela não tinha combinado o suficiente com a vaga
+ * na hora da candidatura (match:false, calcularMatch em src/lib/match.ts) —
+ * reportado pelo Thiago em 2026-09-29: aceitar a pessoa sem conseguir
+ * conversar com ela não fazia sentido nenhum. A empresa aceitando é um
+ * sinal de interesse bem mais forte do que o cálculo automático por
+ * habilidade em comum. */
 export async function aceitarCandidatura(candidaturaId: number) {
   const candidatura = await candidaturaDaEmpresa(candidaturaId);
-  await prisma.candidatura.update({ where: { id: candidaturaId }, data: { status: "ACEITA" } });
+  await prisma.$transaction([
+    prisma.candidatura.update({ where: { id: candidaturaId }, data: { status: "ACEITA", match: true } }),
+    prisma.conversa.upsert({
+      where: { empresaId_pessoaId: { empresaId: candidatura.vaga.empresaId, pessoaId: candidatura.pessoaId } },
+      update: {},
+      create: { empresaId: candidatura.vaga.empresaId, pessoaId: candidatura.pessoaId },
+    }),
+  ]);
   revalidatePath(`/vagas/${candidatura.vagaId}`);
 }
 
+/** Recusa a candidatura, mesmo já tendo sido ACEITA antes — pedido do
+ * Thiago em 2026-09-29: faltava um jeito de tirar da lista ativa alguém
+ * que já tinha sido aceita mas não deu certo. Qualquer Free Marcado ainda
+ * ativo (aguardando confirmação da pessoa ou já confirmado) é cancelado
+ * junto, contando como desmarque da EMPRESA — mesmo espírito de
+ * cancelarExtraMarcadoEmpresa acima: é a empresa desistindo de um
+ * combinado, então pesa no contador dela normalmente (ver
+ * contarDesmarquesEmpresa, src/lib/confiabilidade-extra.ts, que já conta
+ * cancelamento mesmo antes de confirmado). Não apaga a candidatura — ela
+ * fica visível na lista de "Recusados" da vaga, e a empresa pode
+ * reconsiderar depois (ver reconsiderarCandidatura). */
 export async function recusarCandidatura(candidaturaId: number) {
   const candidatura = await candidaturaDaEmpresa(candidaturaId);
-  await prisma.candidatura.update({ where: { id: candidaturaId }, data: { status: "RECUSADA" } });
+  await prisma.$transaction([
+    prisma.candidatura.update({ where: { id: candidaturaId }, data: { status: "RECUSADA" } }),
+    prisma.extraMarcado.updateMany({
+      where: { candidaturaId, status: { in: ["AGUARDANDO_PESSOA", "CONFIRMADO"] } },
+      data: { status: "CANCELADO", canceladoPor: "EMPRESA" },
+    }),
+  ]);
+  revalidatePath(`/vagas/${candidatura.vagaId}`);
+}
+
+/** Volta uma candidatura RECUSADA pra ENVIADA — a empresa mudou de ideia
+ * (ou recusou sem querer) e quer reconsiderar. Mesma candidatura, não cria
+ * uma nova: fica pendente de novo, como se tivesse acabado de chegar,
+ * pronta pra Aceitar/Recusar de novo. Pedido do Thiago em 2026-09-29,
+ * junto da lista de "Recusados" em /vagas/[id]. */
+export async function reconsiderarCandidatura(candidaturaId: number) {
+  const candidatura = await candidaturaDaEmpresa(candidaturaId);
+  if (candidatura.status !== "RECUSADA") {
+    throw new Error("Essa candidatura não está recusada.");
+  }
+  await prisma.candidatura.update({ where: { id: candidaturaId }, data: { status: "ENVIADA" } });
   revalidatePath(`/vagas/${candidatura.vagaId}`);
 }
 
