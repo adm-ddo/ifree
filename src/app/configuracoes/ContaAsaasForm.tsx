@@ -712,6 +712,11 @@ function GuiaAtivacaoPagamento({ etapaAtual }: { etapaAtual: 1 | 2 | 3 | 4 }) {
           );
         })}
       </ol>
+      <div className="mt-4 pt-3 border-t border-stone-100 text-xs text-stone-600">
+        💸 <strong>Custo por PIX enviado:</strong> os primeiros 30 PIX automáticos de cada mês são
+        grátis. A partir do 31º, a Asaas cobra R$0,69 por transferência — repassamos esse valor sem
+        margem, descontado direto do saldo da conta.
+      </div>
     </div>
   );
 }

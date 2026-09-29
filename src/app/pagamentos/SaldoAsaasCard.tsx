@@ -64,6 +64,11 @@ export default function SaldoAsaasCard({
 
       <SeloAsaas porte="pequeno" />
 
+      <p className="text-xs text-stone-500">
+        💸 Os primeiros 30 PIX automáticos de cada mês são grátis. A partir do 31º, cada um custa
+        R$0,69 (repasse do custo da Asaas), descontado direto deste saldo.
+      </p>
+
       {pixLiberado === false && (
         <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
           ⚠️ O Pix desta conta ainda não foi liberado pela Asaas (falta a

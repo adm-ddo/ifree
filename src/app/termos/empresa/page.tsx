@@ -173,8 +173,11 @@ export default function TermosEmpresaPage() {
             instituição de pagamento autorizada a funcionar pelo Banco Central do Brasil, a partir de uma conta
             digital de titularidade da própria empresa Contratante, previamente carregada por ela via PIX. O
             iFREE atua apenas como plataforma de tecnologia que intermedeia essa integração — em nenhum momento
-            temos acesso, custódia ou controle sobre esse dinheiro, e não retemos comissão fixa sobre cada
-            transação.
+            temos acesso, custódia ou controle sobre esse dinheiro. A partir do 31º PIX automático enviado
+            no mês por uma mesma empresa, incide uma taxa fixa de R$ 0,69 por PIX enviado — repasse do custo
+            cobrado pela própria Asaas para automatizar cada transferência, sem margem adicional do iFREE —
+            descontada do saldo da conta de pagamento da empresa. Os 30 primeiros PIX automáticos de cada
+            mês são gratuitos.
           </p>
           <p className="text-sm text-stone-700 leading-relaxed">
             Empresas que optam por pagar manualmente (fora da automação) seguem o meio de pagamento que

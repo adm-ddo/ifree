@@ -319,25 +319,45 @@ export default function PlanosPage() {
                 </span>
                 <span className="desc">no 1º ano — sobre o valor pago via PIX automático pela plataforma</span>
               </div>
-              <div className="fee-figure" style={{ marginTop: 6 }}>
-                <span className="pct-group">
-                  <span className="pct" style={{ fontSize: "1.5rem" }}>+ R$ 0,69</span>
-                </span>
-                <span className="desc">por PIX enviado — taxa fixa, debitada automático do saldo a cada pagamento</span>
-              </div>
               <span className="promo-tag">🎉 Promocional de lançamento</span>
               <p>
                 Igual maquininha de cartão: sem movimentação, sem taxa. Você deposita o crédito, a
                 gente distribui certinho pra cada pessoa no fechamento do turno/ponto. Depois do 1º
-                ano, a taxa percentual passa a ser 3,99% (o padrão da plataforma) — a taxa fixa de
-                R$0,69 por PIX enviado não muda.
+                ano, a taxa passa a ser 3,99% (o padrão da plataforma).
               </p>
               <div className="example">
                 Exemplo: negócio no plano até 20, pagando <span className="mono">R$ 4.200,00</span> em
-                turnos no mês, com 20 PIX enviados → <span className="mono">R$ 129,90</span> + 1,99%
-                de R$ 4.200 (<span className="mono">R$ 83,58</span>) + 20 × R$ 0,69 (
-                <span className="mono">R$ 13,80</span>) = <span className="mono">R$ 227,28</span> no
+                turnos no mês → <span className="mono">R$ 129,90</span> + 1,99% de R$ 4.200 (
+                <span className="mono">R$ 83,58</span>) = <span className="mono">R$ 213,48</span> no
                 total.
+              </div>
+
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed var(--line)" }}>
+                <h3 style={{ fontSize: "1rem" }}>
+                  PIX enviados por mês <span className="tag">taxa</span>
+                </h3>
+                <div className="fee-figure" style={{ marginTop: 10 }}>
+                  <span className="pct-group">
+                    <span className="pct">30 grátis</span>
+                  </span>
+                  <span className="desc">por mês, por empresa — todo PIX automático conta nessa conta</span>
+                </div>
+                <div className="fee-figure" style={{ marginTop: 6 }}>
+                  <span className="pct-group">
+                    <span className="pct" style={{ fontSize: "1.5rem" }}>+ R$ 0,69</span>
+                  </span>
+                  <span className="desc">a partir do 31º PIX automático do mês — descontado do saldo da sua conta</span>
+                </div>
+                <p>
+                  É o custo que a Asaas (nossa parceira de pagamento) cobra pra automatizar cada
+                  transferência — repassamos sem margem, e só a partir do 31º PIX automático do mês.
+                  Negócio pequeno dificilmente sente essa taxa.
+                </p>
+                <div className="example">
+                  Exemplo: 45 PIX automáticos no mês → os 30 primeiros são de graça, os 15 seguintes
+                  custam 15 × R$ 0,69 = <span className="mono">R$ 10,35</span>, descontados do saldo
+                  da conta.
+                </div>
               </div>
             </div>
 
@@ -394,8 +414,9 @@ export default function PlanosPage() {
         menos 1 turno/ponto fechado na competência, somados juntos — quem sai da folha um mês não pesa
         na conta. Taxa de PIX automático: 1,99% no primeiro ano (promocional), 3,99% depois — incide só
         sobre o valor efetivamente pago via PIX automático pela plataforma, pagamento feito por fora não
-        entra na conta. Além da taxa percentual, cada PIX enviado tem uma taxa fixa de R$0,69, debitada
-        automaticamente do saldo da conta a cada pagamento feito. Preços por tamanho de time (até 20/30/
+        entra na conta. Além da taxa percentual, os primeiros 30 PIX automáticos de cada mês são
+        grátis por empresa — a partir do 31º, cada PIX enviado tem uma taxa fixa de R$0,69, descontada
+        do saldo da conta. Preços por tamanho de time (até 20/30/
         50/ilimitado) congelados até 31/01/2027 — depois dessa data sobem pro valor cheio (mostrado
         riscado ao lado de cada um). Fale com a gente pelo WhatsApp {WHATSAPP_NUMERO_FORMATADO}. iFREE ©{" "}
         {new Date().getFullYear()}.
