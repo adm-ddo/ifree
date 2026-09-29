@@ -28,13 +28,21 @@ function calcularPeriodo(preset: Preset, agora: Date): { inicio: Date; fim: Date
 export default async function MasterFreelancersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ portal?: string; conta?: string; preset?: string; inicio?: string; fim?: string }>;
+  searchParams: Promise<{
+    portal?: string;
+    conta?: string;
+    nome?: string;
+    preset?: string;
+    inicio?: string;
+    fim?: string;
+  }>;
 }) {
   await requireMaster();
-  const { portal, conta, preset, inicio, fim } = await searchParams;
+  const { portal, conta, nome, preset, inicio, fim } = await searchParams;
   const soPortalAtivo = portal === "1";
   const soDesativadas = conta === "desativadas";
   const soExcluidas = conta === "excluidas";
+  const nomeFiltro = nome?.trim() || "";
 
   // Mesmo padrão de filtro de período já usado em /pagamentos — "todos os
   // períodos" (padrão) não restringe nada, cada preset filtra pelo
@@ -56,6 +64,7 @@ export default async function MasterFreelancersPage({
       ...(soPortalAtivo ? { senhaHash: { not: null } } : {}),
       ...(soDesativadas ? { contaDesativadaEm: { not: null } } : {}),
       ...(soExcluidas ? { contaExcluidaEm: { not: null } } : {}),
+      ...(nomeFiltro ? { nome: { contains: nomeFiltro, mode: "insensitive" } } : {}),
       ...filtroPeriodo,
     },
     // Recém-cadastradas primeiro — é o que mais ajuda a acompanhar quem vai
@@ -78,15 +87,19 @@ export default async function MasterFreelancersPage({
     },
   });
 
+  const filtroNome: Prisma.PessoaWhereInput = nomeFiltro
+    ? { nome: { contains: nomeFiltro, mode: "insensitive" } }
+    : {};
+
   const totalComPortal = soPortalAtivo
     ? pessoas.length
-    : await prisma.pessoa.count({ where: { senhaHash: { not: null }, ...filtroPeriodo } });
+    : await prisma.pessoa.count({ where: { senhaHash: { not: null }, ...filtroNome, ...filtroPeriodo } });
   const totalDesativadas = soDesativadas
     ? pessoas.length
-    : await prisma.pessoa.count({ where: { contaDesativadaEm: { not: null }, ...filtroPeriodo } });
+    : await prisma.pessoa.count({ where: { contaDesativadaEm: { not: null }, ...filtroNome, ...filtroPeriodo } });
   const totalExcluidas = soExcluidas
     ? pessoas.length
-    : await prisma.pessoa.count({ where: { contaExcluidaEm: { not: null }, ...filtroPeriodo } });
+    : await prisma.pessoa.count({ where: { contaExcluidaEm: { not: null }, ...filtroNome, ...filtroPeriodo } });
 
   // Mesma prioridade de sempre: fotoPerfilUrl (cadastro do Portal/iFREE
   // Conecta) é a foto "de verdade" — fotoUrl (totem) nunca entra aqui de
@@ -127,6 +140,7 @@ export default async function MasterFreelancersPage({
                 query: {
                   ...(f.valor === "portal" ? { portal: "1" } : {}),
                   ...(f.valor === "desativadas" || f.valor === "excluidas" ? { conta: f.valor } : {}),
+                  ...(nomeFiltro ? { nome: nomeFiltro } : {}),
                   ...(periodoCustomizado ? { inicio, fim } : presetValido !== "todos" ? { preset: presetValido } : {}),
                 },
               }}
@@ -146,6 +160,7 @@ export default async function MasterFreelancersPage({
           if (soPortalAtivo) params.set("portal", "1");
           if (soDesativadas) params.set("conta", "desativadas");
           if (soExcluidas) params.set("conta", "excluidas");
+          if (nomeFiltro) params.set("nome", nomeFiltro);
           if (p.valor !== "todos") params.set("preset", p.valor);
           const query = params.toString();
           return (
@@ -162,50 +177,81 @@ export default async function MasterFreelancersPage({
             </Link>
           );
         })}
-        <form method="GET" className="flex flex-wrap items-center gap-2">
-          {soPortalAtivo && <input type="hidden" name="portal" value="1" />}
-          {(soDesativadas || soExcluidas) && (
-            <input type="hidden" name="conta" value={soDesativadas ? "desativadas" : "excluidas"} />
-          )}
+      </div>
+
+      <form method="GET" className="flex flex-wrap items-end gap-2">
+        {soPortalAtivo && <input type="hidden" name="portal" value="1" />}
+        {(soDesativadas || soExcluidas) && (
+          <input type="hidden" name="conta" value={soDesativadas ? "desativadas" : "excluidas"} />
+        )}
+        {presetValido !== "todos" && !periodoCustomizado && (
+          <input type="hidden" name="preset" value={presetValido} />
+        )}
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          Nome
+          <input
+            type="text"
+            name="nome"
+            defaultValue={nomeFiltro}
+            placeholder="Buscar por nome..."
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          De
           <input
             type="date"
             name="inicio"
             defaultValue={inicio ?? ""}
-            className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="border border-stone-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
-          <span className="text-stone-400 text-sm">até</span>
+        </label>
+        <label className="flex flex-col gap-1 text-sm text-stone-700">
+          Até
           <input
             type="date"
             name="fim"
             defaultValue={fim ?? ""}
-            className="border border-stone-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="border border-stone-300 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
-          <button
-            type="submit"
-            className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-              periodoCustomizado
-                ? "bg-navy-800 text-white border-navy-800"
-                : "border-stone-300 text-stone-600 hover:bg-stone-50"
-            }`}
+        </label>
+        <button
+          type="submit"
+          className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 transition-colors"
+        >
+          Filtrar
+        </button>
+        {(nomeFiltro || periodoCustomizado) && (
+          <Link
+            href={{
+              pathname: "/master/freelancers",
+              query: {
+                ...(soPortalAtivo ? { portal: "1" } : {}),
+                ...(soDesativadas || soExcluidas ? { conta: soDesativadas ? "desativadas" : "excluidas" } : {}),
+              },
+            }}
+            className="text-sm text-stone-500 hover:underline px-2 py-2"
           >
-            Período
-          </button>
-        </form>
-      </div>
+            Limpar
+          </Link>
+        )}
+      </form>
 
       {pessoas.length === 0 && (
         <p className="text-stone-500 text-sm">
-          {soDesativadas
-            ? "Ninguém com a conta desativada."
-            : soExcluidas
-              ? "Ninguém com a conta excluída."
-              : soPortalAtivo && temFiltroPeriodo
-                ? "Ninguém ativou o Portal nesse período."
-                : soPortalAtivo
-                  ? "Ninguém ativou o Portal ainda."
-                  : temFiltroPeriodo
-                    ? "Nenhum freelancer cadastrado nesse período."
-                    : "Nenhum freelancer cadastrado ainda."}
+          {nomeFiltro
+            ? `Nenhum freelancer encontrado com "${nomeFiltro}" nesse filtro.`
+            : soDesativadas
+              ? "Ninguém com a conta desativada."
+              : soExcluidas
+                ? "Ninguém com a conta excluída."
+                : soPortalAtivo && temFiltroPeriodo
+                  ? "Ninguém ativou o Portal nesse período."
+                  : soPortalAtivo
+                    ? "Ninguém ativou o Portal ainda."
+                    : temFiltroPeriodo
+                      ? "Nenhum freelancer cadastrado nesse período."
+                      : "Nenhum freelancer cadastrado ainda."}
         </p>
       )}
 
