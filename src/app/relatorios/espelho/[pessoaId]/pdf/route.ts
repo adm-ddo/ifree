@@ -4,8 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
 import { formatarCpf } from "@/lib/cpf";
 import { instanteBrasil, dataISOBrasil, formatarDataSemHora } from "@/lib/data";
-import { calcularMinutosNoturnos } from "@/lib/ponto";
-import { calcularMetaMinutos } from "@/lib/resumo-horas";
+import { calcularMinutosNoturnos, horarioEsperadoClt, calcularSaldoDiarioClt, pausaAplicadaEm } from "@/lib/ponto";
 import { sanitizarNomeArquivo } from "@/lib/texto";
 import { gerarPdfEspelhoPonto, type LinhaEspelhoPonto } from "@/lib/espelho-ponto-pdf";
 
@@ -54,7 +53,10 @@ export async function GET(
       tipoVinculo: true,
       cargo: true,
       matriculaInterna: true,
-      cargaHorariaSemanalMin: true,
+      escalaTrabalho: true,
+      escalaTurno: true,
+      horarioEntradaMin: true,
+      horarioSaidaMin: true,
       pessoa: { select: { nome: true, documento: true, pisPasepNit: true, ctpsNumero: true, ctpsSerieUf: true } },
     },
   });
@@ -62,8 +64,37 @@ export async function GET(
 
   const empresa = await prisma.empresa.findUniqueOrThrow({
     where: { id: sessao.empresaEfetivoId },
-    select: { nome: true, cnpj: true },
+    select: {
+      nome: true,
+      cnpj: true,
+      horarioEntrada5x2Min: true,
+      horarioSaida5x2Min: true,
+      horarioEntrada5x2NoiteMin: true,
+      horarioSaida5x2NoiteMin: true,
+      horarioEntrada6x1Min: true,
+      horarioSaida6x1Min: true,
+      horarioEntrada6x1NoiteMin: true,
+      horarioSaida6x1NoiteMin: true,
+      horarioEntrada12x36Min: true,
+      horarioSaida12x36Min: true,
+      horarioEntrada12x36NoiteMin: true,
+      horarioSaida12x36NoiteMin: true,
+    },
   });
+
+  // Mesma conta já usada no histórico de ponto da tela de funcionário
+  // (ver src/app/funcionarios/[id]/page.tsx) — horário esperado é fixo
+  // pra pessoa (escala + turno + eventual override individual), não
+  // recalculado por dia. Null quando não há escala nem override
+  // configurado, caso em que nenhuma linha ganha horaExtraMin/
+  // horasDevidasMin (ver horarioConfigurado abaixo).
+  const horarioEsperado = horarioEsperadoClt(
+    vinculo.escalaTrabalho,
+    vinculo.escalaTurno,
+    vinculo.horarioEntradaMin,
+    vinculo.horarioSaidaMin,
+    empresa
+  );
 
   const inicioPeriodo = periodoValido ? instanteBrasil(periodoValido.de) : instanteBrasil(`${mesValido}-01`);
   const ultimoDiaMes = new Date(ano, mes, 0).getDate();
@@ -80,6 +111,7 @@ export async function GET(
       saidaIntervalo: true,
       horaSaida: true,
       minutosTrabalhados: true,
+      minutosDescontadosPausa: true,
       correcaoSaidaEm: true,
     },
   });
@@ -96,6 +128,7 @@ export async function GET(
       minutosTrabalhados: r.minutosTrabalhados,
       minutosNoturnos: r.horaSaida ? calcularMinutosNoturnos(r.horaEntrada, r.horaSaida) : null,
       encerradoManualmente: r.correcaoSaidaEm !== null,
+      ...calcularSaldoDiarioClt(r.minutosTrabalhados, horarioEsperado, pausaAplicadaEm(r)),
     };
     linhasPorDia.set(chave, [...(linhasPorDia.get(chave) ?? []), linha]);
   }
@@ -119,13 +152,6 @@ export async function GET(
         timeZone: "America/Sao_Paulo",
       }).format(inicioPeriodo);
 
-  // Meta proporcional só faz sentido pro mês inteiro (?mes=) — período
-  // customizado (?de=&ate=) pode cruzar meses ou ser parcial, então fica
-  // sem meta (metaMinutos null, o PDF já trata isso sem comparação
-  // nenhuma) em vez de arriscar uma proporção errada. Ver
-  // calcularMetaMinutos em src/lib/resumo-horas.ts.
-  const metaMinutos = periodoValido ? null : calcularMetaMinutos(vinculo.cargaHorariaSemanalMin, ultimoDiaMes);
-
   const pdfBytes = await gerarPdfEspelhoPonto({
     empresaNome: empresa.nome,
     empresaCnpj: empresa.cnpj,
@@ -137,7 +163,7 @@ export async function GET(
     matriculaInterna: vinculo.matriculaInterna,
     cargo: vinculo.cargo,
     mesReferenciaLabel,
-    metaMinutos,
+    horarioConfigurado: horarioEsperado !== null,
     diasDoMes,
     linhasPorDia,
   });

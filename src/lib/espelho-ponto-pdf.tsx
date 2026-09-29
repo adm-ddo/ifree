@@ -1,7 +1,6 @@
 import "server-only";
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
 import { formatarHora, formatarDataHora } from "@/lib/data";
-import { TOLERANCIA_MIN } from "@/lib/resumo-horas";
 
 const FUSO_BRASIL = "America/Sao_Paulo";
 
@@ -45,13 +44,16 @@ const styles = StyleSheet.create({
     borderBottom: "0.5pt solid #e7e5e4",
   },
   linhaVazia: { color: "#a8a29e" },
-  colData: { width: "11%" },
-  colDia: { width: "8%" },
-  colEntrada: { width: "14%" },
-  colIntervalo: { width: "22%" },
-  colSaida: { width: "14%" },
-  colTotal: { width: "15%", textAlign: "right" },
-  colNoturno: { width: "16%", textAlign: "right" },
+  colData: { width: "10%" },
+  colDia: { width: "7%" },
+  colEntrada: { width: "12%" },
+  colIntervalo: { width: "19%" },
+  colSaida: { width: "12%" },
+  colTotal: { width: "13%", textAlign: "right" },
+  colNoturno: { width: "13%", textAlign: "right" },
+  colSaldo: { width: "14%", textAlign: "right" },
+  saldoExtra: { color: "#92400e", fontWeight: 700 },
+  saldoDevida: { color: "#991b1b", fontWeight: 700 },
   totalBox: {
     marginTop: 12,
     padding: 10,
@@ -118,6 +120,13 @@ export type LinhaEspelhoPonto = {
   /// Ver calcularMinutosNoturnos em src/lib/ponto.ts.
   minutosNoturnos: number | null;
   encerradoManualmente: boolean;
+  /// Saldo do dia contra o horário esperado (calcularSaldoDiarioClt em
+  /// src/lib/ponto.ts, mesma conta já usada no histórico de ponto da tela
+  /// de funcionário) — mutuamente exclusivos (um dia nunca tem os dois),
+  /// ambos null quando dentro da tolerância ou sem horário configurado
+  /// pra essa pessoa (ver horarioConfigurado abaixo).
+  horaExtraMin: number | null;
+  horasDevidasMin: number | null;
 };
 
 /** Espelho de ponto mensal, por funcionário — um dia por linha (mesmo
@@ -137,11 +146,12 @@ export async function gerarPdfEspelhoPonto(params: {
   matriculaInterna: string | null;
   cargo: string | null;
   mesReferenciaLabel: string;
-  /// Meta de minutos pro mês, proporcional à carga horária semanal
-  /// configurada pra essa pessoa (VinculoPessoaEmpresa.cargaHorariaSemanalMin)
-  /// — null quando não há carga configurada, caso em que nenhuma
-  /// comparação é exibida (mesmo espírito informativo de sempre).
-  metaMinutos: number | null;
+  /// false quando a pessoa não tem horário esperado configurado (nem
+  /// escala, nem horário individual) — nesse caso todo horaExtraMin/
+  /// horasDevidasMin das linhas vem null e a coluna Saldo/os totais
+  /// mostram um aviso em vez de "R$ 0,00 de saldo" (que seria enganoso:
+  /// não é que bateu certinho, é que não dá pra calcular).
+  horarioConfigurado: boolean;
   diasDoMes: Date[];
   linhasPorDia: Map<string, LinhaEspelhoPonto[]>;
 }): Promise<Buffer> {
@@ -150,16 +160,18 @@ export async function gerarPdfEspelhoPonto(params: {
 
   let totalMinutos = 0;
   let totalMinutosNoturnos = 0;
+  let totalHoraExtraMin = 0;
+  let totalHorasDevidasMin = 0;
   let diasTrabalhados = 0;
   for (const linhas of params.linhasPorDia.values()) {
     if (linhas.length > 0) diasTrabalhados++;
     for (const l of linhas) {
       totalMinutos += l.minutosTrabalhados ?? 0;
       totalMinutosNoturnos += l.minutosNoturnos ?? 0;
+      totalHoraExtraMin += l.horaExtraMin ?? 0;
+      totalHorasDevidasMin += l.horasDevidasMin ?? 0;
     }
   }
-
-  const diferencaMinutos = params.metaMinutos !== null ? totalMinutos - params.metaMinutos : null;
 
   return renderToBuffer(
     <Document>
@@ -216,6 +228,7 @@ export async function gerarPdfEspelhoPonto(params: {
             <Text style={styles.colSaida}>Saída</Text>
             <Text style={styles.colTotal}>Total</Text>
             <Text style={styles.colNoturno}>Noturnas</Text>
+            <Text style={styles.colSaldo}>Saldo do dia</Text>
           </View>
           {params.diasDoMes.map((dia) => {
             const linhas = params.linhasPorDia.get(dataISO(dia)) ?? [];
@@ -229,6 +242,7 @@ export async function gerarPdfEspelhoPonto(params: {
                   <Text style={[styles.colSaida, styles.linhaVazia]}>—</Text>
                   <Text style={[styles.colTotal, styles.linhaVazia]}>—</Text>
                   <Text style={[styles.colNoturno, styles.linhaVazia]}>—</Text>
+                  <Text style={[styles.colSaldo, styles.linhaVazia]}>—</Text>
                 </View>
               );
             }
@@ -254,6 +268,21 @@ export async function gerarPdfEspelhoPonto(params: {
                     ? formatarHoras(l.minutosNoturnos)
                     : "—"}
                 </Text>
+                <Text
+                  style={
+                    l.horaExtraMin !== null
+                      ? [styles.colSaldo, styles.saldoExtra]
+                      : l.horasDevidasMin !== null
+                        ? [styles.colSaldo, styles.saldoDevida]
+                        : styles.colSaldo
+                  }
+                >
+                  {l.horaExtraMin !== null
+                    ? `+${formatarHoras(l.horaExtraMin)}`
+                    : l.horasDevidasMin !== null
+                      ? `-${formatarHoras(l.horasDevidasMin)}`
+                      : "—"}
+                </Text>
               </View>
             ));
           })}
@@ -270,32 +299,23 @@ export async function gerarPdfEspelhoPonto(params: {
           <Text style={styles.totalValor}>{formatarHoras(totalMinutosNoturnos)}</Text>
         </View>
 
-        {params.metaMinutos === null ? (
+        {!params.horarioConfigurado ? (
           <View style={styles.metaBoxNeutro}>
             <Text style={styles.metaLabelNeutro}>
-              Carga horária não configurada pra essa pessoa — sem meta pra comparar
+              Horário de trabalho não configurado pra essa pessoa — sem cálculo de horas extras/devidas
             </Text>
-          </View>
-        ) : diferencaMinutos !== null && diferencaMinutos > TOLERANCIA_MIN ? (
-          <View style={styles.metaBoxExtra}>
-            <Text style={styles.metaLabelExtra}>
-              Hora extra no mês · meta {formatarHoras(params.metaMinutos)}
-            </Text>
-            <Text style={styles.metaValorExtra}>+{formatarHoras(diferencaMinutos)}</Text>
-          </View>
-        ) : diferencaMinutos !== null && diferencaMinutos < -TOLERANCIA_MIN ? (
-          <View style={styles.metaBoxFalta}>
-            <Text style={styles.metaLabelFalta}>
-              Horas a menos no mês · meta {formatarHoras(params.metaMinutos)}
-            </Text>
-            <Text style={styles.metaValorFalta}>{formatarHoras(diferencaMinutos)}</Text>
           </View>
         ) : (
-          <View style={styles.metaBoxNeutro}>
-            <Text style={styles.metaLabelNeutro}>
-              Dentro da carga horária configurada · meta {formatarHoras(params.metaMinutos)}
-            </Text>
-          </View>
+          <>
+            <View style={styles.metaBoxExtra}>
+              <Text style={styles.metaLabelExtra}>Total de horas extras no período</Text>
+              <Text style={styles.metaValorExtra}>+{formatarHoras(totalHoraExtraMin)}</Text>
+            </View>
+            <View style={styles.metaBoxFalta}>
+              <Text style={styles.metaLabelFalta}>Total de horas devidas no período</Text>
+              <Text style={styles.metaValorFalta}>-{formatarHoras(totalHorasDevidasMin)}</Text>
+            </View>
+          </>
         )}
 
         <Text style={styles.aviso}>

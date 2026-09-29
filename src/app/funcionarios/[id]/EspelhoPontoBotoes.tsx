@@ -32,6 +32,7 @@ export default function EspelhoPontoBotoes({ pessoaId }: { pessoaId: number }) {
 
   return (
     <div className="flex flex-col gap-2 items-end shrink-0">
+      <span className="text-xs text-stone-500">🖨️ Espelho de ponto:</span>
       <div className="flex flex-wrap gap-2 justify-end">
         <a
           href={`${base}?mes=${mesAtualISO()}`}
@@ -39,7 +40,7 @@ export default function EspelhoPontoBotoes({ pessoaId }: { pessoaId: number }) {
           rel="noopener noreferrer"
           className="rounded-lg border border-stone-300 text-sm px-3 py-2 hover:bg-stone-50"
         >
-          🖨️ Este mês
+          Este mês
         </a>
         <a
           href={base}
@@ -47,14 +48,14 @@ export default function EspelhoPontoBotoes({ pessoaId }: { pessoaId: number }) {
           rel="noopener noreferrer"
           className="rounded-lg border border-stone-300 text-sm px-3 py-2 hover:bg-stone-50"
         >
-          🖨️ Mês passado
+          Mês passado
         </a>
         <button
           type="button"
           onClick={() => setMostrarPeriodo((v) => !v)}
           className="rounded-lg border border-stone-300 text-sm px-3 py-2 hover:bg-stone-50"
         >
-          🖨️ Por período
+          Por período
         </button>
       </div>
 
