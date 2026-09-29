@@ -33,7 +33,7 @@ export default function LiberarPagamentoRetidoButton({ turnoId }: { turnoId: num
         disabled={pending}
         className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2.5 disabled:opacity-50 transition-colors"
       >
-        {pending ? "Liberando..." : "✅ Liberar pagamento"}
+        {pending ? "Liberando..." : "✅ Está certo, liberar pagamento"}
       </button>
       {erro && (
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

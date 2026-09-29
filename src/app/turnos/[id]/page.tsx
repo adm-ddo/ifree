@@ -127,9 +127,8 @@ export default async function TurnoDetalhePage({
                 {String(turno.minutosArredondados % 60).padStart(2, "0")}min)
               </>
             )}
-            . Nenhum pagamento foi criado ou enviado automaticamente. Confira
-            se a entrada bateu certo — se não bateu, corrija abaixo antes de
-            liberar.
+            . Nenhum pagamento foi criado ou enviado automaticamente ainda —
+            veja abaixo se precisa corrigir alguma coisa antes de liberar.
           </div>
           {turno.correcaoEntradaEm && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
@@ -145,11 +144,26 @@ export default async function TurnoDetalhePage({
               .
             </div>
           )}
+
+          <div className="rounded-xl border border-brand-300 bg-brand-50 px-4 py-3 flex flex-col gap-2.5">
+            <p className="text-sm text-brand-900">
+              ✅ <strong>Bateu tudo certo mesmo assim?</strong> Às vezes a duração fica longa por um
+              motivo real — dobrou de turno, chegou bem mais cedo ou saiu bem mais tarde do
+              combinado. Se entrada e saída aconteceram do jeito que está registrado, não precisa
+              corrigir nada: já libera o pagamento aqui embaixo.
+            </p>
+            <LiberarPagamentoRetidoButton turnoId={turno.id} />
+          </div>
+
+          <p className="text-xs text-stone-400 text-center">
+            — ou, se a entrada não bateu certo (ex.: alguém esqueceu de bater e isso virou a
+            entrada de um turno errado) —
+          </p>
+
           <CorrigirEntradaForm
             turnoId={turno.id}
             horaEntradaAtualValue={paraDatetimeLocalBrasil(turno.horaEntrada)}
           />
-          <LiberarPagamentoRetidoButton turnoId={turno.id} />
         </div>
       )}
 
