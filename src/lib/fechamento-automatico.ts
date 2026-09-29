@@ -3,7 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { dataISOBrasil, dataISODoDbDate, inicioDoDiaBrasil, instanteBrasil } from "@/lib/data";
 import { calcularMinutosArredondados, calcularValorTurno, classificarTurno } from "@/lib/turno";
 import { processarOuReterPagamentoTurno } from "@/lib/pagamentos/processar";
+import { processarEmLotes } from "@/lib/lote";
 import type { TurnoPredefinido } from "@/generated/prisma/enums";
+
+/** Quantos turnos fechar (update + processarOuReterPagamentoTurno, que
+ * pode chamar a Asaas pra empresa com pagamento automático ligado) em
+ * paralelo por vez — cada turno é independente (Pagamento próprio,
+ * transferência própria na Asaas, sem saldo local checado-e-debitado
+ * aqui que pudesse race), então é seguro paralelizar. Antes disso, uma
+ * empresa grande com muitos turnos fechando na mesma madrugada
+ * processava um por vez, sequencial — exatamente o mesmo formato do bug
+ * já corrigido no aviso de vaga por e-mail (ver src/lib/match-passivo.ts),
+ * só que aqui é dinheiro saindo, não e-mail. */
+const CONCORRENCIA_FECHAMENTO = 5;
 
 /** Encerra turnos que ninguém bateu saída — chamada pelo Vercel Cron (ver
  * vercel.json) às 03:00 de Brasília, com uma segunda rodada de segurança
@@ -65,7 +77,18 @@ export async function fecharTurnosAtrasados(
     vinculos.map((v) => [`${v.pessoaId}-${v.empresaId}`, v.turnoPredefinido])
   );
 
-  let fechados = 0;
+  // Primeiro só calcula (puro, sem I/O) quem de fato fecha agora e com
+  // quais valores — rápido mesmo com milhares de turnos abertos, então
+  // não precisa de lote/concorrência nesta parte.
+  const paraFechar: {
+    turnoId: number;
+    horaSaida: Date;
+    minutosTrabalhados: number;
+    minutosDescontadosPausa: number;
+    minutosArredondados: number;
+    valorTotal: ReturnType<typeof calcularValorTurno>;
+  }[] = [];
+
   for (const turno of turnosAbertos) {
     let cutoffMin: number;
     let multiplicadorPausa: number;
@@ -118,14 +141,32 @@ export async function fecharTurnosAtrasados(
       diariaLimiarCompletaMin: turno.empresa.diariaLimiarCompletaMin,
     });
 
+    paraFechar.push({
+      turnoId: turno.id,
+      horaSaida,
+      minutosTrabalhados,
+      minutosDescontadosPausa,
+      minutosArredondados,
+      valorTotal,
+    });
+  }
+
+  // Agora sim o I/O (grava o fechamento + processa/retém o pagamento, que
+  // pode chamar a Asaas) — em lotes paralelos, não um turno de cada vez.
+  // Turno que não coube no tempo desta rodada continua ABERTO e é pego
+  // pela próxima chamada do cron (idempotente, ver docblock da função) —
+  // por isso não precisa de nenhum controle de pendência extra aqui, ao
+  // contrário do match passivo (que não tinha nenhum estado pra retomar
+  // de onde parou).
+  await processarEmLotes(paraFechar, CONCORRENCIA_FECHAMENTO, async (item) => {
     await prisma.turno.update({
-      where: { id: turno.id },
+      where: { id: item.turnoId },
       data: {
-        horaSaida,
-        minutosTrabalhados,
-        minutosDescontadosPausa,
-        minutosArredondados,
-        valorTotal,
+        horaSaida: item.horaSaida,
+        minutosTrabalhados: item.minutosTrabalhados,
+        minutosDescontadosPausa: item.minutosDescontadosPausa,
+        minutosArredondados: item.minutosArredondados,
+        valorTotal: item.valorTotal,
         status: "CONCLUIDO",
         fechamentoAutomatico: true,
       },
@@ -137,11 +178,10 @@ export async function fecharTurnosAtrasados(
     // risco de duração absurda existe aqui: um turno fechado sozinho pelo
     // cron também pode ter nascido de uma entrada errada (ver docblock
     // acima sobre os 3 turnos da DB25).
-    await processarOuReterPagamentoTurno(turno.id, minutosArredondados);
-    fechados++;
-  }
+    await processarOuReterPagamentoTurno(item.turnoId, item.minutosArredondados);
+  });
 
-  return { fechados };
+  return { fechados: paraFechar.length };
 }
 
 /** Sinaliza (não fecha!) os RegistroPonto de funcionário CLT que ninguém

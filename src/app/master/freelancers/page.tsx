@@ -19,6 +19,14 @@ const PRESETS: { valor: Preset; label: string }[] = [
   { valor: "mes", label: "Este mês" },
 ];
 
+/// Sem paginação, essa tela buscava e baixava a foto de perfil de TODO
+/// freelancer cadastrado de uma vez (fotosDataUrl abaixo) — com a base
+/// crescendo (meta: milhares de freelancers), ia ficar cada vez mais
+/// pesada até travar de vez, igual o loop de e-mail que já corrigimos em
+/// src/lib/match-passivo.ts. 30 por página é confortável de rolar sem
+/// esconder demais quem se está procurando.
+const PAGINA_TAMANHO = 30;
+
 function calcularPeriodo(preset: Preset, agora: Date): { inicio: Date; fim: Date } {
   if (preset === "hoje") return { inicio: inicioDoDiaBrasil(agora), fim: agora };
   if (preset === "semana") return { inicio: inicioDaSemanaBrasil(agora), fim: agora };
@@ -35,14 +43,16 @@ export default async function MasterFreelancersPage({
     preset?: string;
     inicio?: string;
     fim?: string;
+    pagina?: string;
   }>;
 }) {
   await requireMaster();
-  const { portal, conta, nome, preset, inicio, fim } = await searchParams;
+  const { portal, conta, nome, preset, inicio, fim, pagina } = await searchParams;
   const soPortalAtivo = portal === "1";
   const soDesativadas = conta === "desativadas";
   const soExcluidas = conta === "excluidas";
   const nomeFiltro = nome?.trim() || "";
+  const paginaAtual = Math.max(1, Number(pagina) || 1);
 
   // Mesmo padrão de filtro de período já usado em /pagamentos — "todos os
   // períodos" (padrão) não restringe nada, cada preset filtra pelo
@@ -59,37 +69,44 @@ export default async function MasterFreelancersPage({
     ? { criadoEm: { gte: dataInicio, lte: dataFim } }
     : {};
 
-  const pessoas = await prisma.pessoa.findMany({
-    where: {
-      ...(soPortalAtivo ? { senhaHash: { not: null } } : {}),
-      ...(soDesativadas ? { contaDesativadaEm: { not: null } } : {}),
-      ...(soExcluidas ? { contaExcluidaEm: { not: null } } : {}),
-      ...(nomeFiltro ? { nome: { contains: nomeFiltro, mode: "insensitive" } } : {}),
-      ...filtroPeriodo,
-    },
-    // Recém-cadastradas primeiro — é o que mais ajuda a acompanhar quem vai
-    // se cadastrando no iFREE Conecta, diferente de uma ordem alfabética
-    // fixa que não muda com o tempo.
-    orderBy: { criadoEm: "desc" },
-    select: {
-      id: true,
-      nome: true,
-      documento: true,
-      tipoDocumento: true,
-      telefone: true,
-      criadoEm: true,
-      senhaHash: true,
-      disponivelParaOportunidades: true,
-      contaDesativadaEm: true,
-      contaExcluidaEm: true,
-      fotoPerfilUrl: true,
-      _count: { select: { turnos: true, vinculos: true } },
-    },
-  });
-
   const filtroNome: Prisma.PessoaWhereInput = nomeFiltro
     ? { nome: { contains: nomeFiltro, mode: "insensitive" } }
     : {};
+  const filtroCompleto: Prisma.PessoaWhereInput = {
+    ...(soPortalAtivo ? { senhaHash: { not: null } } : {}),
+    ...(soDesativadas ? { contaDesativadaEm: { not: null } } : {}),
+    ...(soExcluidas ? { contaExcluidaEm: { not: null } } : {}),
+    ...filtroNome,
+    ...filtroPeriodo,
+  };
+
+  const [pessoas, totalFiltrado] = await Promise.all([
+    prisma.pessoa.findMany({
+      where: filtroCompleto,
+      // Recém-cadastradas primeiro — é o que mais ajuda a acompanhar quem
+      // vai se cadastrando no iFREE Conecta, diferente de uma ordem
+      // alfabética fixa que não muda com o tempo.
+      orderBy: { criadoEm: "desc" },
+      skip: (paginaAtual - 1) * PAGINA_TAMANHO,
+      take: PAGINA_TAMANHO,
+      select: {
+        id: true,
+        nome: true,
+        documento: true,
+        tipoDocumento: true,
+        telefone: true,
+        criadoEm: true,
+        senhaHash: true,
+        disponivelParaOportunidades: true,
+        contaDesativadaEm: true,
+        contaExcluidaEm: true,
+        fotoPerfilUrl: true,
+        _count: { select: { turnos: true, vinculos: true } },
+      },
+    }),
+    prisma.pessoa.count({ where: filtroCompleto }),
+  ]);
+  const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / PAGINA_TAMANHO));
 
   const totalComPortal = soPortalAtivo
     ? pessoas.length
@@ -277,6 +294,56 @@ export default async function MasterFreelancersPage({
           />
         ))}
       </ul>
+
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <span className="text-stone-500">
+            Página {paginaAtual} de {totalPaginas} ({totalFiltrado} no total)
+          </span>
+          <div className="flex gap-2">
+            <Link
+              href={{
+                pathname: "/master/freelancers",
+                query: {
+                  ...(soPortalAtivo ? { portal: "1" } : {}),
+                  ...(soDesativadas || soExcluidas ? { conta: soDesativadas ? "desativadas" : "excluidas" } : {}),
+                  ...(nomeFiltro ? { nome: nomeFiltro } : {}),
+                  ...(periodoCustomizado ? { inicio, fim } : presetValido !== "todos" ? { preset: presetValido } : {}),
+                  ...(paginaAtual > 2 ? { pagina: String(paginaAtual - 1) } : {}),
+                },
+              }}
+              aria-disabled={paginaAtual <= 1}
+              className={`rounded-lg border px-3 py-1.5 transition-colors ${
+                paginaAtual <= 1
+                  ? "pointer-events-none border-stone-200 text-stone-300"
+                  : "border-stone-300 text-stone-600 hover:bg-stone-50"
+              }`}
+            >
+              ← Anterior
+            </Link>
+            <Link
+              href={{
+                pathname: "/master/freelancers",
+                query: {
+                  ...(soPortalAtivo ? { portal: "1" } : {}),
+                  ...(soDesativadas || soExcluidas ? { conta: soDesativadas ? "desativadas" : "excluidas" } : {}),
+                  ...(nomeFiltro ? { nome: nomeFiltro } : {}),
+                  ...(periodoCustomizado ? { inicio, fim } : presetValido !== "todos" ? { preset: presetValido } : {}),
+                  pagina: String(paginaAtual + 1),
+                },
+              }}
+              aria-disabled={paginaAtual >= totalPaginas}
+              className={`rounded-lg border px-3 py-1.5 transition-colors ${
+                paginaAtual >= totalPaginas
+                  ? "pointer-events-none border-stone-200 text-stone-300"
+                  : "border-stone-300 text-stone-600 hover:bg-stone-50"
+              }`}
+            >
+              Próxima →
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

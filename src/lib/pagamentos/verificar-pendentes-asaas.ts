@@ -2,6 +2,15 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { descriptografar } from "@/lib/crypto";
 import { finalizarTransferenciaAsaas, LIMITE_PROCESSANDO_HORAS } from "./asaas-status";
+import { processarEmLotes } from "@/lib/lote";
+
+/** Quantos pagamentos checar na Asaas em paralelo por vez — normalmente
+ * essa lista é pequena (o webhook resolve a maioria em tempo real, isto
+ * aqui é só a rede de segurança), mas cresce com o volume total de
+ * pagamentos automáticos se o webhook tiver algum problema temporário.
+ * Mesmo raciocínio do CONCORRENCIA_FECHAMENTO em
+ * src/lib/fechamento-automatico.ts. */
+const CONCORRENCIA_VERIFICACAO = 5;
 
 /// https://docs.asaas.com — sandbox por padrão até a conta de produção do
 /// iFREE estar aprovada; trocar pra "https://api.asaas.com/v3" só quando
@@ -41,9 +50,9 @@ export async function verificarPagamentosAsaasPendentes(): Promise<{
   let resolvidos = 0;
   let erros = 0;
 
-  for (const pagamento of pendentes) {
+  await processarEmLotes(pendentes, CONCORRENCIA_VERIFICACAO, async (pagamento) => {
     const contaAsaas = pagamento.turno.empresa.contaAsaas;
-    if (!contaAsaas || !pagamento.idTransacaoExterna) continue; // não é um pagamento via Asaas, nada a conferir aqui
+    if (!contaAsaas || !pagamento.idTransacaoExterna) return; // não é um pagamento via Asaas, nada a conferir aqui
 
     try {
       const resposta = await fetch(`${baseUrlAsaas()}/transfers/${pagamento.idTransacaoExterna}`, {
@@ -51,7 +60,7 @@ export async function verificarPagamentosAsaasPendentes(): Promise<{
       });
       if (!resposta.ok) {
         erros++;
-        continue;
+        return;
       }
       const dados = await resposta.json();
       const statusAntes = pagamento.status;
@@ -63,7 +72,7 @@ export async function verificarPagamentosAsaasPendentes(): Promise<{
     } catch {
       erros++;
     }
-  }
+  });
 
   // Segunda passada: quem continua PROCESSANDO depois da conferência acima
   // (Asaas ainda não decidiu, ou a própria empresa nunca teve conta Asaas

@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { calcularMatch } from "@/lib/match";
 import { enviarEmailVagaCompativel, enviarEmailCandidatoCompativel } from "@/lib/email";
+import { processarEmLotes } from "@/lib/lote";
 
 /** Quantos e-mails desta leva mandar em paralelo por vez — alto o
  * bastante pra não fazer uma leva de milhares de matches (empresa
@@ -16,19 +17,6 @@ const CONCORRENCIA_ENVIO = 5;
  * de matches rodando por tempo indefinido dentro do limite de duração
  * da função serverless. */
 const TETO_ENVIO_POR_CHAMADA = 300;
-
-/** Manda os itens em lotes de CONCORRENCIA_ENVIO em paralelo, um lote de
- * cada vez — bem mais rápido que um loop sequencial (era assim antes:
- * um e-mail de cada vez, esperando cada um terminar), sem virar uma
- * rajada de centenas de requisições simultâneas pra API da Resend. Uma
- * falha isolada num item nunca derruba os outros do lote (cada callback
- * já trata o próprio erro). */
-async function enviarEmLotes<T>(itens: T[], enviar: (item: T) => Promise<void>): Promise<void> {
-  for (let i = 0; i < itens.length; i += CONCORRENCIA_ENVIO) {
-    const lote = itens.slice(i, i + CONCORRENCIA_ENVIO);
-    await Promise.all(lote.map(enviar));
-  }
-}
 
 /** Roda logo depois de criarVaga (src/app/vagas/actions.ts) — acha toda
  * Pessoa disponível cujo perfil combina com esta vaga RECÉM-publicada
@@ -94,7 +82,7 @@ export async function processarNotificacoesPendentesVagaNova(
   if (pendentes.length === 0) return { enviados: 0 };
 
   let enviados = 0;
-  await enviarEmLotes(pendentes, async (match) => {
+  await processarEmLotes(pendentes, CONCORRENCIA_ENVIO, async (match) => {
     if (match.pessoa.email) {
       const { sucesso } = await enviarEmailVagaCompativel(
         match.pessoa.email,
@@ -185,7 +173,7 @@ export async function processarNotificacoesPendentesPerfil(
   if (pendentes.length === 0) return { enviados: 0 };
 
   let enviados = 0;
-  await enviarEmLotes(pendentes, async (match) => {
+  await processarEmLotes(pendentes, CONCORRENCIA_ENVIO, async (match) => {
     const empresaNome = match.vaga.nomeFantasia || match.vaga.empresa.nome;
     const resultados = await Promise.all(
       match.vaga.empresa.usuarios.map(({ usuario }) =>

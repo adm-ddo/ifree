@@ -2,6 +2,14 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { descriptografar } from "@/lib/crypto";
 import { enviarEmailContaAsaasAprovada } from "@/lib/email";
+import { processarEmLotes } from "@/lib/lote";
+
+/** Quantas empresas checar em paralelo por vez — cresce com o número de
+ * empresas ainda PENDENTE_ATIVACAO na Asaas, que pode dar um pico logo
+ * depois de uma leva grande de cadastros novos (ex.: divulgação). Sem
+ * isso, checava uma empresa de cada vez, sequencial — mesmo formato do
+ * bug já corrigido no aviso de vaga por e-mail. */
+const CONCORRENCIA_VERIFICACAO = 5;
 
 function baseUrlAsaas(): string {
   return process.env.ASAAS_API_BASE_URL ?? "https://api-sandbox.asaas.com/v3";
@@ -104,9 +112,9 @@ export async function verificarAprovacoesAsaasPendentes(): Promise<{ notificadas
   });
 
   let notificadas = 0;
-  for (const conta of pendentes) {
+  await processarEmLotes(pendentes, CONCORRENCIA_VERIFICACAO, async (conta) => {
     const statusAgora = await verificarStatusAsaas(conta.empresaId);
-    if (statusAgora?.statusConta !== "APPROVED" || !statusAgora.pixLiberado) continue;
+    if (statusAgora?.statusConta !== "APPROVED" || !statusAgora.pixLiberado) return;
 
     for (const { usuario } of conta.empresa.usuarios) {
       await enviarEmailContaAsaasAprovada(usuario.email, conta.empresa.nome);
@@ -116,6 +124,6 @@ export async function verificarAprovacoesAsaasPendentes(): Promise<{ notificadas
       data: { aprovacaoNotificadaEm: new Date() },
     });
     notificadas++;
-  }
+  });
   return { notificadas };
 }
