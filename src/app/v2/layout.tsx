@@ -80,7 +80,7 @@ export default async function V2Layout({ children }: { children: React.ReactNode
     responsavelPgr,
     pagamentosPendentes,
     feriasAlerta,
-    candidaturasEConversas: { candidaturasPendentes, candidaturasPendentesComMatch },
+    candidaturasEConversas: { candidaturasPendentes, candidaturasPendentesComMatch, mensagensConectaNaoLidas },
     experienciaAlerta,
     rescisaoAlerta,
     assinaturaAlerta,
@@ -104,6 +104,12 @@ export default async function V2Layout({ children }: { children: React.ReactNode
   const itens: ItemNavV2[] = [
     ...ITENS_BASE.filter((item) => item.href === "/v2/dashboard" || hrefsLiberados.has(item.href) || bloqueiaPorPlano).map(
       (item) => (hrefsLiberados.has(item.href) || item.href === "/v2/dashboard" ? item : { ...item, bloqueado: true })
+    ).map((item) =>
+      // Conversas de vaga com a última mensagem do lado do freelancer,
+      // ainda sem a empresa ter respondido/lido (ver
+      // buscarCandidaturasEConversasAlerta em src/lib/alertas.ts) — mesmo
+      // botão que já tinha esse badge na v1 (AppHeader.tsx).
+      item.href === "/v2/vagas" ? { ...item, contador: mensagensConectaNaoLidas } : item
     ),
     ...(responsavelEtica ? [{ href: "/v2/etica", label: "Central de Ética", icone: "etica" as const }] : []),
     ...(responsavelGed ? [{ href: "/v2/ged", label: "GED", icone: "ged" as const }] : []),

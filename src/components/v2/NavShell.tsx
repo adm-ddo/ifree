@@ -12,7 +12,34 @@ import { voltarParaMaster } from "@/app/master/actions";
 /// como vitrine do plano Completo, só que sem navegar: clicar abre o
 /// modal de upsell (ver ModalUpsell abaixo) em vez de ir pra página (que
 /// redirecionaria mesmo assim, requireModulo barra no servidor).
-export type ItemNavV2 = { href: string; label: string; icone: NomeIconeV2; bloqueado?: boolean };
+export type ItemNavV2 = {
+  href: string;
+  label: string;
+  icone: NomeIconeV2;
+  bloqueado?: boolean;
+  /// Bolinha vermelha com número (ex.: mensagens de conversa aguardando
+  /// resposta da empresa em /v2/vagas, ver buscarCandidaturasEConversasAlerta
+  /// em src/lib/alertas.ts) — undefined/0 não desenha nada. Mostra "99+"
+  /// acima de 99, mesmo padrão já usado no header da v1
+  /// (src/components/AppHeader.tsx).
+  contador?: number;
+};
+
+function BadgeContador({ contador, tamanho = "normal" }: { contador?: number; tamanho?: "normal" | "pequeno" }) {
+  if (!contador || contador <= 0) return null;
+  const texto = contador > 99 ? "99+" : String(contador);
+  return (
+    <span
+      className={
+        tamanho === "pequeno"
+          ? "flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white"
+          : "flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
+      }
+    >
+      {texto}
+    </span>
+  );
+}
 
 /// Itens que aparecem nas abas fixas do celular — os outros só aparecem
 /// dentro de "Mais" (celular) ou na barra lateral inteira (computador).
@@ -117,7 +144,8 @@ export default function NavShell({
                 }`}
               >
                 <IconeV2 nome={item.icone} className="w-4 h-4 shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                <BadgeContador contador={item.contador} />
               </Link>
             );
           })}
@@ -202,11 +230,18 @@ export default function NavShell({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 text-[10px] font-bold ${
+              className={`flex flex-col items-center gap-1 text-[10px] font-bold relative ${
                 ativo ? "text-brand-700" : "text-stone-400"
               }`}
             >
-              <IconeV2 nome={item.icone} className="w-[18px] h-[18px]" />
+              <span className="relative">
+                <IconeV2 nome={item.icone} className="w-[18px] h-[18px]" />
+                {item.contador ? (
+                  <span className="absolute -top-1 -right-1.5">
+                    <BadgeContador contador={item.contador} tamanho="pequeno" />
+                  </span>
+                ) : null}
+              </span>
               {item.label}
             </Link>
           );
@@ -214,9 +249,19 @@ export default function NavShell({
         <button
           type="button"
           onClick={() => setMaisAberto(true)}
-          className="flex flex-col items-center gap-1 text-[10px] font-bold text-stone-400"
+          className="flex flex-col items-center gap-1 text-[10px] font-bold text-stone-400 relative"
         >
-          <IconeV2 nome="mais" className="w-[18px] h-[18px]" />
+          <span className="relative">
+            <IconeV2 nome="mais" className="w-[18px] h-[18px]" />
+            {itensResto.some((i) => i.contador) ? (
+              <span className="absolute -top-1 -right-1.5">
+                <BadgeContador
+                  contador={itensResto.reduce((soma, i) => soma + (i.contador ?? 0), 0)}
+                  tamanho="pequeno"
+                />
+              </span>
+            ) : null}
+          </span>
           Mais
         </button>
       </nav>
@@ -262,8 +307,13 @@ export default function NavShell({
                     key={item.href}
                     href={item.href}
                     onClick={() => setMaisAberto(false)}
-                    className="flex flex-col items-center gap-1.5 text-center text-[11px] font-semibold text-navy-900 rounded-xl border border-stone-200 p-3"
+                    className="flex flex-col items-center gap-1.5 text-center text-[11px] font-semibold text-navy-900 rounded-xl border border-stone-200 p-3 relative"
                   >
+                    {item.contador ? (
+                      <span className="absolute top-2 right-2">
+                        <BadgeContador contador={item.contador} tamanho="pequeno" />
+                      </span>
+                    ) : null}
                     <IconeV2 nome={item.icone} className="w-5 h-5 text-brand-600" />
                     {item.label}
                   </Link>
