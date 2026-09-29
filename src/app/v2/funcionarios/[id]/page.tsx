@@ -10,6 +10,7 @@ import FeriasCard from "@/app/funcionarios/[id]/FeriasCard";
 import ExperienciaCard from "@/app/funcionarios/[id]/ExperienciaCard";
 import RescisaoCard from "@/app/funcionarios/[id]/RescisaoCard";
 import EspelhoPontoBotoes from "@/app/funcionarios/[id]/EspelhoPontoBotoes";
+import AtestadosCard from "@/app/funcionarios/[id]/AtestadosCard";
 import DadosFuncionarioForm from "@/app/funcionarios/[id]/DadosFuncionarioForm";
 import RegistroPontoHistorico from "@/app/funcionarios/[id]/RegistroPontoHistorico";
 import ExtraDiarioForm from "@/app/funcionarios/[id]/ExtraDiarioForm";
@@ -88,9 +89,10 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
     !vinculo.matriculaInterna && "matrícula interna",
   ].filter((x): x is string => Boolean(x));
 
-  const [historicoSalarial, funcoesAtivas, empresaHorarios] = await Promise.all([
+  const [historicoSalarial, funcoesAtivas, atestados, empresaHorarios] = await Promise.all([
     prisma.historicoSalarial.findMany({ where: { vinculoId: vinculo.id }, orderBy: { vigenteDesde: "desc" } }),
     prisma.funcao.findMany({ where: { empresaId: sessao.empresaEfetivoId, ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    prisma.atestadoClt.findMany({ where: { pessoaId, empresaId: sessao.empresaEfetivoId }, orderBy: { dataInicio: "desc" } }),
     prisma.empresa.findUniqueOrThrow({
       where: { id: sessao.empresaEfetivoId },
       select: {
@@ -381,6 +383,19 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
         rescisaoAvisoPrevio={vinculo.rescisaoAvisoPrevio}
         rescisaoDataPedidoLabel={vinculo.rescisaoDataPedido ? formatarDataUTC(vinculo.rescisaoDataPedido) : null}
         documentosAssinados={vinculo.rescisaoDocumentosAssinadosEm !== null}
+      />
+
+      <AtestadosCard
+        pessoaId={pessoaId}
+        atestados={atestados.map((a) => ({
+          id: a.id,
+          dataInicioLabel: formatarDataUTC(a.dataInicio),
+          dataFimLabel: formatarDataUTC(a.dataFim),
+          tipo: a.tipo,
+          temArquivo: a.arquivoUrl !== null,
+          registradoPorEmail: a.registradoPorEmail,
+          registradoEmLabel: formatarDataHora(a.registradoEm),
+        }))}
       />
 
       {registros.length === 0 ? (

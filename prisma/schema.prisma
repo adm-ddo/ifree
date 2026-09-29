@@ -456,6 +456,7 @@ model Empresa {
   modelosDocumentoGed             ModeloDocumentoGed[]
   entradasEpi                     EntradaEpi[]
   modelosPapelGed                 ModeloPapelGed[]
+  atestadosClt                    AtestadoClt[]
   tentativasConfirmacaoIdentidade TentativaConfirmacaoIdentidade[]
   ciclosPgr                       CicloPgr[]
   acoesPgr                        AcaoPgr[]
@@ -835,6 +836,7 @@ model Pessoa {
   indicados                       Pessoa[]                         @relation("Indicacoes")
   documentosGed                   DocumentoGed[]
   entradasEpi                     EntradaEpi[]
+  atestadosClt                    AtestadoClt[]
   tentativasConfirmacaoIdentidade TentativaConfirmacaoIdentidade[]
   extrasMarcados                  ExtraMarcado[]
 }
@@ -1367,6 +1369,47 @@ model RegistroPonto {
   /// Mesmo motivo do índice equivalente em Turno — dashboard filtra ponto
   /// CLT por horaEntrada, não por status.
   @@index([empresaId, horaEntrada])
+}
+
+/// Tipo de afastamento registrado num AtestadoClt — vocabulário
+/// deliberadamente genérico (sem CID/motivo médico, dado sensível pela
+/// LGPD art. 5º, II) — o papel físico do atestado é a prova, este
+/// cadastro só marca "teve um afastamento justificado, deste tipo, neste
+/// período".
+enum TipoAtestadoClt {
+  ATESTADO_MEDICO
+  LICENCA
+  OUTRO
+}
+
+/// Afastamento justificado de um funcionário CLT (atestado médico, licença
+/// etc.) — pedido do Thiago em 2026-09-29: a empresa recebe o papel físico
+/// do funcionário e precisa registrar o período no sistema, pra esses dias
+/// pararem de aparecer como lacuna (potencial falta) no espelho de ponto
+/// (ver src/app/relatorios/espelho/[pessoaId]/pdf/route.ts, mesmo
+/// mecanismo já usado pra período de férias). Sem geração de PDF — ao
+/// contrário do módulo GED (advertência/suspensão/contrato), aqui o
+/// documento já existe em papel, trazido pelo funcionário; o sistema só
+/// registra e opcionalmente guarda o anexo (arquivoUrl).
+model AtestadoClt {
+  id                 Int             @id @default(autoincrement())
+  empresaId          Int
+  pessoaId           Int
+  dataInicio         DateTime        @db.Date
+  dataFim            DateTime        @db.Date
+  tipo               TipoAtestadoClt @default(ATESTADO_MEDICO)
+  /// Foto/scan do atestado físico, tirada direto do celular — opcional no
+  /// banco (o registro em si já justifica o período mesmo sem anexo),
+  /// mas a UI (AtestadoForm.tsx) exige escolher um arquivo antes de
+  /// enviar, já que é o principal motivo de existir esse cadastro.
+  arquivoUrl         String?
+  registradoPorEmail String
+  registradoEm       DateTime        @default(now())
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  pessoa  Pessoa  @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, pessoaId])
 }
 
 model Pagamento {

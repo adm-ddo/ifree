@@ -167,6 +167,12 @@ export async function gerarPdfEspelhoPonto(params: {
   /// branco, pra não parecer falta. Só cobre o período mais recente
   /// registrado (o sistema não guarda histórico de férias anteriores).
   diasFeriasISO: Set<string>;
+  /// Mesma ideia de diasFeriasISO, só que a partir dos AtestadoClt
+  /// registrados pra essa pessoa (ver src/app/funcionarios/[id]/
+  /// AtestadosCard.tsx) — um dia sem registro cai aqui em vez de Férias
+  /// quando os dois períodos coincidirem (não deveria acontecer, mas
+  /// férias tem prioridade se acontecer).
+  diasAtestadoISO: Set<string>;
 }): Promise<Buffer> {
   const dataISO = (d: Date) =>
     new Intl.DateTimeFormat("en-CA", { timeZone: FUSO_BRASIL, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
@@ -252,17 +258,19 @@ export async function gerarPdfEspelhoPonto(params: {
             const linhas = params.linhasPorDia.get(chave) ?? [];
             if (linhas.length === 0) {
               const emFerias = params.diasFeriasISO.has(chave);
+              const emAtestado = !emFerias && params.diasAtestadoISO.has(chave);
+              const rotuloAusencia = emFerias ? "Férias" : emAtestado ? "Atestado" : null;
               return (
                 <View key={chave} style={styles.linha}>
                   <Text style={styles.colData}>{formatarDataCurta(dia)}</Text>
                   <Text style={styles.colDia}>{formatarDiaSemana(dia)}</Text>
-                  {emFerias ? (
-                    <Text style={[styles.colEntrada, styles.linhaFerias]}>Férias</Text>
+                  {rotuloAusencia ? (
+                    <Text style={[styles.colEntrada, styles.linhaFerias]}>{rotuloAusencia}</Text>
                   ) : (
                     <Text style={[styles.colEntrada, styles.linhaVazia]}>—</Text>
                   )}
-                  <Text style={[styles.colIntervalo, styles.linhaVazia]}>{emFerias ? "" : "—"}</Text>
-                  <Text style={[styles.colSaida, styles.linhaVazia]}>{emFerias ? "" : "—"}</Text>
+                  <Text style={[styles.colIntervalo, styles.linhaVazia]}>{rotuloAusencia ? "" : "—"}</Text>
+                  <Text style={[styles.colSaida, styles.linhaVazia]}>{rotuloAusencia ? "" : "—"}</Text>
                   <Text style={[styles.colTotal, styles.linhaVazia]}>—</Text>
                   <Text style={[styles.colNoturno, styles.linhaVazia]}>—</Text>
                   <Text style={[styles.colAtraso, styles.linhaVazia]}>—</Text>

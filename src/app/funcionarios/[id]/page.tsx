@@ -10,6 +10,7 @@ import FeriasCard from "./FeriasCard";
 import ExperienciaCard from "./ExperienciaCard";
 import RescisaoCard from "./RescisaoCard";
 import EspelhoPontoBotoes from "./EspelhoPontoBotoes";
+import AtestadosCard from "./AtestadosCard";
 import DadosFuncionarioForm from "./DadosFuncionarioForm";
 import RegistroPontoHistorico from "./RegistroPontoHistorico";
 import ExtraDiarioForm from "./ExtraDiarioForm";
@@ -88,7 +89,7 @@ export default async function FuncionarioDetalhePage({
     !vinculo.matriculaInterna && "matrícula interna",
   ].filter((x): x is string => Boolean(x));
 
-  const [historicoSalarial, funcoesAtivas, empresaHorarios] = await Promise.all([
+  const [historicoSalarial, funcoesAtivas, atestados, empresaHorarios] = await Promise.all([
     prisma.historicoSalarial.findMany({
       where: { vinculoId: vinculo.id },
       orderBy: { vigenteDesde: "desc" },
@@ -97,6 +98,10 @@ export default async function FuncionarioDetalhePage({
       where: { empresaId: sessao.empresaEfetivoId, ativo: true },
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
+    }),
+    prisma.atestadoClt.findMany({
+      where: { pessoaId, empresaId: sessao.empresaEfetivoId },
+      orderBy: { dataInicio: "desc" },
     }),
     prisma.empresa.findUniqueOrThrow({
       where: { id: sessao.empresaEfetivoId },
@@ -486,6 +491,19 @@ export default async function FuncionarioDetalhePage({
         rescisaoAvisoPrevio={vinculo.rescisaoAvisoPrevio}
         rescisaoDataPedidoLabel={vinculo.rescisaoDataPedido ? formatarDataUTC(vinculo.rescisaoDataPedido) : null}
         documentosAssinados={vinculo.rescisaoDocumentosAssinadosEm !== null}
+      />
+
+      <AtestadosCard
+        pessoaId={pessoaId}
+        atestados={atestados.map((a) => ({
+          id: a.id,
+          dataInicioLabel: formatarDataUTC(a.dataInicio),
+          dataFimLabel: formatarDataUTC(a.dataFim),
+          tipo: a.tipo,
+          temArquivo: a.arquivoUrl !== null,
+          registradoPorEmail: a.registradoPorEmail,
+          registradoEmLabel: formatarDataHora(a.registradoEm),
+        }))}
       />
 
       {registros.length === 0 ? (

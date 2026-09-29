@@ -12,6 +12,7 @@ import { processarPagamentoTurno } from "@/lib/pagamentos/processar";
 import { dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { STATUS_PENDENTES } from "@/lib/financeiro";
 import { parseRestricoesFormData } from "@/lib/restricao-horario";
+import { uploadArquivo } from "@/lib/blob";
 import type { RestricaoHorarioState } from "@/components/RestricaoHorarioForm";
 import type {
   EscalaTrabalho,
@@ -19,6 +20,7 @@ import type {
   TipoChavePix,
   IniciativaRescisao,
   TipoAvisoPrevioRescisao,
+  TipoAtestadoClt,
 } from "@/generated/prisma/enums";
 
 /** "Hoje" como data-calendário (meia-noite UTC), no fuso de Brasília —
@@ -910,6 +912,79 @@ export async function cancelarRescisao(pessoaId: number): Promise<CancelarRescis
 
   revalidatePath(`/funcionarios/${pessoaId}`);
   revalidatePath("/funcionarios");
+  return undefined;
+}
+
+const TIPOS_ATESTADO_VALIDOS: TipoAtestadoClt[] = ["ATESTADO_MEDICO", "LICENCA", "OUTRO"];
+
+export type AtestadoState = { erro?: string; sucesso?: boolean } | undefined;
+
+/** Registra um afastamento justificado (atestado médico, licença etc.) —
+ * o papel físico já existe, trazido pelo funcionário; isto aqui só marca
+ * o período no sistema (pra deixar de parecer uma lacuna/falta no
+ * espelho de ponto, ver AtestadosCard.tsx) e opcionalmente guarda o
+ * anexo. Chamada direto pelo client (não useActionState — precisa
+ * comprimir a imagem antes de montar o FormData, mesmo padrão de
+ * uploadDocumentoAssinado em src/app/ged/actions.ts), por isso devolve
+ * { erro } em vez de lançar exceção. */
+export async function registrarAtestado(pessoaId: number, formData: FormData): Promise<AtestadoState> {
+  const { sessao } = await vinculoCltDaEmpresa(pessoaId);
+
+  const dataInicioBruta = String(formData.get("dataInicio") ?? "").trim();
+  const dataFimBruta = String(formData.get("dataFim") ?? "").trim();
+  if (!dataInicioBruta || !dataFimBruta) return { erro: "Informe o período do afastamento." };
+  const dataInicio = instanteBrasil(dataInicioBruta);
+  const dataFim = instanteBrasil(dataFimBruta);
+  if (Number.isNaN(dataInicio.getTime()) || Number.isNaN(dataFim.getTime())) {
+    return { erro: "Informe datas válidas." };
+  }
+  if (dataFim < dataInicio) return { erro: "A data final não pode ser antes da data inicial." };
+
+  const tipoBruto = String(formData.get("tipo") ?? "");
+  if (!TIPOS_ATESTADO_VALIDOS.includes(tipoBruto as TipoAtestadoClt)) {
+    return { erro: "Selecione o tipo de afastamento." };
+  }
+
+  let arquivoUrl: string | null = null;
+  const arquivo = formData.get("arquivo") as File | null;
+  if (arquivo && arquivo.size > 0) {
+    arquivoUrl = await uploadArquivo(`atestados/${pessoaId}/${Date.now()}`, arquivo);
+  }
+
+  await prisma.atestadoClt.create({
+    data: {
+      empresaId: sessao.empresaEfetivoId,
+      pessoaId,
+      dataInicio,
+      dataFim,
+      tipo: tipoBruto as TipoAtestadoClt,
+      arquivoUrl,
+      registradoPorEmail: sessao.email,
+    },
+  });
+
+  revalidatePath(`/funcionarios/${pessoaId}`);
+  return { sucesso: true };
+}
+
+async function atestadoDaEmpresa(atestadoId: number, empresaId: number) {
+  const atestado = await prisma.atestadoClt.findUnique({ where: { id: atestadoId } });
+  if (!atestado || atestado.empresaId !== empresaId) {
+    throw new Error("Esse atestado não pertence a esta empresa.");
+  }
+  return atestado;
+}
+
+/** Remove um atestado cadastrado por engano — não apaga o arquivo do Blob
+ * (mesmo padrão já aceito em removerArquivoAssinado/removerDocumentoGed),
+ * só o registro. Chamada direto pelo botão, sem <form>. */
+export async function excluirAtestado(pessoaId: number, atestadoId: number): Promise<AtestadoState> {
+  const sessao = await requireModulo("funcionarios");
+  await atestadoDaEmpresa(atestadoId, sessao.empresaEfetivoId);
+
+  await prisma.atestadoClt.delete({ where: { id: atestadoId } });
+
+  revalidatePath(`/funcionarios/${pessoaId}`);
   return undefined;
 }
 

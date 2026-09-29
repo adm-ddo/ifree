@@ -161,6 +161,31 @@ export async function GET(
     }
   }
 
+  // Mesma ideia acima, agora pros atestados/licenças registrados (ver
+  // AtestadoClt, src/app/funcionarios/[id]/AtestadosCard.tsx) — dia sem
+  // registro dentro do período de algum atestado aparece como "Atestado"
+  // em vez de ficar em branco. Diferente de férias (só a última
+  // registrada), aqui busca TODOS os atestados que se sobrepõem ao
+  // período pedido, já que pode haver mais de um no mesmo mês.
+  const diasAtestadoISO = new Set<string>();
+  const atestados = await prisma.atestadoClt.findMany({
+    where: {
+      pessoaId,
+      empresaId: sessao.empresaEfetivoId,
+      dataInicio: { lt: fimPeriodo },
+      dataFim: { gte: inicioPeriodo },
+    },
+    select: { dataInicio: true, dataFim: true },
+  });
+  for (const at of atestados) {
+    const inicioAtestadoISO = at.dataInicio.toISOString().slice(0, 10);
+    const fimAtestadoISO = new Date(at.dataFim.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    for (let t = inicioPeriodo.getTime(); t < fimPeriodo.getTime(); t += 24 * 60 * 60 * 1000) {
+      const diaISO = dataISOBrasil(new Date(t));
+      if (diaISO >= inicioAtestadoISO && diaISO < fimAtestadoISO) diasAtestadoISO.add(diaISO);
+    }
+  }
+
   const diasDoMes: Date[] = [];
   if (periodoValido) {
     for (let t = inicioPeriodo.getTime(); t < fimPeriodo.getTime(); t += 24 * 60 * 60 * 1000) {
@@ -195,6 +220,7 @@ export async function GET(
     diasDoMes,
     linhasPorDia,
     diasFeriasISO,
+    diasAtestadoISO,
   });
 
   return new NextResponse(new Uint8Array(pdfBytes), {
