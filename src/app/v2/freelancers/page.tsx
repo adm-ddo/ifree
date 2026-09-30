@@ -16,17 +16,26 @@ export default async function V2FreelancersPage({
   const mostrarDesativados = desativados === "1";
   const somenteBloqueados = bloqueado === "1";
 
-  const vinculos = await prisma.vinculoPessoaEmpresa.findMany({
-    where: { empresaId: sessao.empresaEfetivoId, tipoVinculo: "EXTRA" },
-    orderBy: { pessoa: { nome: "asc" } },
-    select: {
-      ativo: true,
-      bloqueadoSuspeitaFraudeEm: true,
-      pessoa: {
-        select: { id: true, nome: true, documento: true, tipoDocumento: true, telefone: true, chavePix: true, tipoChavePix: true, fotoPerfilUrl: true, sexo: true, senhaHash: true },
+  const [vinculos, totalClt] = await Promise.all([
+    prisma.vinculoPessoaEmpresa.findMany({
+      where: { empresaId: sessao.empresaEfetivoId, tipoVinculo: "EXTRA" },
+      orderBy: { pessoa: { nome: "asc" } },
+      select: {
+        ativo: true,
+        bloqueadoSuspeitaFraudeEm: true,
+        pessoa: {
+          select: { id: true, nome: true, documento: true, tipoDocumento: true, telefone: true, chavePix: true, tipoChavePix: true, fotoPerfilUrl: true, sexo: true, senhaHash: true },
+        },
       },
-    },
-  });
+    }),
+    // Contagem à parte (não entra na lista abaixo, que é só EXTRA) — só
+    // pra dar a visão completa da força de trabalho numa tela só (pedido
+    // do Thiago em 2026-09-30). Detalhe de cada CLT continua em
+    // /v2/funcionarios, não duplicado aqui.
+    prisma.vinculoPessoaEmpresa.count({
+      where: { empresaId: sessao.empresaEfetivoId, tipoVinculo: "CLT" },
+    }),
+  ]);
 
   const totalDesativados = vinculos.filter((v) => !v.ativo).length;
   const totalBloqueados = vinculos.filter((v) => v.bloqueadoSuspeitaFraudeEm !== null).length;
@@ -53,7 +62,7 @@ export default async function V2FreelancersPage({
         </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="rounded-xl border border-stone-200 bg-white p-3">
           <p className="text-xl font-bold text-navy-900">{vinculos.length}</p>
           <p className="text-xs text-stone-500 mt-0.5">Total cadastrados</p>
@@ -66,6 +75,10 @@ export default async function V2FreelancersPage({
           <p className="text-xl font-bold text-navy-900">{totalViaTotem}</p>
           <p className="text-xs text-stone-500 mt-0.5">🖥️ Direto do totem</p>
         </div>
+        <Link href="/v2/funcionarios" className="rounded-xl border border-stone-200 bg-white p-3 hover:bg-stone-50 transition-colors">
+          <p className="text-xl font-bold text-navy-900">{totalClt}</p>
+          <p className="text-xs text-stone-500 mt-0.5">🧑‍💼 CLT (funcionários)</p>
+        </Link>
       </div>
 
       {somenteBloqueados && (
