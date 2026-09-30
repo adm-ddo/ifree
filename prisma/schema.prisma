@@ -1277,6 +1277,18 @@ model Turno {
   /// (esse aqui é sobre QUEM é a pessoa, não sobre COMO o turno foi
   /// lançado — dá pra ter os dois juntos ou separados).
   origemExtraDiarioClt        Boolean             @default(false)
+  /// true quando o dono desativou manualmente o pagamento automático
+  /// deste turno específico (botão na lista de turnos/pagamentos) — o
+  /// PIX automático nunca dispara pra ele enquanto isso estiver ligado
+  /// (ver processarPagamentoTurno em src/lib/pagamentos/processar.ts),
+  /// mesmo que a empresa tenha conta Asaas conectada e automação geral
+  /// ligada. Pode ser marcado/desmarcado a qualquer momento, turno
+  /// aberto ou já concluído — dono decide se quer pagar manual, deixar
+  /// automático de novo (desmarca) ou cancelar de vez (ver
+  /// Pagamento.motivoCancelamento). Independente de pagamentoRetidoRevisao
+  /// (esse é automático por duração suspeita; este aqui é sempre uma
+  /// decisão manual do dono).
+  pagamentoAutomaticoDesativado Boolean           @default(false)
   /// Auditoria de correção manual de função — preenchidos só na primeira
   /// correção (preservam o "antes" original mesmo que seja corrigido de
   /// novo depois). Null enquanto a função nunca foi corrigida.
@@ -1506,6 +1518,13 @@ model Pagamento {
   /// GrupoPagamento) — usado pra colorir esses pagamentos com a mesma cor
   /// na tela e liberar o recibo agrupado com o detalhamento de todos.
   grupoPagamentoId    Int?
+  /// Preenchido só quando status vira CANCELADO por uma decisão manual do
+  /// dono (ver cancelarPagamentoTurno em src/app/pagamentos/actions.ts) —
+  /// motivo obrigatório nesse fluxo, pra sempre ficar registrado por que
+  /// esse turno não foi pago. Null nos outros casos de CANCELADO (ex.:
+  /// zerarPagamentosExtraPendentes, que é um acerto em lote, não
+  /// por-turno).
+  motivoCancelamento  String?
 
   turno          Turno           @relation(fields: [turnoId], references: [id], onDelete: Cascade)
   grupoPagamento GrupoPagamento? @relation(fields: [grupoPagamentoId], references: [id], onDelete: SetNull)

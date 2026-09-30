@@ -60,6 +60,29 @@ export async function processarPagamentoTurno(turnoId: number): Promise<{ sucess
     return { sucesso: false };
   }
 
+  // Dono desativou manualmente o automático pra ESTE turno (ver
+  // alternarPagamentoAutomatico em src/app/turnos/actions.ts) — mesmo
+  // ponto único de decisão que qualquer chamada passa (fechamento do
+  // totem, cron, retry manual do admin em /pagamentos), então garante
+  // que o Pix nunca sai enquanto isso estiver ligado, seja qual for a
+  // origem da chamada. Só garante que existe um registro PENDENTE (pro
+  // turno aparecer no painel), igual ao fluxo manual de sempre.
+  if (turno.pagamentoAutomaticoDesativado) {
+    const pagamentoExistente = await prisma.pagamento.findUnique({ where: { turnoId: turno.id } });
+    if (!pagamentoExistente && turno.pessoa.chavePix && turno.pessoa.tipoChavePix) {
+      await prisma.pagamento.create({
+        data: {
+          turnoId: turno.id,
+          valor: turno.valorTotal,
+          chavePixDestino: turno.pessoa.chavePix,
+          tipoChavePixDestino: turno.pessoa.tipoChavePix,
+          status: "PENDENTE",
+        },
+      });
+    }
+    return { sucesso: false };
+  }
+
   // Turno só existe pro caminho EXTRA (CLT usa RegistroPonto, sem
   // pagamento) — chavePix é obrigatória nesse caminho desde o cadastro no
   // totem, então chegar aqui sem ela indica dado corrompido, não um caso

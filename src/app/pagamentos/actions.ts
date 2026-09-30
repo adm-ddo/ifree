@@ -56,6 +56,76 @@ export async function tentarPagamentoNovamente(turnoId: number): Promise<{ suces
   return resultado;
 }
 
+/** Cancela (dispensa) o pagamento de um turno específico por decisão do
+ * dono, com motivo obrigatório — pro caso de "não vou pagar isso mesmo,
+ * quero registrar por quê" (ver alternarPagamentoAutomatico em
+ * src/app/turnos/actions.ts pro outro caminho, "não pagar automático,
+ * mas ainda pode pagar manual depois"). Turno continua com o histórico
+ * de trabalho intacto (não apaga nada) — só o pagamento vira CANCELADO,
+ * fora do fluxo de cobrança dali pra frente (mesmo status "Dispensado"
+ * já usado em zerarPagamentosExtraPendentes, só que aqui por turno, com
+ * o motivo registrado). */
+export async function cancelarPagamentoTurno(
+  turnoId: number,
+  motivo: string
+): Promise<{ erro?: string; sucesso?: boolean }> {
+  const sessao = await requireModulo("pagamentos");
+  const motivoLimpo = motivo.trim();
+  if (motivoLimpo.length < 5) {
+    return { erro: "Explique em poucas palavras por que esse pagamento não vai ser feito." };
+  }
+
+  const turno = await prisma.turno.findUnique({
+    where: { id: turnoId },
+    include: { pagamento: { select: { status: true } } },
+  });
+  if (!turno || turno.empresaId !== sessao.empresaEfetivoId) {
+    return { erro: "Esse turno não pertence a esta empresa." };
+  }
+  if (turno.pagamento?.status === "PROCESSANDO" || turno.pagamento?.status === "CONCLUIDO") {
+    return { erro: "Esse pagamento já está em processamento ou concluído — não dá mais pra cancelar." };
+  }
+
+  if (turno.pagamento) {
+    await prisma.pagamento.update({
+      where: { turnoId },
+      data: { status: "CANCELADO", motivoCancelamento: motivoLimpo },
+    });
+  } else if (turno.valorTotal !== null) {
+    // Turno ainda nem tinha gerado o registro de Pagamento (ex.: turno
+    // recém-fechado, valor calculado mas processarPagamentoTurno ainda
+    // não rodou) — cria já como CANCELADO, mesmos dados de destino do PIX
+    // que qualquer outro Pagamento, só pra manter o histórico consistente.
+    const pessoa = await prisma.pessoa.findUnique({
+      where: { id: turno.pessoaId },
+      select: { chavePix: true, tipoChavePix: true },
+    });
+    if (pessoa?.chavePix && pessoa.tipoChavePix) {
+      await prisma.pagamento.create({
+        data: {
+          turnoId,
+          valor: turno.valorTotal,
+          chavePixDestino: pessoa.chavePix,
+          tipoChavePixDestino: pessoa.tipoChavePix,
+          status: "CANCELADO",
+          motivoCancelamento: motivoLimpo,
+        },
+      });
+    }
+  }
+
+  revalidatePath("/pagamentos");
+  revalidatePath("/v2/pagamentos");
+  revalidatePath("/turnos");
+  revalidatePath("/v2/turnos");
+  revalidatePath(`/turnos/${turnoId}`);
+  revalidatePath(`/v2/turnos/${turnoId}`);
+  revalidatePath(`/freelancers/${turno.pessoaId}`);
+  revalidatePath(`/v2/freelancers/${turno.pessoaId}`);
+  revalidatePath("/financeiro");
+  return { sucesso: true };
+}
+
 export type MarcarVariosState = { erro: string } | { pagos: number };
 
 /** Versão em lote de marcarPagamentoPagoManualmente — mesma lógica, só que

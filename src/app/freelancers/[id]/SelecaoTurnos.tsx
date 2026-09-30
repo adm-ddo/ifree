@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { marcarPagamentoPagoManualmente, tentarPagamentoNovamente } from "@/app/pagamentos/actions";
+import {
+  marcarPagamentoPagoManualmente,
+  tentarPagamentoNovamente,
+  cancelarPagamentoTurno,
+} from "@/app/pagamentos/actions";
+import { alternarPagamentoAutomatico } from "@/app/turnos/actions";
 import { corGrupoPagamento } from "@/lib/grupo-pagamento";
 import type { StatusTurno } from "@/generated/prisma/enums";
 
@@ -48,6 +53,17 @@ type TurnoResumo = {
   /// SelecaoTurnosV2.tsx) — mantém o v1 congelado sem precisar mexer na
   /// query de src/app/freelancers/[id]/page.tsx.
   origemExtraDiarioClt?: boolean;
+  /// Dono desligou manualmente o pagamento automático deste turno (ver
+  /// Turno.pagamentoAutomaticoDesativado) — enquanto ligado, o Pix nunca
+  /// sai sozinho, mesmo com automação geral ligada.
+  pagamentoAutomaticoDesativado: boolean;
+  /// Pagamento ainda não foi processado/concluído/cancelado — só nesse
+  /// estado dá pra mexer no interruptor ou cancelar (depois de
+  /// PROCESSANDO/CONCLUIDO/CANCELADO não tem mais o que decidir).
+  podeAlternarPagamentoAutomatico: boolean;
+  /// Motivo registrado quando o dono cancelou esse pagamento manualmente
+  /// (ver cancelarPagamentoTurno) — null nos outros casos.
+  motivoCancelamento: string | null;
 };
 
 const STATUS_LABEL: Record<StatusTurno, string> = {
@@ -70,7 +86,32 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
   const [tentandoIds, setTentandoIds] = useState<Set<number>>(new Set());
   const [pagosLocal, setPagosLocal] = useState<Set<number>>(new Set());
   const [erroPorId, setErroPorId] = useState<Map<number, string>>(new Map());
+  const [alternandoIds, setAlternandoIds] = useState<Set<number>>(new Set());
+  const [cancelandoTurnoId, setCancelandoTurnoId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
+
+  function alternarAutomatico(turnoId: number, desativado: boolean) {
+    setErroPorId((atual) => {
+      const novo = new Map(atual);
+      novo.delete(turnoId);
+      return novo;
+    });
+    setAlternandoIds((atual) => new Set(atual).add(turnoId));
+    startTransition(async () => {
+      try {
+        const resultado = await alternarPagamentoAutomatico(turnoId, desativado);
+        if (resultado.erro) setErroPorId((atual) => new Map(atual).set(turnoId, resultado.erro!));
+      } catch {
+        setErroPorId((atual) => new Map(atual).set(turnoId, "Não foi possível mudar agora."));
+      } finally {
+        setAlternandoIds((atual) => {
+          const novo = new Set(atual);
+          novo.delete(turnoId);
+          return novo;
+        });
+      }
+    });
+  }
 
   function tentarNovamente(turnoId: number) {
     setErroPorId((atual) => {
@@ -190,6 +231,9 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
                 {turno.erroPagamento && (
                   <p className="text-xs text-red-600 mt-0.5">⚠️ {turno.erroPagamento}</p>
                 )}
+                {turno.motivoCancelamento && (
+                  <p className="text-xs text-stone-500 mt-0.5">🚫 Cancelado: {turno.motivoCancelamento}</p>
+                )}
               </div>
             </label>
 
@@ -240,6 +284,27 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
                   {marcandoIds.has(turno.id) ? "Marcando..." : "💰 Marcar como pago"}
                 </button>
               )}
+              {turno.podeAlternarPagamentoAutomatico && (
+                <label className="flex items-center gap-1.5 text-xs text-stone-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={turno.pagamentoAutomaticoDesativado}
+                    disabled={alternandoIds.has(turno.id)}
+                    onChange={() => alternarAutomatico(turno.id, !turno.pagamentoAutomaticoDesativado)}
+                    className="h-3.5 w-3.5 accent-red-600"
+                  />
+                  🔒 Não pagar automático
+                </label>
+              )}
+              {turno.podeAlternarPagamentoAutomatico && turno.pagamentoAutomaticoDesativado && (
+                <button
+                  type="button"
+                  onClick={() => setCancelandoTurnoId(turno.id)}
+                  className="text-xs text-red-600 hover:underline"
+                >
+                  Cancelar pagamento
+                </button>
+              )}
               {erroPorId.has(turno.id) && (
                 <span className="text-xs text-red-600">{erroPorId.get(turno.id)}</span>
               )}
@@ -286,6 +351,77 @@ export default function SelecaoTurnos({ turnos }: { turnos: TurnoResumo[] }) {
           </li>
         ))}
       </ul>
+
+      {cancelandoTurnoId !== null && (
+        <CancelarPagamentoModal
+          turnoId={cancelandoTurnoId}
+          onClose={() => setCancelandoTurnoId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Pede um motivo obrigatório antes de cancelar de vez o pagamento de um
+ * turno (ver cancelarPagamentoTurno em src/app/pagamentos/actions.ts) —
+ * mesmo espírito de exigir explicação por escrito já usado em
+ * DesativarEmpresaModal (src/app/master/EmpresaMasterRow.tsx). */
+function CancelarPagamentoModal({ turnoId, onClose }: { turnoId: number; onClose: () => void }) {
+  const [motivo, setMotivo] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function confirmar() {
+    setErro(null);
+    startTransition(async () => {
+      const resultado = await cancelarPagamentoTurno(turnoId, motivo);
+      if (resultado.erro) {
+        setErro(resultado.erro);
+        return;
+      }
+      onClose();
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Fechar" onClick={onClose} className="absolute inset-0 bg-black/50" />
+      <div className="relative w-full max-w-sm bg-white rounded-2xl p-6 flex flex-col gap-3">
+        <h2 className="font-bold text-navy-900 text-lg">Cancelar este pagamento?</h2>
+        <p className="text-sm text-stone-600">
+          O turno continua no histórico normalmente — só o pagamento fica marcado como cancelado, fora da
+          fila de cobrança pra sempre. Não tem como desfazer depois.
+        </p>
+        <label className="text-xs text-stone-500 flex flex-col gap-1">
+          Motivo (obrigatório)
+          <textarea
+            value={motivo}
+            onChange={(e) => setMotivo(e.target.value)}
+            autoFocus
+            rows={3}
+            placeholder="Ex.: combinado de pagar por fora, pessoa desistiu, etc."
+            className="border border-stone-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+        </label>
+        {erro && <p className="text-sm text-red-600">{erro}</p>}
+        <div className="flex gap-2 mt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-stone-300 text-sm py-2 hover:bg-stone-50"
+          >
+            Voltar
+          </button>
+          <button
+            type="button"
+            disabled={pending || motivo.trim().length < 5}
+            onClick={confirmar}
+            className="flex-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold py-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {pending ? "Cancelando..." : "Cancelar pagamento"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

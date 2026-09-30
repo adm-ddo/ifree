@@ -97,8 +97,9 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
         fechamentoAutomatico: true,
         correcaoSaidaEm: true,
         origemExtraDiarioClt: true,
+        pagamentoAutomaticoDesativado: true,
         funcao: { select: { id: true, nome: true } },
-        pagamento: { select: { status: true, grupoPagamentoId: true, erro: true } },
+        pagamento: { select: { status: true, grupoPagamentoId: true, erro: true, motivoCancelamento: true } },
       },
     }),
     prisma.funcao.findMany({ where: { empresaId: sessao.empresaEfetivoId, ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
@@ -225,6 +226,10 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
             precisaResolverSaida: t.status !== "ABERTO" && t.fechamentoAutomatico && !t.correcaoSaidaEm,
             podeCorrigirSaida: t.status !== "ABERTO" && (t.fechamentoAutomatico || t.correcaoSaidaEm !== null),
             origemExtraDiarioClt: t.origemExtraDiarioClt,
+            pagamentoAutomaticoDesativado: t.pagamentoAutomaticoDesativado,
+            podeAlternarPagamentoAutomatico:
+              !t.pagamento || !["PROCESSANDO", "CONCLUIDO", "CANCELADO"].includes(t.pagamento.status),
+            motivoCancelamento: t.pagamento?.motivoCancelamento ?? null,
           }))}
         />
       )}

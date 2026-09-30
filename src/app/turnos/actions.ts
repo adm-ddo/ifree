@@ -374,6 +374,47 @@ export async function liberarPagamentoRetido(turnoId: number): Promise<{ erro?: 
   return { sucesso: true };
 }
 
+/** Liga/desliga o pagamento automático de UM turno específico — botão do
+ * dono, pode acionar a qualquer momento (turno aberto ou já concluído).
+ * Ligando de novo (desativado=false) já tenta processar na hora, mesmo
+ * padrão de liberarPagamentoRetido acima (não fica esperando o próximo
+ * fechamento/cron pra pagar). Bloqueado enquanto o pagamento já está
+ * PROCESSANDO (não dá pra segurar algo que já saiu) ou já CONCLUIDO/
+ * CANCELADO (não tem mais o que decidir). */
+export async function alternarPagamentoAutomatico(
+  turnoId: number,
+  desativado: boolean
+): Promise<{ erro?: string; sucesso?: boolean }> {
+  const sessao = await requireModulo("turnos");
+
+  const turno = await prisma.turno.findUnique({
+    where: { id: turnoId },
+    include: { pagamento: { select: { status: true } } },
+  });
+  if (!turno || turno.empresaId !== sessao.empresaEfetivoId) {
+    return { erro: "Esse turno não pertence a esta empresa." };
+  }
+  if (turno.pagamento && ["PROCESSANDO", "CONCLUIDO", "CANCELADO"].includes(turno.pagamento.status)) {
+    return { erro: "Esse pagamento já foi processado, concluído ou cancelado — não dá mais pra mexer." };
+  }
+
+  await prisma.turno.update({ where: { id: turnoId }, data: { pagamentoAutomaticoDesativado: desativado } });
+  if (!desativado) {
+    await processarPagamentoTurno(turnoId);
+  }
+
+  revalidatePath(`/turnos/${turnoId}`);
+  revalidatePath(`/v2/turnos/${turnoId}`);
+  revalidatePath("/turnos");
+  revalidatePath("/v2/turnos");
+  revalidatePath("/pagamentos");
+  revalidatePath("/v2/pagamentos");
+  revalidatePath("/financeiro");
+  revalidatePath(`/freelancers/${turno.pessoaId}`);
+  revalidatePath(`/v2/freelancers/${turno.pessoaId}`);
+  return { sucesso: true };
+}
+
 export type MarcarDobradoState = { erro: string } | undefined;
 
 /** O dono marca que a pessoa dobrou o turno (fez dia e noite seguidos) e
