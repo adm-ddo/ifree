@@ -80,6 +80,17 @@ export default async function MasterFreelancersPage({
     ...filtroPeriodo,
   };
 
+  // Totais GLOBAIS (todas as lojas, sem nenhum filtro de período/busca da
+  // tela) — pedido do Thiago em 2026-09-30: ver de uma tela só quanto o
+  // app tem no total, sem precisar somar empresa por empresa. Consultas
+  // à parte de tudo o que já existe acima (que É filtrado), de propósito.
+  const [totalGlobalPessoas, totalGlobalConecta, totalGlobalClt] = await Promise.all([
+    prisma.pessoa.count(),
+    prisma.pessoa.count({ where: { senhaHash: { not: null } } }),
+    prisma.vinculoPessoaEmpresa.count({ where: { tipoVinculo: "CLT" } }),
+  ]);
+  const totalGlobalTotem = totalGlobalPessoas - totalGlobalConecta;
+
   const [pessoas, totalFiltrado] = await Promise.all([
     prisma.pessoa.findMany({
       where: filtroCompleto,
@@ -139,6 +150,25 @@ export default async function MasterFreelancersPage({
           possível excluir quem não tem nenhum turno registrado — é
           histórico de trabalho/pagamento.
         </p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-2xl bg-navy-900 text-white p-4 shadow-sm">
+          <p className="text-2xl font-semibold">{totalGlobalPessoas}</p>
+          <p className="text-xs opacity-75 mt-1">Total no app (todas as lojas)</p>
+        </div>
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <p className="text-2xl font-semibold text-navy-900">{totalGlobalConecta}</p>
+          <p className="text-xs text-stone-500 mt-1">🔗 Via Conecta (Portal)</p>
+        </div>
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <p className="text-2xl font-semibold text-navy-900">{totalGlobalTotem}</p>
+          <p className="text-xs text-stone-500 mt-1">🖥️ Direto do totem</p>
+        </div>
+        <div className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+          <p className="text-2xl font-semibold text-navy-900">{totalGlobalClt}</p>
+          <p className="text-xs text-stone-500 mt-1">🧑‍💼 CLT (vínculos)</p>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
