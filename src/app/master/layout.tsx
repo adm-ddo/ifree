@@ -8,6 +8,7 @@ const ITENS_MASTER: ItemNavV2[] = [
   { href: "/master", label: "Empresas", icone: "dashboard" },
   { href: "/master/assinaturas", label: "Assinaturas", icone: "financeiro" },
   { href: "/master/freelancers", label: "Freelancers", icone: "freelancers" },
+  { href: "/master/selos", label: "Selos", icone: "financeiro" },
 ];
 
 /** Casca do painel master no mesmo visual da v2 (NavShell, fonte Sora,
