@@ -23,13 +23,19 @@ export default async function V2FreelancersPage({
       ativo: true,
       bloqueadoSuspeitaFraudeEm: true,
       pessoa: {
-        select: { id: true, nome: true, documento: true, tipoDocumento: true, telefone: true, chavePix: true, tipoChavePix: true, fotoPerfilUrl: true, sexo: true },
+        select: { id: true, nome: true, documento: true, tipoDocumento: true, telefone: true, chavePix: true, tipoChavePix: true, fotoPerfilUrl: true, sexo: true, senhaHash: true },
       },
     },
   });
 
   const totalDesativados = vinculos.filter((v) => !v.ativo).length;
   const totalBloqueados = vinculos.filter((v) => v.bloqueadoSuspeitaFraudeEm !== null).length;
+  // "Veio do Conecta" = já ativou login no Portal (senhaHash não-nulo,
+  // mesmo critério de temPortalAtivo em master/freelancers/page.tsx) —
+  // "direto do totem" é o resto, quem só bateu CPF no totem e nunca
+  // passou pelo cadastro do Portal (iFREE Conecta).
+  const totalViaConecta = vinculos.filter((v) => v.pessoa.senhaHash !== null).length;
+  const totalViaTotem = vinculos.length - totalViaConecta;
   const listaExibida = somenteBloqueados
     ? vinculos.filter((v) => v.bloqueadoSuspeitaFraudeEm !== null)
     : mostrarDesativados
@@ -45,6 +51,21 @@ export default async function V2FreelancersPage({
           novo turno, sem apagar o cadastro dela nem o histórico — só quem tem acesso master pode excluir um
           cadastro de vez.
         </p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-stone-200 bg-white p-3">
+          <p className="text-xl font-bold text-navy-900">{vinculos.length}</p>
+          <p className="text-xs text-stone-500 mt-0.5">Total cadastrados</p>
+        </div>
+        <div className="rounded-xl border border-stone-200 bg-white p-3">
+          <p className="text-xl font-bold text-navy-900">{totalViaConecta}</p>
+          <p className="text-xs text-stone-500 mt-0.5">🔗 Via Conecta (Portal)</p>
+        </div>
+        <div className="rounded-xl border border-stone-200 bg-white p-3">
+          <p className="text-xl font-bold text-navy-900">{totalViaTotem}</p>
+          <p className="text-xs text-stone-500 mt-0.5">🖥️ Direto do totem</p>
+        </div>
       </div>
 
       {somenteBloqueados && (
