@@ -24,7 +24,7 @@ import { calcularStatusExperiencia } from "@/lib/experiencia";
 import { STATUS_PENDENTES } from "@/lib/financeiro";
 import PagamentosExtraPendentesCard from "@/app/funcionarios/[id]/PagamentosExtraPendentesCard";
 import {
-  horarioEsperadoClt,
+  horarioEsperadoDoRegistro,
   calcularDesvioPontoClt,
   saidaEsperadaClt,
   calcularSaldoDiarioClt,
@@ -109,11 +109,11 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
         horarioSaida12x36Min: true,
         horarioEntrada12x36NoiteMin: true,
         horarioSaida12x36NoiteMin: true,
+        horarioInicioDiaMin: true,
+        horarioInicioNoiteMin: true,
       },
     }),
   ]);
-
-  const horarioEsperado = horarioEsperadoClt(vinculo.escalaTrabalho, vinculo.escalaTurno, vinculo.horarioEntradaMin, vinculo.horarioSaidaMin, empresaHorarios);
 
   // Ver comentário completo em src/app/funcionarios/[id]/page.tsx (v1) —
   // mesma lógica, só espelhada aqui.
@@ -404,23 +404,26 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
       ) : (
         <RegistroPontoHistorico
           podeGerarAdvertencia={podeGerarAdvertencia}
-          registros={registros.map((r) => ({
-            id: r.id,
-            entradaLabel: formatarDataHoraComDiaSemana(r.horaEntrada),
-            intervaloLabel: r.entradaIntervalo && r.saidaIntervalo ? `${formatarHora(r.entradaIntervalo)}–${formatarHora(r.saidaIntervalo)}` : null,
-            saidaLabel: r.horaSaida ? formatarHora(r.horaSaida) : null,
-            minutosTrabalhados: r.minutosTrabalhados,
-            minutosDescontadosPausa: r.minutosDescontadosPausa,
-            status: r.status,
-            encerradoManualmentePorEmail: r.correcaoSaidaEm ? r.correcaoSaidaPorEmail : null,
-            ...calcularDesvioPontoClt(r.horaEntrada, r.horaSaida, horarioEsperado),
-            ...calcularSaldoDiarioClt(r.minutosTrabalhados, horarioEsperado, pausaAplicadaEm(r)),
-            saidaSugeridaValue: (() => {
-              const sugerida = saidaEsperadaClt(r.horaEntrada, horarioEsperado);
-              return sugerida ? paraDatetimeLocalBrasil(sugerida) : null;
-            })(),
-            horaSaidaValue: r.horaSaida ? paraDatetimeLocalBrasil(r.horaSaida) : null,
-          }))}
+          registros={registros.map((r) => {
+            const horarioEsperado = horarioEsperadoDoRegistro(r, vinculo, empresaHorarios);
+            return {
+              id: r.id,
+              entradaLabel: formatarDataHoraComDiaSemana(r.horaEntrada),
+              intervaloLabel: r.entradaIntervalo && r.saidaIntervalo ? `${formatarHora(r.entradaIntervalo)}–${formatarHora(r.saidaIntervalo)}` : null,
+              saidaLabel: r.horaSaida ? formatarHora(r.horaSaida) : null,
+              minutosTrabalhados: r.minutosTrabalhados,
+              minutosDescontadosPausa: r.minutosDescontadosPausa,
+              status: r.status,
+              encerradoManualmentePorEmail: r.correcaoSaidaEm ? r.correcaoSaidaPorEmail : null,
+              ...calcularDesvioPontoClt(r.horaEntrada, r.horaSaida, horarioEsperado),
+              ...calcularSaldoDiarioClt(r.minutosTrabalhados, horarioEsperado, pausaAplicadaEm(r)),
+              saidaSugeridaValue: (() => {
+                const sugerida = saidaEsperadaClt(r.horaEntrada, horarioEsperado);
+                return sugerida ? paraDatetimeLocalBrasil(sugerida) : null;
+              })(),
+              horaSaidaValue: r.horaSaida ? paraDatetimeLocalBrasil(r.horaSaida) : null,
+            };
+          })}
         />
       )}
     </div>

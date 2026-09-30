@@ -22,7 +22,13 @@ import {
 } from "@/lib/turno";
 import { LABEL_TURNO_PREDEFINIDO } from "@/lib/turnoPredefinido";
 import { dataISOBrasil, dataISODoDbDate, formatarDataHora } from "@/lib/data";
-import { calcularMinutosPonto, acoesPossiveisPonto, resolverModoPausaClt, type AcaoPonto } from "@/lib/ponto";
+import {
+  calcularMinutosPonto,
+  acoesPossiveisPonto,
+  resolverModoPausaClt,
+  trocaDeTurnoDetectada,
+  type AcaoPonto,
+} from "@/lib/ponto";
 import { processarOuReterPagamentoTurno } from "@/lib/pagamentos/processar";
 import { notaValida, tagsValidadas } from "@/lib/avaliacao";
 import { verificarRestricaoEntrada } from "@/lib/restricao-horario";
@@ -126,6 +132,27 @@ export type ResultadoBusca =
       intervaloHabilitado: boolean;
       ultimaFuncaoId: number | null;
     } & DadosPessoa)
+  | ({
+      encontrada: true;
+      /** CLT batendo ponto MUITO fora do horário esperado dela (ver
+       * LIMIAR_TROCA_TURNO_MIN em src/lib/ponto.ts), sem nada aberto pra
+       * fechar — o totem pergunta se é extra pago hoje ou troca do turno
+       * oficial só hoje. Diferente de CLT_OU_EXTRA (que é um interruptor
+       * sempre ligado, independente de horário): aqui a opção de trocar
+       * turno SEMPRE aparece; extra pago só quando `podeExtra` (precisa
+       * de permiteExtraDiario + PIX, mesma regra de CLT_OU_EXTRA). Sem
+       * PIX, chavePix/tipoChavePix vêm null — só usados de verdade se
+       * `podeExtra` for true. */
+      tipo: "CLT_HORARIO_DIFERENTE";
+      pessoaId: number;
+      pessoaNome: string;
+      intervaloHabilitado: boolean;
+      ultimaFuncaoId: number | null;
+      podeExtra: boolean;
+    } & Omit<DadosPessoa, "chavePix" | "tipoChavePix"> & {
+        chavePix: string | null;
+        tipoChavePix: TipoChavePix | null;
+      })
   | {
       encontrada: true;
       /** Pessoa já existe globalmente (cadastro do iFREE Conecta, feito em
@@ -288,7 +315,21 @@ export async function buscarPessoaPorDocumento(
 
     const empresa = await prisma.empresa.findUniqueOrThrow({
       where: { id: totem.empresaId },
-      select: { funcionariosBaterIntervalo: true },
+      select: {
+        funcionariosBaterIntervalo: true,
+        horarioEntrada5x2Min: true,
+        horarioSaida5x2Min: true,
+        horarioEntrada5x2NoiteMin: true,
+        horarioSaida5x2NoiteMin: true,
+        horarioEntrada6x1Min: true,
+        horarioSaida6x1Min: true,
+        horarioEntrada6x1NoiteMin: true,
+        horarioSaida6x1NoiteMin: true,
+        horarioEntrada12x36Min: true,
+        horarioSaida12x36Min: true,
+        horarioEntrada12x36NoiteMin: true,
+        horarioSaida12x36NoiteMin: true,
+      },
     });
     const registro = await prisma.registroPonto.findFirst({
       where: { pessoaId: pessoa.id, empresaId: totem.empresaId, status: "ABERTO" },
@@ -302,25 +343,59 @@ export async function buscarPessoaPorDocumento(
         }
       : null;
 
-    // Só oferece a opção de extra se: (1) já tiver PIX cadastrado
-    // (necessário pra pagar o turno — sem PIX cai no fluxo CLT normal até
-    // o dono completar o cadastro em /funcionarios/[id]), (2) NÃO tiver
-    // ponto CLT aberto agora nesta empresa, e (3) NÃO tiver turno/ponto
-    // aberto em outra empresa — nesses dois últimos casos a única ação
-    // possível é fechar o que já está aberto, nunca abrir um segundo.
-    // Antes disso, oferecer a escolha mesmo com o ponto já aberto foi
-    // exatamente o que causou o problema relatado pelo Thiago em
-    // 2026-09-22 (duas funcionárias da DAM foram bater saída, apareceu a
-    // pergunta "CLT normal ou extra?", e ao cair em "extra" o ponto CLT
-    // ficou aberto pra sempre enquanto um turno extra novo era criado).
+    // Só oferece qualquer uma das duas perguntas (extra pago / horário
+    // diferente) se: (1) NÃO tiver ponto CLT aberto agora nesta empresa, e
+    // (2) NÃO tiver turno/ponto aberto em outra empresa — nesses dois
+    // casos a única ação possível é fechar o que já está aberto, nunca
+    // abrir um segundo. Antes disso, oferecer a escolha mesmo com o ponto
+    // já aberto foi exatamente o que causou o problema relatado pelo
+    // Thiago em 2026-09-22 (duas funcionárias da DAM foram bater saída,
+    // apareceu a pergunta "CLT normal ou extra?", e ao cair em "extra" o
+    // ponto CLT ficou aberto pra sempre enquanto um turno extra novo era
+    // criado).
     const conflitoOutroLocalClt = await buscarConflitoOutroLocal(pessoa.id, totem.empresaId);
-    if (
+    const podeAbrirNovoRegistro = registroAberto === null && conflitoOutroLocalClt === null;
+
+    // Extra pago hoje exige PIX cadastrado (precisa de onde pagar) — sem
+    // isso, mesmo com horário muito diferente, só resta a opção de trocar
+    // o turno oficial (sem pagamento nenhum envolvido).
+    const podeExtra =
+      podeAbrirNovoRegistro &&
       vinculo.permiteExtraDiario &&
       pessoa.chavePix !== null &&
-      pessoa.tipoChavePix !== null &&
-      registroAberto === null &&
-      conflitoOutroLocalClt === null
-    ) {
+      pessoa.tipoChavePix !== null;
+
+    // Bateu ponto MUITO fora do horário esperado dela (ver
+    // LIMIAR_TROCA_TURNO_MIN em src/lib/ponto.ts) — pergunta se é extra
+    // pago ou troca do turno oficial só hoje, em vez de deixar seguir
+    // pro ponto normal (que compararia contra o horário de sempre dela e
+    // gerar um desvio gigante sem sentido, ver Luis Alberto Bolivar Diaz
+    // em setembro/2026).
+    if (podeAbrirNovoRegistro && trocaDeTurnoDetectada(new Date(), vinculo, empresa)) {
+      const ultimoTurno = await prisma.turno.findFirst({
+        where: { pessoaId: pessoa.id, empresaId: totem.empresaId },
+        orderBy: { horaEntrada: "desc" },
+        select: { funcaoId: true },
+      });
+
+      return {
+        encontrada: true,
+        tipo: "CLT_HORARIO_DIFERENTE",
+        pessoaId: pessoa.id,
+        pessoaNome: pessoa.nome,
+        intervaloHabilitado: empresa.funcionariosBaterIntervalo,
+        ultimaFuncaoId: ultimoTurno?.funcaoId ?? null,
+        podeExtra,
+        telefone: pessoa.telefone,
+        endereco: pessoa.endereco,
+        numero: pessoa.numero ?? "",
+        complemento: pessoa.complemento ?? "",
+        chavePix: pessoa.chavePix,
+        tipoChavePix: pessoa.tipoChavePix,
+      };
+    }
+
+    if (podeExtra) {
       const ultimoTurno = await prisma.turno.findFirst({
         where: { pessoaId: pessoa.id, empresaId: totem.empresaId },
         orderBy: { horaEntrada: "desc" },
@@ -339,8 +414,8 @@ export async function buscarPessoaPorDocumento(
         endereco: pessoa.endereco,
         numero: pessoa.numero ?? "",
         complemento: pessoa.complemento ?? "",
-        chavePix: pessoa.chavePix,
-        tipoChavePix: pessoa.tipoChavePix,
+        chavePix: pessoa.chavePix!,
+        tipoChavePix: pessoa.tipoChavePix!,
       };
     }
 
@@ -534,7 +609,16 @@ export type ResultadoPontoClt = ResultadoErro | { sucesso: true; acao: AcaoPonto
  * totem tentando bater a mesma entrada duas vezes. */
 export async function baterPontoClt(
   token: string,
-  dados: { pessoaId: number; fotoDataUrl: string; acao: AcaoPonto }
+  dados: {
+    pessoaId: number;
+    fotoDataUrl: string;
+    acao: AcaoPonto;
+    /// true quando a pessoa confirmou, na pergunta de horário diferente
+    /// (ver buscarPessoaPorDocumento), que está trocando o turno oficial
+    /// só hoje — só importa na ENTRADA (abre um RegistroPonto novo); as
+    /// outras ações operam sobre um registro que já existe.
+    trocaTurnoOficialHoje?: boolean;
+  }
 ): Promise<ResultadoPontoClt> {
   const totem = await resolverTotemAtivo(token);
   if (!totem) return { erro: "Totem inválido ou desativado." };
@@ -578,6 +662,7 @@ export async function baterPontoClt(
           totemId: totem.id,
           horaEntrada: agora,
           fotoEntradaUrl,
+          trocaTurnoOficialHoje: dados.trocaTurnoOficialHoje ?? false,
         },
       })
     );
@@ -959,6 +1044,12 @@ export async function iniciarTurno(
           fotoEntradaUrl: fotoUrl,
           assinaturaContratoUrl: assinaturaUrl,
           status: "ABERTO",
+          // Pessoa CLT só chega em iniciarTurno pelo fluxo de extra pago
+          // (CLT_OU_EXTRA ou CLT_HORARIO_DIFERENTE, ver
+          // buscarPessoaPorDocumento) — nunca pelo caminho normal de
+          // freelancer. Marca aqui, sem precisar de nada extra vindo do
+          // client, só pra colorir diferente nas listas de turno.
+          origemExtraDiarioClt: vinculo?.tipoVinculo === "CLT",
         },
       });
     })

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaBrasil, dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { classificarTurno, type TipoTurno } from "@/lib/turno";
-import { horarioEsperadoClt, saidaEsperadaClt } from "@/lib/ponto";
+import { horarioEsperadoDoRegistro, saidaEsperadaClt } from "@/lib/ponto";
 import { buscarSaldoAsaas } from "@/lib/pagamentos/asaas-deposito";
 import type { ModoPagamento, FrequenciaPagamento, StatusTurno, Sexo } from "@/generated/prisma/enums";
 
@@ -128,6 +128,7 @@ export async function buscarDadosDashboard(empresaId: number): Promise<DadosDash
         horaEntrada: true,
         entradaIntervalo: true,
         saidaIntervalo: true,
+        trocaTurnoOficialHoje: true,
         pessoa: { select: { id: true, nome: true, fotoPerfilUrl: true, sexo: true } },
       },
     }),
@@ -244,16 +245,14 @@ export async function buscarDadosDashboard(empresaId: number): Promise<DadosDash
   // NUNCA o horário de fechamento genérico do turno EXTRA (dia/noite) da
   // empresa usado acima — são conceitos diferentes que hoje moram nos
   // mesmos nomes de campo por coincidência.
-  function alertaHorarioNormalClt(pessoaId: number, horaEntrada: Date): { cutoff: Date; podeDobrar: boolean } | null {
+  function alertaHorarioNormalClt(
+    pessoaId: number,
+    horaEntrada: Date,
+    trocaTurnoOficialHoje: boolean
+  ): { cutoff: Date; podeDobrar: boolean } | null {
     const vinculo = vinculoCltPorPessoa.get(pessoaId);
     if (!vinculo) return null;
-    const esperado = horarioEsperadoClt(
-      vinculo.escalaTrabalho,
-      vinculo.escalaTurno,
-      vinculo.horarioEntradaMin,
-      vinculo.horarioSaidaMin,
-      empresaConfig
-    );
+    const esperado = horarioEsperadoDoRegistro({ horaEntrada, trocaTurnoOficialHoje }, vinculo, empresaConfig);
     const cutoff = saidaEsperadaClt(horaEntrada, esperado);
     if (!cutoff || cutoff > new Date()) return null;
     return { cutoff, podeDobrar: false };
@@ -301,7 +300,7 @@ export async function buscarDadosDashboard(empresaId: number): Promise<DadosDash
         horaEntrada: r.horaEntrada,
         emIntervalo: r.entradaIntervalo !== null && r.saidaIntervalo === null,
         conflitoDesde: conflitoDesde(r.pessoa.id, r.horaEntrada),
-        alertaHorario: alertaHorarioNormalClt(r.pessoa.id, r.horaEntrada),
+        alertaHorario: alertaHorarioNormalClt(r.pessoa.id, r.horaEntrada, r.trocaTurnoOficialHoje),
       };
     }),
   ].sort((a, b) => a.horaEntrada.getTime() - b.horaEntrada.getTime());

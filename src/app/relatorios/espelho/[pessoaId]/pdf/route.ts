@@ -7,6 +7,7 @@ import { instanteBrasil, dataISOBrasil, formatarDataSemHora } from "@/lib/data";
 import {
   calcularMinutosNoturnos,
   horarioEsperadoClt,
+  horarioEsperadoDoRegistro,
   calcularDesvioPontoClt,
   calcularHoraExtraPontoClt,
 } from "@/lib/ponto";
@@ -86,6 +87,8 @@ export async function GET(
       horarioSaida12x36Min: true,
       horarioEntrada12x36NoiteMin: true,
       horarioSaida12x36NoiteMin: true,
+      horarioInicioDiaMin: true,
+      horarioInicioNoiteMin: true,
     },
   });
 
@@ -119,12 +122,14 @@ export async function GET(
       horaSaida: true,
       minutosTrabalhados: true,
       correcaoSaidaEm: true,
+      trocaTurnoOficialHoje: true,
     },
   });
 
   const linhasPorDia = new Map<string, LinhaEspelhoPonto[]>();
   for (const r of registros) {
     const chave = dataISOBrasil(r.horaEntrada);
+    const horarioEsperadoDoDia = horarioEsperadoDoRegistro(r, vinculo, empresa);
     const linha: LinhaEspelhoPonto = {
       data: r.horaEntrada,
       horaEntrada: r.horaEntrada,
@@ -134,8 +139,8 @@ export async function GET(
       minutosTrabalhados: r.minutosTrabalhados,
       minutosNoturnos: r.horaSaida ? calcularMinutosNoturnos(r.horaEntrada, r.horaSaida) : null,
       encerradoManualmente: r.correcaoSaidaEm !== null,
-      ...calcularDesvioPontoClt(r.horaEntrada, r.horaSaida, horarioEsperado),
-      ...calcularHoraExtraPontoClt(r.horaEntrada, r.horaSaida, horarioEsperado),
+      ...calcularDesvioPontoClt(r.horaEntrada, r.horaSaida, horarioEsperadoDoDia),
+      ...calcularHoraExtraPontoClt(r.horaEntrada, r.horaSaida, horarioEsperadoDoDia),
     };
     linhasPorDia.set(chave, [...(linhasPorDia.get(chave) ?? []), linha]);
   }

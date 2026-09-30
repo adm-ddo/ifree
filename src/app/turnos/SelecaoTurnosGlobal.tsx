@@ -29,6 +29,13 @@ type TurnoResumoGlobal = {
   temRecibo: boolean;
   criadoManualmente: boolean;
   criadoManualmentePorEmail: string | null;
+  /// true quando este turno é de uma pessoa CLT fazendo um extra pago
+  /// (ver Turno.origemExtraDiarioClt no schema) — mostra um badge
+  /// diferente pra não confundir com turno de freelancer de verdade.
+  /// Opcional: esta tela (v1) não busca esse campo, só a v2 (ver
+  /// SelecaoTurnosGlobalV2.tsx) — mantém o v1 congelado sem precisar
+  /// mexer na query de src/app/turnos/page.tsx.
+  origemExtraDiarioClt?: boolean;
 };
 
 const STATUS_LABEL: Record<StatusTurno, string> = {
@@ -192,6 +199,14 @@ export default function SelecaoTurnosGlobal({ turnos }: { turnos: TurnoResumoGlo
               <span className={`text-xs rounded-full border px-2 py-1 ${STATUS_CLASSE[turno.status]}`}>
                 {STATUS_LABEL[turno.status]}
               </span>
+              {turno.origemExtraDiarioClt && (
+                <span
+                  className="text-xs rounded-full border px-2 py-1 bg-violet-50 text-violet-700 border-violet-200"
+                  title="Extra pago pra uma pessoa CLT, não freelancer"
+                >
+                  👔 Extra de CLT
+                </span>
+              )}
               {turno.pagamentoRetidoRevisao && (
                 <Link
                   href={`/turnos/${turno.id}#pagamento-retido`}

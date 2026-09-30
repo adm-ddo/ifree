@@ -5,6 +5,7 @@
 
 import { dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { LIMIAR_PAUSA_MIN, DESCONTO_POR_MODO } from "@/lib/pausa";
+import { classificarTurno } from "@/lib/turno";
 import type { EscalaTrabalho, ModoPausa, TurnoPredefinido } from "@/generated/prisma/enums";
 
 /** Converte "HH:MM" em minutos desde meia-noite — null se o formato não
@@ -157,7 +158,16 @@ export function acoesPossiveisPonto(
  * precisaria decidir. */
 export const TOLERANCIA_PONTO_CLT_MIN = 5;
 
-type HorarioEsperadoClt = { entradaMin: number; saidaMin: number };
+/** Desvio mínimo (em minutos) pro totem considerar que a pessoa está
+ * batendo ponto num turno completamente diferente do dela, oferecendo a
+ * pergunta "extra pago ou troca de turno hoje?" (ver
+ * src/app/t/[token]/actions.ts) — bem maior que TOLERANCIA_PONTO_CLT_MIN
+ * (que é só pra reportar atraso pequeno depois, não pra interromper o
+ * check-in): 2h de diferença é inequivocamente outro turno, não um
+ * atraso comum que não merece pergunta nenhuma. */
+export const LIMIAR_TROCA_TURNO_MIN = 120;
+
+export type HorarioEsperadoClt = { entradaMin: number; saidaMin: number };
 
 /** Horário esperado de entrada/saída pra um vínculo CLT — o horário
  * específico da pessoa (VinculoPessoaEmpresa.horarioEntradaMin/
@@ -168,7 +178,16 @@ type HorarioEsperadoClt = { entradaMin: number; saidaMin: number };
  * tipo aceita TurnoPredefinido inteiro pra bater com o enum do schema).
  * Sem nenhum dos dois (ou escala OUTRA, que não tem padrão), retorna null
  * — nesse caso não há o que comparar, mesmo espírito informativo de
- * sempre. */
+ * sempre.
+ *
+ * `forcarTurnoReal` é o escape hatch pro dia em que a pessoa confirmou no
+ * totem que está trocando o turno oficial só hoje (RegistroPonto.
+ * trocaTurnoOficialHoje) — quando presente, IGNORA o override pessoal e o
+ * `turno` da pessoa, usando direto "DIA"/"NOITE" pra escolher o par da
+ * empresa. Sem isso, um dia atípico sempre seria comparado contra o
+ * horário de sempre da pessoa (errado: pareceria um desvio gigante sem
+ * sentido em vez do padrão da empresa pro turno que ela realmente
+ * trabalhou naquele dia). */
 export function horarioEsperadoClt(
   escala: EscalaTrabalho | null,
   turno: TurnoPredefinido | null,
@@ -187,12 +206,13 @@ export function horarioEsperadoClt(
     horarioSaida12x36Min: number | null;
     horarioEntrada12x36NoiteMin: number | null;
     horarioSaida12x36NoiteMin: number | null;
-  }
+  },
+  forcarTurnoReal?: "DIA" | "NOITE"
 ): HorarioEsperadoClt | null {
-  if (overrideEntradaMin !== null && overrideSaidaMin !== null) {
+  if (!forcarTurnoReal && overrideEntradaMin !== null && overrideSaidaMin !== null) {
     return { entradaMin: overrideEntradaMin, saidaMin: overrideSaidaMin };
   }
-  const ehNoite = turno === "NOITE";
+  const ehNoite = forcarTurnoReal ? forcarTurnoReal === "NOITE" : turno === "NOITE";
   const padraoPorEscala: Partial<Record<EscalaTrabalho, [number | null, number | null]>> = {
     CINCO_X_DOIS: ehNoite
       ? [empresa.horarioEntrada5x2NoiteMin, empresa.horarioSaida5x2NoiteMin]
@@ -209,13 +229,82 @@ export function horarioEsperadoClt(
   return { entradaMin, saidaMin };
 }
 
+/** "DIA" ou "NOITE" a partir do horário REAL de entrada, ignorando
+ * qualquer turno configurado na pessoa — pro `forcarTurnoReal` de
+ * horarioEsperadoClt, quando o RegistroPonto tem trocaTurnoOficialHoje.
+ * Passa "LIVRE" fixo pro classificarTurno (src/lib/turno.ts) pra forçar
+ * a inferência por horário (MANHA/NOITE ali manda sempre, o que
+ * anularia o propósito aqui — a pessoa pode ter escalaTurno=NOITE e ter
+ * batido ponto de dia, é exatamente esse desvio que queremos captar). */
+export function turnoRealDoRegistro(
+  horaEntrada: Date,
+  empresa: { horarioInicioDiaMin: number; horarioInicioNoiteMin: number }
+): "DIA" | "NOITE" {
+  return classificarTurno(horaEntrada, "LIVRE", empresa.horarioInicioDiaMin, empresa.horarioInicioNoiteMin);
+}
+
+/** Wrapper de horarioEsperadoClt já resolvendo o `forcarTurnoReal` sozinho
+ * a partir de `registro.trocaTurnoOficialHoje` — ponto único usado por
+ * toda tela/relatório que precisa do horário esperado de UM RegistroPonto
+ * específico (diferente de horarioEsperadoClt cru, que é por vínculo,
+ * sem saber de nenhum registro em particular). Reduz repetição: todo
+ * call site que precisa lidar com troca de turno chama só esta função. */
+export function horarioEsperadoDoRegistro(
+  registro: { horaEntrada: Date; trocaTurnoOficialHoje: boolean },
+  vinculo: {
+    escalaTrabalho: EscalaTrabalho | null;
+    escalaTurno: TurnoPredefinido | null;
+    horarioEntradaMin: number | null;
+    horarioSaidaMin: number | null;
+  },
+  empresa: Parameters<typeof horarioEsperadoClt>[4] & { horarioInicioDiaMin: number; horarioInicioNoiteMin: number }
+): HorarioEsperadoClt | null {
+  const forcarTurnoReal = registro.trocaTurnoOficialHoje
+    ? turnoRealDoRegistro(registro.horaEntrada, empresa)
+    : undefined;
+  return horarioEsperadoClt(
+    vinculo.escalaTrabalho,
+    vinculo.escalaTurno,
+    vinculo.horarioEntradaMin,
+    vinculo.horarioSaidaMin,
+    empresa,
+    forcarTurnoReal
+  );
+}
+
+/** true quando `agora` está muito fora do horário de entrada esperado
+ * pra essa pessoa (ver LIMIAR_TROCA_TURNO_MIN) — usado no totem
+ * (buscarPessoaPorDocumento) pra decidir se pergunta "extra pago ou
+ * troca de turno hoje?" em vez de seguir pro ponto normal. false quando
+ * a pessoa não tem horário esperado configurado (nada pra comparar). */
+export function trocaDeTurnoDetectada(
+  agora: Date,
+  vinculo: {
+    escalaTrabalho: EscalaTrabalho | null;
+    escalaTurno: TurnoPredefinido | null;
+    horarioEntradaMin: number | null;
+    horarioSaidaMin: number | null;
+  },
+  empresa: Parameters<typeof horarioEsperadoClt>[4]
+): boolean {
+  const esperado = horarioEsperadoClt(
+    vinculo.escalaTrabalho,
+    vinculo.escalaTurno,
+    vinculo.horarioEntradaMin,
+    vinculo.horarioSaidaMin,
+    empresa
+  );
+  if (!esperado) return false;
+  return Math.abs(minutosDeDesvio(agora, esperado.entradaMin)) >= LIMIAR_TROCA_TURNO_MIN;
+}
+
 /** Diferença em minutos entre um instante real e um horário esperado
  * (minutos desde meia-noite Brasília) — positivo quando o real vem depois
  * do esperado. Escolhe a meia-noite mais próxima do instante real (em vez
  * de sempre a do mesmo dia-calendário) pra turnos que atravessam a
  * meia-noite (ex.: 12x36 começando às 19h) não gerarem um desvio gigante
  * artificial — mesmo espírito de alertaHorarioNormal no dashboard. */
-function minutosDeDesvio(horaReal: Date, minutoEsperado: number): number {
+export function minutosDeDesvio(horaReal: Date, minutoEsperado: number): number {
   const dataISO = dataISOBrasil(horaReal);
   let esperado = instanteBrasil(dataISO, minutoEsperado);
   const diffMs = horaReal.getTime() - esperado.getTime();

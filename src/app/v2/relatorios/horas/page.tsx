@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import { inicioDoDiaBrasil, inicioDaSemanaBrasil, inicioDoMesBrasil, dataISOBrasil, instanteBrasil, formatarDataSemHora } from "@/lib/data";
-import { LABEL_ESCALA_TRABALHO, horarioEsperadoClt, calcularSaldoDiarioClt, pausaAplicadaEm } from "@/lib/ponto";
+import { LABEL_ESCALA_TRABALHO, horarioEsperadoDoRegistro, calcularSaldoDiarioClt, pausaAplicadaEm } from "@/lib/ponto";
 
 /** Espelho completo de src/app/relatorios/horas/page.tsx (v1, não
  * tocado) — mesma query/regra. Link de cada pessoa continua no
@@ -53,6 +53,7 @@ export default async function V2RelatorioHorasPage({
         minutosTrabalhados: true,
         minutosDescontadosPausa: true,
         correcaoSaidaEm: true,
+        trocaTurnoOficialHoje: true,
         pessoa: { select: { nome: true } },
       },
     }),
@@ -83,17 +84,14 @@ export default async function V2RelatorioHorasPage({
         horarioSaida12x36Min: true,
         horarioEntrada12x36NoiteMin: true,
         horarioSaida12x36NoiteMin: true,
+        horarioInicioDiaMin: true,
+        horarioInicioNoiteMin: true,
       },
     }),
   ]);
 
   const vinculoPorPessoa = new Map(vinculos.map((v) => [v.pessoaId, v]));
-  const horarioEsperadoPorPessoa = new Map(
-    vinculos.map((v) => [
-      v.pessoaId,
-      horarioEsperadoClt(v.escalaTrabalho, v.escalaTurno, v.horarioEntradaMin, v.horarioSaidaMin, empresaConfig),
-    ])
-  );
+  const VINCULO_VAZIO = { escalaTrabalho: null, escalaTurno: null, horarioEntradaMin: null, horarioSaidaMin: null };
 
   let totalMinutos = 0;
   const porPessoa = new Map<
@@ -120,7 +118,7 @@ export default async function V2RelatorioHorasPage({
     atual.registros += 1;
     if (r.correcaoSaidaEm) atual.encerradosPelaEmpresa += 1;
 
-    const esperado = horarioEsperadoPorPessoa.get(r.pessoaId) ?? null;
+    const esperado = horarioEsperadoDoRegistro(r, vinculoPorPessoa.get(r.pessoaId) ?? VINCULO_VAZIO, empresaConfig);
     const saldo = calcularSaldoDiarioClt(r.minutosTrabalhados, esperado, pausaAplicadaEm(r));
     const saldoMin = (saldo.horaExtraMin ?? 0) - (saldo.horasDevidasMin ?? 0);
     const dataISO = dataISOBrasil(r.horaEntrada);

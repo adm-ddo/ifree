@@ -147,11 +147,30 @@ type Step =
       intervaloHabilitado: boolean;
       ultimaFuncaoId: number | null;
     } & DadosPessoa)
+  | ({
+      /** CLT batendo ponto muito fora do horário esperado dela, sem nada
+       * aberto pra fechar — pergunta extra pago x troca de turno hoje (ver
+       * tipo "CLT_HORARIO_DIFERENTE" em actions.ts). Diferente de
+       * cltOuExtra: "trocar turno" sempre aparece, "extra pago" só quando
+       * podeExtra. */
+      name: "cltHorarioDiferente";
+      pessoaId: number;
+      pessoaNome: string;
+      intervaloHabilitado: boolean;
+      ultimaFuncaoId: number | null;
+      podeExtra: boolean;
+    } & Omit<DadosPessoa, "chavePix" | "tipoChavePix"> & {
+        chavePix: string | null;
+        tipoChavePix: TipoChavePix | null;
+      })
   | {
       name: "cltFoto";
       pessoaId: number;
       pessoaNome: string;
       acao: AcaoPonto;
+      /// true quando veio da escolha "trocar turno oficial só hoje" (ver
+      /// cltHorarioDiferente acima) — repassado pra baterPontoClt.
+      trocaTurnoOficialHoje?: boolean;
     }
   | { name: "cltSucesso"; pessoaNome: string; acao: AcaoPonto }
   | { name: "erro"; mensagem: string }
@@ -300,6 +319,22 @@ export default function TotemFlow({
                 registroAberto: res.registroAberto,
                 intervaloHabilitado: res.intervaloHabilitado,
                 ultimaFuncaoId: res.ultimaFuncaoId,
+                telefone: res.telefone,
+                endereco: res.endereco,
+                numero: res.numero,
+                complemento: res.complemento,
+                chavePix: res.chavePix,
+                tipoChavePix: res.tipoChavePix,
+              });
+            }
+            if (res.tipo === "CLT_HORARIO_DIFERENTE") {
+              return setStep({
+                name: "cltHorarioDiferente",
+                pessoaId: res.pessoaId,
+                pessoaNome: res.pessoaNome,
+                intervaloHabilitado: res.intervaloHabilitado,
+                ultimaFuncaoId: res.ultimaFuncaoId,
+                podeExtra: res.podeExtra,
                 telefone: res.telefone,
                 endereco: res.endereco,
                 numero: res.numero,
@@ -741,6 +776,51 @@ export default function TotemFlow({
         </div>
       )}
 
+      {step.name === "cltHorarioDiferente" && (
+        <div className="flex flex-col gap-4 items-center w-full max-w-lg">
+          <h1 className="text-3xl font-semibold text-navy-900">
+            Oi, {step.pessoaNome.split(" ")[0]}! Você está batendo ponto num horário bem diferente do seu. O que
+            está acontecendo?
+          </h1>
+          <button
+            onClick={() =>
+              setStep({
+                name: "cltFoto",
+                pessoaId: step.pessoaId,
+                pessoaNome: step.pessoaNome,
+                acao: "ENTRADA",
+                trocaTurnoOficialHoje: true,
+              })
+            }
+            className="w-full rounded-xl border border-stone-300 bg-white hover:border-brand-400 hover:bg-brand-50 px-6 py-5 text-xl font-medium text-navy-900 transition-colors"
+          >
+            🔁 Estou trocando meu turno oficial só hoje
+          </button>
+          {step.podeExtra && (
+            <button
+              onClick={() =>
+                setStep({
+                  name: "foto",
+                  pessoaId: step.pessoaId,
+                  pessoaNome: step.pessoaNome,
+                  ultimaFuncaoId: step.ultimaFuncaoId,
+                  telefone: step.telefone,
+                  endereco: step.endereco,
+                  numero: step.numero,
+                  complemento: step.complemento,
+                  chavePix: step.chavePix!,
+                  tipoChavePix: step.tipoChavePix!,
+                })
+              }
+              className="w-full rounded-xl border border-stone-300 bg-white hover:border-brand-400 hover:bg-brand-50 px-6 py-5 text-xl font-medium text-navy-900 transition-colors"
+            >
+              💰 Estou fazendo um extra pago hoje
+            </button>
+          )}
+          <BotaoCancelar onClick={() => setStep({ name: "documento" })} />
+        </div>
+      )}
+
       {step.name === "cltEscolha" && (
         <div className="flex flex-col gap-4 items-center w-full max-w-lg">
           <h1 className="text-3xl font-semibold text-navy-900">
@@ -773,6 +853,7 @@ export default function TotemFlow({
                 pessoaId: step.pessoaId,
                 fotoDataUrl: dataUrl,
                 acao: step.acao,
+                trocaTurnoOficialHoje: step.trocaTurnoOficialHoje,
               });
               if ("erro" in res) return setStep({ name: "erro", mensagem: res.erro });
               setStep({ name: "cltSucesso", pessoaNome: step.pessoaNome, acao: res.acao });

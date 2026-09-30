@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/auth";
 import { formatarHora, inicioDoDiaBrasil, dataISOBrasil, instanteBrasil } from "@/lib/data";
 import { classificarTurno, type TipoTurno } from "@/lib/turno";
-import { horarioEsperadoClt, saidaEsperadaClt } from "@/lib/ponto";
+import { horarioEsperadoDoRegistro, saidaEsperadaClt } from "@/lib/ponto";
 import { buscarSaldoAsaas } from "@/lib/pagamentos/asaas-deposito";
 import AutoRefresh from "@/components/AutoRefresh";
 import AvatarPessoa from "@/components/AvatarPessoa";
@@ -100,6 +100,7 @@ export default async function DashboardPage() {
         horaEntrada: true,
         entradaIntervalo: true,
         saidaIntervalo: true,
+        trocaTurnoOficialHoje: true,
         pessoa: { select: { id: true, nome: true, fotoPerfilUrl: true, sexo: true } },
       },
     }),
@@ -281,16 +282,14 @@ export default async function DashboardPage() {
   // mesmos nomes de campo por coincidência. Sem escala/horário configurado
   // pra essa pessoa, não há o que comparar (retorna null, mesmo espírito
   // informativo de sempre).
-  function alertaHorarioNormalClt(pessoaId: number, horaEntrada: Date): { cutoff: Date; podeDobrar: boolean } | null {
+  function alertaHorarioNormalClt(
+    pessoaId: number,
+    horaEntrada: Date,
+    trocaTurnoOficialHoje: boolean
+  ): { cutoff: Date; podeDobrar: boolean } | null {
     const vinculo = vinculoCltPorPessoa.get(pessoaId);
     if (!vinculo) return null;
-    const esperado = horarioEsperadoClt(
-      vinculo.escalaTrabalho,
-      vinculo.escalaTurno,
-      vinculo.horarioEntradaMin,
-      vinculo.horarioSaidaMin,
-      empresaConfig
-    );
+    const esperado = horarioEsperadoDoRegistro({ horaEntrada, trocaTurnoOficialHoje }, vinculo, empresaConfig);
     const cutoff = saidaEsperadaClt(horaEntrada, esperado);
     if (!cutoff || cutoff > new Date()) return null;
     return { cutoff, podeDobrar: false };
@@ -344,7 +343,7 @@ export default async function DashboardPage() {
         horaEntrada: r.horaEntrada,
         emIntervalo: r.entradaIntervalo !== null && r.saidaIntervalo === null,
         conflitoDesde: conflitoDesde(r.pessoa.id, r.horaEntrada),
-        alertaHorario: alertaHorarioNormalClt(r.pessoa.id, r.horaEntrada),
+        alertaHorario: alertaHorarioNormalClt(r.pessoa.id, r.horaEntrada, r.trocaTurnoOficialHoje),
       };
     }),
   ].sort((a, b) => a.horaEntrada.getTime() - b.horaEntrada.getTime());

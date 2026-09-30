@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { horarioEsperadoClt, calcularDesvioPontoClt } from "@/lib/ponto";
+import { horarioEsperadoDoRegistro, calcularDesvioPontoClt } from "@/lib/ponto";
 import { dataISOBrasil } from "@/lib/data";
 
 export type PeriodoFechado = { inicio: Date; fim: Date; dias: number };
@@ -104,6 +104,7 @@ export async function calcularResumoHoras(
         horaSaida: true,
         minutosTrabalhados: true,
         status: true,
+        trocaTurnoOficialHoje: true,
         pessoa: { select: { nome: true } },
       },
     }),
@@ -137,6 +138,8 @@ export async function calcularResumoHoras(
         horarioSaida12x36Min: true,
         horarioEntrada12x36NoiteMin: true,
         horarioSaida12x36NoiteMin: true,
+        horarioInicioDiaMin: true,
+        horarioInicioNoiteMin: true,
       },
     }),
   ]);
@@ -182,14 +185,13 @@ export async function calcularResumoHoras(
     }
     atual.minutos += r.minutosTrabalhados ?? 0;
 
-    const vinculo = vinculoPorPessoa.get(r.pessoaId);
-    const esperado = horarioEsperadoClt(
-      vinculo?.escalaTrabalho ?? null,
-      vinculo?.escalaTurno ?? null,
-      vinculo?.horarioEntradaMin ?? null,
-      vinculo?.horarioSaidaMin ?? null,
-      empresaConfig
-    );
+    const vinculo = vinculoPorPessoa.get(r.pessoaId) ?? {
+      escalaTrabalho: null,
+      escalaTurno: null,
+      horarioEntradaMin: null,
+      horarioSaidaMin: null,
+    };
+    const esperado = horarioEsperadoDoRegistro(r, vinculo, empresaConfig);
     const { atrasoEntradaMin } = calcularDesvioPontoClt(r.horaEntrada, r.horaSaida, esperado);
     if (atrasoEntradaMin !== null) atual.semAtraso = false;
 

@@ -101,6 +101,7 @@ export default async function V2TurnosPage({
       assinaturaContratoUrl: true,
       criadoManualmente: true,
       criadoManualmentePorEmail: true,
+      origemExtraDiarioClt: true,
       turnoDobrado: true,
       pessoa: { select: { nome: true } },
       funcao: { select: { nome: true } },
@@ -309,6 +310,7 @@ export default async function V2TurnosPage({
             temRecibo: turno.horaSaida !== null && turno.valorTotal !== null,
             criadoManualmente: turno.criadoManualmente,
             criadoManualmentePorEmail: turno.criadoManualmentePorEmail,
+            origemExtraDiarioClt: turno.origemExtraDiarioClt,
           }))}
         />
       )}

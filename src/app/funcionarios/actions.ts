@@ -1202,6 +1202,11 @@ export async function criarTurnoManualClt(
       status: "CONCLUIDO",
       criadoManualmente: true,
       criadoManualmentePorEmail: sessao.email,
+      // Toda pessoa que passa por aqui é CLT (vinculoCltDaEmpresa acima
+      // já garante isso) fazendo um extra pago — mesmo marcador que o
+      // totem usa (ver iniciarTurno em src/app/t/[token]/actions.ts), só
+      // pra colorir diferente nas listas de turno.
+      origemExtraDiarioClt: true,
     },
   });
 

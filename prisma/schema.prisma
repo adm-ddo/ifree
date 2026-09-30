@@ -1269,6 +1269,14 @@ model Turno {
   /// src/app/funcionarios/actions.ts::criarTurnoManualClt.
   criadoManualmente           Boolean             @default(false)
   criadoManualmentePorEmail   String?
+  /// true quando este turno é de uma pessoa CLT fazendo um extra pago
+  /// (Opção A do fluxo de "bater ponto fora do horário", ver
+  /// src/app/t/[token]/actions.ts e criarTurnoManualClt) — pessoa é CLT,
+  /// não freelancer. Usado só pra colorir diferente nas listas de turno,
+  /// nunca muda cálculo de pagamento. Independente de criadoManualmente
+  /// (esse aqui é sobre QUEM é a pessoa, não sobre COMO o turno foi
+  /// lançado — dá pra ter os dois juntos ou separados).
+  origemExtraDiarioClt        Boolean             @default(false)
   /// Auditoria de correção manual de função — preenchidos só na primeira
   /// correção (preservam o "antes" original mesmo que seja corrigido de
   /// novo depois). Null enquanto a função nunca foi corrigida.
@@ -1399,6 +1407,14 @@ model RegistroPonto {
   /// informativo — não afeta pagamento, que não existe pro CLT.
   minutosDescontadosPausa Int?
   status                  StatusRegistroPonto @default(ABERTO)
+  /// true quando a pessoa confirmou no totem que está trocando o turno
+  /// oficial só neste dia (Opção B do fluxo de "bater ponto fora do
+  /// horário") — muda a base de comparação de horário esperado (ver
+  /// horarioEsperadoClt em src/lib/ponto.ts): em vez do horário PESSOAL
+  /// dela (VinculoPessoaEmpresa.horarioEntradaMin/horarioSaidaMin ou
+  /// escala/turno dela), usa o padrão da empresa pro período (dia/noite)
+  /// em que ela realmente bateu entrada nesse dia específico.
+  trocaTurnoOficialHoje   Boolean             @default(false)
   /// Auditoria de saída confirmada manualmente pelo dono (registro que
   /// ninguém encerrou no totem) — null quando a própria pessoa bateu a
   /// saída normalmente. Mesma lógica de Turno.correcaoSaidaEm/PorEmail,

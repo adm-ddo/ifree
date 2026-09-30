@@ -96,6 +96,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
         status: true,
         fechamentoAutomatico: true,
         correcaoSaidaEm: true,
+        origemExtraDiarioClt: true,
         funcao: { select: { id: true, nome: true } },
         pagamento: { select: { status: true, grupoPagamentoId: true, erro: true } },
       },
@@ -223,6 +224,7 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
             grupoPagamentoId: t.pagamento?.grupoPagamentoId ?? null,
             precisaResolverSaida: t.status !== "ABERTO" && t.fechamentoAutomatico && !t.correcaoSaidaEm,
             podeCorrigirSaida: t.status !== "ABERTO" && (t.fechamentoAutomatico || t.correcaoSaidaEm !== null),
+            origemExtraDiarioClt: t.origemExtraDiarioClt,
           }))}
         />
       )}

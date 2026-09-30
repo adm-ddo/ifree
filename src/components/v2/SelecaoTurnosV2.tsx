@@ -41,6 +41,10 @@ type TurnoResumo = {
   /// página de detalhe, sem precisar procurar pelo link genérico
   /// "Detalhes".
   podeCorrigirSaida: boolean;
+  /// true quando este turno é de uma pessoa CLT fazendo um extra pago
+  /// (ver Turno.origemExtraDiarioClt no schema) — mostra um badge
+  /// diferente pra não confundir com turno de freelancer de verdade.
+  origemExtraDiarioClt: boolean;
 };
 
 const STATUS_LABEL: Record<StatusTurno, string> = {
@@ -202,6 +206,14 @@ export default function SelecaoTurnosV2({ turnos }: { turnos: TurnoResumo[] }) {
               >
                 {STATUS_LABEL[turno.status]}
               </span>
+              {turno.origemExtraDiarioClt && (
+                <span
+                  className="text-xs rounded-full border px-2 py-1 bg-violet-50 text-violet-700 border-violet-200"
+                  title="Extra pago pra uma pessoa CLT, não freelancer"
+                >
+                  👔 Extra de CLT
+                </span>
+              )}
               {turno.grupoPagamentoId !== null && (
                 <span
                   className={`text-xs rounded-full border px-2 py-1 ${corGrupoPagamento(turno.grupoPagamentoId)}`}
