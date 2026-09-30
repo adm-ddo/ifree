@@ -15,19 +15,27 @@ const RETENCAO_DIAS = 30;
  * senha, todos de curta duração), ConviteEquipe (link de convite pra
  * entrar na equipe, expira sozinho), TentativaConfirmacaoIdentidade
  * (contador de tentativas de 2º fator, só importa em tempo real pro
- * auto-bloqueio) e SessaoDenunciaAnonima (token de acompanhamento de uma
- * denúncia anônima — a denúncia em si, essa entra no backup). Todo o
- * resto do schema entra, porque perder isso silenciosamente só apareceria
- * numa recuperação de desastre real, tarde demais pra consertar.
+ * auto-bloqueio), SessaoDenunciaAnonima (token de acompanhamento de uma
+ * denúncia anônima — a denúncia em si, essa entra no backup) e
+ * PushSubscriptionPessoa (endpoint de push do navegador — se perder, a
+ * pessoa só clica em "ativar notificações" de novo, nenhum dado de
+ * negócio junto). Todo o resto do schema entra, porque perder isso
+ * silenciosamente só apareceria numa recuperação de desastre real, tarde
+ * demais pra consertar.
  *
- * Versão 4 do formato (2026-09-29): auditoria encontrou 18 tabelas de
- * negócio criadas depois da v3 e nunca adicionadas aqui — incluindo o
- * módulo inteiro de Central de Ética (Denuncia e afins), PGR/NR-1 (risco
- * psicossocial, exigido por lei), GED (documentos/contratos assinados),
- * ExtraMarcado ("Free" marcado) e, mais crítico de todos,
- * ContaAsaasEmpresa — sem isso um restore não teria como reconectar o
- * pagamento automático de nenhuma empresa. Corrigido pra somar essas 18.
- * (Ver histórico do arquivo pra v2/v3, com menos tabelas.) */
+ * Versão 4 (2026-09-29): auditoria encontrou 18 tabelas de negócio criadas
+ * depois da v3 e nunca adicionadas aqui — incluindo o módulo inteiro de
+ * Central de Ética (Denuncia e afins), PGR/NR-1 (risco psicossocial,
+ * exigido por lei), GED (documentos/contratos assinados), ExtraMarcado
+ * ("Free" marcado) e, mais crítico de todos, ContaAsaasEmpresa — sem isso
+ * um restore não teria como reconectar o pagamento automático de nenhuma
+ * empresa.
+ *
+ * Versão 5 (2026-09-30): mesmo problema se repetindo — 3 tabelas criadas
+ * na sessão do dia (atestado/afastamento CLT, cobrança do selo do
+ * freelancer) nunca tinham sido somadas aqui. Daqui pra frente, checar
+ * este arquivo contra `grep -oP '^model \K\w+' prisma/schema.prisma`
+ * sempre que criar uma tabela nova que guarda dado de negócio real. */
 async function coletarDados() {
   const [
     empresas,
@@ -65,6 +73,8 @@ async function coletarDados() {
     ciclosPgr,
     respostasPgr,
     acoesPgr,
+    atestadosClt,
+    cobrancasSelo,
   ] = await Promise.all([
     prisma.empresa.findMany(),
     prisma.grupoEconomico.findMany(),
@@ -101,10 +111,12 @@ async function coletarDados() {
     prisma.cicloPgr.findMany(),
     prisma.respostaPgr.findMany(),
     prisma.acaoPgr.findMany(),
+    prisma.atestadoClt.findMany(),
+    prisma.cobrancaSelo.findMany(),
   ]);
 
   return {
-    versao: 4,
+    versao: 5,
     geradoEm: new Date().toISOString(),
     empresas,
     grupoEconomico,
@@ -141,6 +153,8 @@ async function coletarDados() {
     ciclosPgr,
     respostasPgr,
     acoesPgr,
+    atestadosClt,
+    cobrancasSelo,
   };
 }
 
