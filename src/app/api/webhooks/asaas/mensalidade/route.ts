@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { confirmarCobrancaPaga } from "@/lib/assinatura";
+import { confirmarCobrancaSeloPaga } from "@/lib/selo-freelancer";
 import { compararSeguro } from "@/lib/crypto";
 
 /** Recebe a confirmação de que uma empresa cliente pagou a MENSALIDADE do
@@ -11,6 +12,13 @@ import { compararSeguro } from "@/lib/crypto";
  * do próprio painel Asaas — não dá pra automatizar como as subcontas,
  * que se cria via API; a conta-mãe é uma só e configurada manualmente uma
  * única vez), eventos PAYMENT_RECEIVED e PAYMENT_CONFIRMED.
+ *
+ * MESMO endpoint também confirma cobrança do SELO do freelancer (ver
+ * AsaasCobrancaSeloService em src/lib/cobranca-selo/) — as duas cobram da
+ * mesma conta-mãe, então reaproveita o único webhook já cadastrado em vez
+ * de precisar registrar um segundo na Asaas: tenta confirmarCobrancaPaga
+ * (empresa) primeiro, e só tenta confirmarCobrancaSeloPaga (pessoa) se a
+ * primeira não achar a cobrança por esse paymentId.
  *
  * Autenticação: header `asaas-access-token` comparado contra
  * ASAAS_WEBHOOK_MENSALIDADE_TOKEN — token PRÓPRIO, isolado dos outros.
@@ -35,7 +43,10 @@ export async function POST(req: Request) {
   }
 
   if (evento === "PAYMENT_RECEIVED" || evento === "PAYMENT_CONFIRMED") {
-    await confirmarCobrancaPaga(String(paymentId));
+    const resultado = await confirmarCobrancaPaga(String(paymentId));
+    if (!resultado.ok) {
+      await confirmarCobrancaSeloPaga(String(paymentId));
+    }
   }
 
   return NextResponse.json({ ok: true });

@@ -33,15 +33,22 @@ export async function GET() {
       contatoEmergenciaNome: true,
       contatoEmergenciaTelefone: true,
       meiosTransporte: true,
+      selo: true,
     },
   });
 
-  // Gate sempre re-checado no servidor — o botão desabilitado no client é
-  // só UX, não segurança. Ninguém gera currículo de perfil incompleto
-  // acessando a rota direto por URL.
+  // Gates sempre re-checados no servidor — o botão desabilitado no client é
+  // só UX, não segurança. Ninguém gera currículo de perfil incompleto ou
+  // sem selo pago acessando a rota direto por URL.
   const completude = calcularCompletude(pessoa);
   if (!completude.liberaCurriculo) {
     redirect("/portal");
+  }
+  // Currículo em PDF é benefício de selo Prata/Ouro (ver
+  // src/lib/selo-freelancer.ts) — Bronze vai direto pra tela de assinatura
+  // em vez da home, já que é exatamente o motivo do bloqueio.
+  if (pessoa.selo === "BRONZE") {
+    redirect("/portal/selo");
   }
 
   const [avaliacoesRecebidas, turnos, registrosPonto] = await Promise.all([

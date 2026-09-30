@@ -820,6 +820,22 @@ model Pessoa {
   /// quando a pessoa respondeu "sim" à pergunta mas NÃO veio por um link
   /// de indicação (?ref=). Puramente informativo, não gera crédito.
   indicadoPorNomeTexto        String?
+  /// Nível pago de monetização do freelancer (iFREE Conecta) — Bronze é
+  /// grátis/manual (sem currículo em PDF, sem alerta por e-mail de vaga
+  /// nova); Prata (R$9,90/mês) e Ouro (R$19,90/mês) liberam esses
+  /// benefícios, ver src/lib/selo-freelancer.ts. Puramente por pagamento,
+  /// sem exigência de reputação (decisão do Thiago em 2026-09-29).
+  selo                        SeloFreelancer      @default(BRONZE)
+  /// Até quando a mensalidade do selo pago vale — null pra Bronze (sem
+  /// cobrança). Vencido, o cron verificarSeloAtrasado (src/lib/selo-freelancer.ts)
+  /// devolve a pessoa pra BRONZE — sem período de graça (diferente da
+  /// empresa): perder um benefício não é bloquear acesso ao painel, então
+  /// não há razão pra segurar o downgrade.
+  seloVenceEm                 DateTime?
+  /// Id do Customer na Asaas (conta-mãe) pra cobrança do selo — mesmo
+  /// papel de Empresa.clienteAsaasMensalidadeId, campo separado porque é
+  /// outro tipo de documento (CPF, não CNPJ) e outro fluxo de cobrança.
+  clienteAsaasSeloId          String?
   criadoEm                    DateTime            @default(now())
 
   vinculos                        VinculoPessoaEmpresa[]
@@ -840,6 +856,42 @@ model Pessoa {
   pushSubscriptions               PushSubscriptionPessoa[]
   tentativasConfirmacaoIdentidade TentativaConfirmacaoIdentidade[]
   extrasMarcados                  ExtraMarcado[]
+  cobrancasSelo                   CobrancaSelo[]
+}
+
+enum SeloFreelancer {
+  BRONZE
+  PRATA
+  OURO
+}
+
+/// Cobrança Pix avulsa da assinatura do selo do freelancer (Prata/Ouro) —
+/// mesmo espírito de CobrancaMensalidade (empresa, ver schema abaixo), só
+/// que aqui é o freelancer pagando pra destravar currículo/alertas por
+/// e-mail/destaque (ver SeloFreelancer em Pessoa). N cobranças por pessoa
+/// ao longo do tempo, geradas sob demanda em /portal/selo.
+model CobrancaSelo {
+  id                 Int            @id @default(autoincrement())
+  pessoaId           Int
+  /// PRATA ou OURO — o que esta cobrança específica está comprando.
+  selo               SeloFreelancer
+  valor              Decimal        @db.Decimal(10, 2)
+  /// "2026-08" — mês de competência, evita gerar duas cobranças pro mesmo
+  /// mês se a pessoa clicar em "gerar PIX" mais de uma vez.
+  referenciaMes      String
+  status             StatusCobranca @default(PENDENTE)
+  idTransacaoExterna String?
+  /// Copia-e-cola do PIX.
+  qrCode             String?
+  qrCodeImagemUrl    String?
+  expiraEm           DateTime
+  pagoEm             DateTime?
+  criadoEm           DateTime       @default(now())
+  atualizadoEm       DateTime       @updatedAt
+
+  pessoa Pessoa @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@index([pessoaId, status])
 }
 
 /// Sessão de login da Pessoa no Portal (iFREE Conecta) — deliberadamente

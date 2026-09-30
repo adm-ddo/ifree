@@ -73,7 +73,7 @@ export async function processarNotificacoesPendentesVagaNova(
       id: true,
       vagaId: true,
       pessoaId: true,
-      pessoa: { select: { nome: true, email: true } },
+      pessoa: { select: { nome: true, email: true, selo: true } },
       vaga: {
         select: { cargo: true, nomeFantasia: true, empresa: { select: { nome: true } } },
       },
@@ -83,6 +83,15 @@ export async function processarNotificacoesPendentesVagaNova(
 
   let enviados = 0;
   await processarEmLotes(pendentes, CONCORRENCIA_ENVIO, async (match) => {
+    // Alerta por e-mail de vaga compatível é benefício de selo Prata/Ouro
+    // (ver src/lib/selo-freelancer.ts) — Bronze não recebe, mas marca
+    // notificadoEm igual pra não ficar reprocessando pra sempre o mesmo
+    // match de quem nunca vai virar Prata/Ouro. Só falha de ENVIO de
+    // verdade (abaixo) continua deixando notificadoEm null pra retry.
+    if (match.pessoa.selo === "BRONZE") {
+      await prisma.vagaMatchPassivo.update({ where: { id: match.id }, data: { notificadoEm: new Date() } });
+      return;
+    }
     if (match.pessoa.email) {
       const { sucesso } = await enviarEmailVagaCompativel(
         match.pessoa.email,

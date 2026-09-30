@@ -74,6 +74,7 @@ export default async function PortalHomePage() {
       meiosTransporte: true,
       disponivelParaOportunidades: true,
       sexo: true,
+      selo: true,
     },
   });
 
@@ -209,6 +210,26 @@ export default async function PortalHomePage() {
 
       <SugestaoInstalarApp />
       <AtivarNotificacoesPush vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null} />
+
+      <Link
+        href="/portal/selo"
+        className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm transition-colors ${
+          pessoa.selo === "OURO"
+            ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+            : pessoa.selo === "PRATA"
+              ? "border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100"
+              : "border-white/20 bg-white/5 text-white hover:bg-white/10"
+        }`}
+      >
+        <span>
+          {pessoa.selo === "OURO" && "🏅 Você é selo Ouro"}
+          {pessoa.selo === "PRATA" && "🥈 Você é selo Prata"}
+          {pessoa.selo === "BRONZE" && "🥉 Você é selo Bronze — libere currículo e alertas por e-mail"}
+        </span>
+        <span className="shrink-0 text-xs underline">
+          {pessoa.selo === "OURO" ? "Ver detalhes" : "Assinar"}
+        </span>
+      </Link>
 
       {meusExtrasMarcados.length > 0 && (
         <div>
