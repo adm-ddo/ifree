@@ -837,6 +837,7 @@ model Pessoa {
   documentosGed                   DocumentoGed[]
   entradasEpi                     EntradaEpi[]
   atestadosClt                    AtestadoClt[]
+  pushSubscriptions               PushSubscriptionPessoa[]
   tentativasConfirmacaoIdentidade TentativaConfirmacaoIdentidade[]
   extrasMarcados                  ExtraMarcado[]
 }
@@ -1841,6 +1842,11 @@ model Conversa {
   /// "não lida" na caixa de entrada, sem precisar de flag por mensagem.
   ultimaLeituraEmpresaEm DateTime?
   ultimaLeituraPessoaEm  DateTime?
+  /// Quando a empresa clicou em "Chamar atenção" pela última vez (ver
+  /// chamarAtencaoConversa, src/app/conversas/[id]/actions.ts) — limita
+  /// a 1x a cada CHAMAR_ATENCAO_INTERVALO_HORAS (src/lib/push.ts) pra
+  /// não virar spam de notificação push no celular do freelancer.
+  ultimaChamadaAtencaoEm DateTime?
 
   empresa   Empresa    @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   pessoa    Pessoa     @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
@@ -1867,6 +1873,25 @@ model Mensagem {
   conversa Conversa @relation(fields: [conversaId], references: [id], onDelete: Cascade)
 
   @@index([conversaId, criadoEm])
+}
+
+/// Uma "assinatura" de push por dispositivo/navegador em que o
+/// freelancer ativou notificações no Portal (ver AtivarNotificacoesPush.tsx
+/// em src/app/portal/) — uma Pessoa pode ter várias (celular + notebook,
+/// por exemplo). `endpoint` é único por natureza: é a URL que o próprio
+/// navegador gera junto do provedor de push dele (FCM no Chrome/Android,
+/// Mozilla no Firefox etc.), nunca duas subscriptions ativas têm a mesma.
+model PushSubscriptionPessoa {
+  id          Int      @id @default(autoincrement())
+  pessoaId    Int
+  endpoint    String   @unique @db.Text
+  chaveP256dh String
+  chaveAuth   String
+  criadoEm    DateTime @default(now())
+
+  pessoa Pessoa @relation(fields: [pessoaId], references: [id], onDelete: Cascade)
+
+  @@index([pessoaId])
 }
 
 enum CategoriaDenuncia {

@@ -234,6 +234,40 @@ export async function atualizarDisponibilidade(disponivel: boolean): Promise<voi
   revalidatePath("/portal/vagas");
 }
 
+export type SalvarPushSubscriptionInput = {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+};
+
+/** Persiste a subscription de push gerada pelo navegador (ver
+ * AtivarNotificacoesPush.tsx) — chamada direto pelo client depois de
+ * `pushManager.subscribe()`, sem <form>, por isso devolve { erro } em
+ * vez de lançar. `endpoint` é único por natureza (o navegador nunca gera
+ * dois iguais pro mesmo dispositivo/navegador), então upsert por ele
+ * cobre tanto o primeiro cadastro quanto reativar depois de ter
+ * desativado e ativado de novo no mesmo aparelho. */
+export async function salvarPushSubscription(
+  input: SalvarPushSubscriptionInput
+): Promise<{ erro?: string }> {
+  const sessao = await requirePessoa();
+  if (!input.endpoint || !input.keys?.p256dh || !input.keys?.auth) {
+    return { erro: "Assinatura de notificação inválida." };
+  }
+
+  await prisma.pushSubscriptionPessoa.upsert({
+    where: { endpoint: input.endpoint },
+    update: { pessoaId: sessao.pessoaId, chaveP256dh: input.keys.p256dh, chaveAuth: input.keys.auth },
+    create: {
+      pessoaId: sessao.pessoaId,
+      endpoint: input.endpoint,
+      chaveP256dh: input.keys.p256dh,
+      chaveAuth: input.keys.auth,
+    },
+  });
+
+  return {};
+}
+
 /** Pausa a própria conta (reversível) — chamada direto pelo botão em
  * EncerrarContaCard.tsx. A partir daqui, requirePessoaComTermosAceitos
  * (src/lib/auth-pessoa.ts) redireciona toda tela do Portal pra

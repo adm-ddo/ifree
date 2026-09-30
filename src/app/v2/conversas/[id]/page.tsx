@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import ChatWindow from "@/components/ChatWindow";
 import { buscarMensagensEmpresa, enviarMensagemEmpresa } from "@/app/conversas/[id]/actions";
+import ChamarAtencaoBotao from "./ChamarAtencaoBotao";
 
 /** Espelho completo de src/app/conversas/[id]/page.tsx (v1, não tocado) —
  * reaproveita ChatWindow direto (genérico, sem chrome do v1) e as mesmas
@@ -32,6 +33,7 @@ export default async function V2ConversaEmpresaPage({ params }: { params: Promis
           📋 Todas as vagas
         </Link>
       </div>
+      <ChamarAtencaoBotao conversaId={conversaId} />
       <ChatWindow
         meuAutor="EMPRESA"
         outroNome={conversa.pessoa.nome}

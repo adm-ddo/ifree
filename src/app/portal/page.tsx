@@ -14,6 +14,7 @@ import DisponibilidadeToggle from "./DisponibilidadeToggle";
 import IndicacaoCard from "./IndicacaoCard";
 import EncerrarContaCard from "./EncerrarContaCard";
 import SugestaoInstalarApp from "./SugestaoInstalarApp";
+import AtivarNotificacoesPush from "./AtivarNotificacoesPush";
 import ExtraMarcadoPessoa from "./vagas/ExtraMarcadoPessoa";
 import { contarDesmarquesEmpresaEmLote, contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extra";
 
@@ -207,6 +208,7 @@ export default async function PortalHomePage() {
       />
 
       <SugestaoInstalarApp />
+      <AtivarNotificacoesPush vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? null} />
 
       {meusExtrasMarcados.length > 0 && (
         <div>
