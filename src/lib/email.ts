@@ -633,7 +633,13 @@ export async function enviarEmailTurnoRetido(
  * Thiago em 2026-09-28 junto com o retido de pagamento: linha de defesa
  * NA entrada, antes do turno nem começar. Sempre envia, sem checar
  * RESEND_API_KEY silenciosamente — é bloqueio de acesso, vale logar. */
-export async function enviarEmailBloqueioSuspeitaFraude(
+/** Avisa a empresa quando alguém bate entrada num período do dia
+ * diferente do que já tinha estabelecido como padrão — NÃO bloqueia
+ * ninguém (decisão do Thiago em 2026-09-30, depois de um caso real: um
+ * corte de horário configurado sem nenhuma margem travava gente
+ * legítima por só alguns minutos de diferença). Só um aviso pra
+ * conferência posterior; a pessoa já entrou normal. */
+export async function enviarEmailHorarioEntradaIncomum(
   destinatario: string,
   pessoaNome: string,
   motivo: string,
@@ -641,31 +647,30 @@ export async function enviarEmailBloqueioSuspeitaFraude(
 ): Promise<{ sucesso: boolean }> {
   const resend = cliente();
   if (!resend) {
-    console.warn(`RESEND_API_KEY não configurada — aviso de bloqueio por suspeita de fraude (pessoa ${pessoaId}) não enviado.`);
+    console.warn(`RESEND_API_KEY não configurada — aviso de horário incomum (pessoa ${pessoaId}) não enviado.`);
     return { sucesso: false };
   }
 
   const html = layoutEmail({
-    titulo: "🚨 Bloqueio por suspeita — horário de entrada incomum",
+    titulo: "⚠️ Horário de entrada incomum",
     paragrafos: [
-      `Por suspeita de tentativa de fraude, <strong>${escaparHtml(pessoaNome)}</strong> foi bloqueado(a) automaticamente e não consegue mais bater entrada no totem até você revisar.`,
+      `<strong>${escaparHtml(pessoaNome)}</strong> bateu entrada num período do dia diferente do que costuma — ela já entrou normalmente, isso é só um aviso pra você conferir se está tudo certo.`,
       escaparHtml(motivo),
-      "Se estiver tudo certo (a pessoa realmente precisava iniciar nesse horário), libere pelo sistema e peça pra ela bater entrada de novo.",
     ],
-    textoBotao: "Revisar e liberar",
-    linkBotao: `${SITE_URL}/freelancers/${pessoaId}`,
+    textoBotao: "Ver perfil",
+    linkBotao: `${SITE_URL}/v2/freelancers/${pessoaId}`,
   });
 
   try {
     await resend.emails.send({
       from: REMETENTE,
       to: destinatario,
-      subject: "🚨 Bloqueio por suspeita — horário de entrada incomum",
+      subject: "⚠️ Horário de entrada incomum",
       html,
     });
     return { sucesso: true };
   } catch (err) {
-    console.error(`Falha ao enviar aviso de bloqueio por suspeita de fraude (pessoa ${pessoaId}):`, err);
+    console.error(`Falha ao enviar aviso de horário incomum (pessoa ${pessoaId}):`, err);
     return { sucesso: false };
   }
 }
