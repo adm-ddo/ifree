@@ -4,6 +4,7 @@ import { requireModulo } from "@/lib/requireModulo";
 import FuncionarioRowV2 from "@/components/v2/FuncionarioRowV2";
 import NovoFuncionarioForm from "@/app/funcionarios/NovoFuncionarioForm";
 import { calcularFeriasEmAndamento } from "@/lib/ferias";
+import { calcularPrazoLimiteRescisao } from "@/lib/rescisao";
 
 /** Espelho completo de src/app/funcionarios/page.tsx (v1, não tocado) —
  * mesma query; NovoFuncionarioForm reaproveitado sem alteração,
@@ -26,6 +27,7 @@ export default async function V2FuncionariosPage({
       salarioMensal: true,
       escalaTrabalho: true,
       dataRescisao: true,
+      rescisaoDocumentosAssinadosEm: true,
       ultimasFeriasGozadasEm: true,
       feriasQuantidadeDias: true,
       pessoa: { select: { id: true, nome: true, documento: true, telefone: true, fotoPerfilUrl: true, sexo: true } },
@@ -75,6 +77,23 @@ export default async function V2FuncionariosPage({
               temFoto: Boolean(v.pessoa.fotoPerfilUrl),
               sexo: v.pessoa.sexo,
               dataRescisaoLabel: v.dataRescisao ? v.dataRescisao.toLocaleDateString("pt-BR", { timeZone: "UTC" }) : null,
+              // Mesmo cálculo do banner do topo (buscarRescisaoPendenteAlerta
+              // em src/lib/alertas.ts), só que aqui por PESSOA — pedido do
+              // Thiago em 2026-09-30: o banner avisa "tem gente vencida" mas
+              // não diz quem, obrigando a caçar na lista inteira. Só calcula
+              // quando a papelada ainda não foi marcada como assinada.
+              alertaAssinaturaRescisao:
+                v.dataRescisao && !v.rescisaoDocumentosAssinadosEm
+                  ? (() => {
+                      const { prazoLimite } = calcularPrazoLimiteRescisao(v.dataRescisao);
+                      const prazoLabel = prazoLimite.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+                      return prazoLimite.getTime() < hoje.getTime()
+                        ? { vencido: true as const, prazoLabel }
+                        : prazoLimite.getTime() - hoje.getTime() <= 3 * 24 * 60 * 60 * 1000
+                          ? { vencido: false as const, prazoLabel }
+                          : null;
+                    })()
+                  : null,
               feriasRetornoLabel: (() => {
                 const emAndamento = calcularFeriasEmAndamento(v.ultimasFeriasGozadasEm, v.feriasQuantidadeDias, hoje);
                 return emAndamento ? emAndamento.retorno.toLocaleDateString("pt-BR", { timeZone: "UTC" }) : null;

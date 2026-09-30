@@ -109,7 +109,7 @@ export default function AlertasV2({
 
       {rescisaoAlerta && (rescisaoAlerta.vencidos > 0 || rescisaoAlerta.vencendoEmBreve > 0) && (
         <Link
-          href="/v2/funcionarios"
+          href="/v2/funcionarios?desativados=1"
           className="block bg-red-600 text-white text-xs font-bold px-4 py-2.5 text-center"
         >
           🚨{" "}
@@ -120,7 +120,7 @@ export default function AlertasV2({
           ]
             .filter(Boolean)
             .join(" · ")}{" "}
-          · chame a pessoa pra assinar os documentos
+          · veja quem, abaixo, com o alerta ao lado do nome
         </Link>
       )}
 

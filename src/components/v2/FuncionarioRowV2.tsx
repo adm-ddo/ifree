@@ -17,6 +17,12 @@ type Funcionario = {
   escalaTrabalho: EscalaTrabalho | null;
   ativo: boolean;
   dataRescisaoLabel: string | null;
+  /// Papelada da rescisão ainda não assinada e o prazo legal de 10 dias
+  /// (CLT art. 477 §6º) já venceu ou vence em até 3 dias — mesmo cálculo
+  /// do banner do topo (buscarRescisaoPendenteAlerta em src/lib/alertas.ts),
+  /// só que aqui já dizendo QUEM é. Null quando não há rescisão pendente
+  /// ou a papelada já foi assinada.
+  alertaAssinaturaRescisao: { vencido: boolean; prazoLabel: string } | null;
   feriasRetornoLabel: string | null;
   temFoto: boolean;
   sexo: Sexo | null;
@@ -39,6 +45,19 @@ export default function FuncionarioRowV2({ funcionario }: { funcionario: Funcion
               <span className="text-[11px] text-red-600 font-normal">(rescindido em {funcionario.dataRescisaoLabel})</span>
             ) : (
               !funcionario.ativo && <span className="text-[11px] text-red-600 font-normal">(desativado)</span>
+            )}{" "}
+            {funcionario.alertaAssinaturaRescisao && (
+              <span
+                className={`text-[11px] font-bold rounded-full border px-1.5 py-0.5 ${
+                  funcionario.alertaAssinaturaRescisao.vencido
+                    ? "bg-red-50 text-red-700 border-red-300"
+                    : "bg-amber-50 text-amber-700 border-amber-300"
+                }`}
+              >
+                {funcionario.alertaAssinaturaRescisao.vencido
+                  ? `🚨 assinatura VENCIDA (prazo era ${funcionario.alertaAssinaturaRescisao.prazoLabel})`
+                  : `⏳ assinar até ${funcionario.alertaAssinaturaRescisao.prazoLabel}`}
+              </span>
             )}{" "}
             {funcionario.feriasRetornoLabel && (
               <span className="text-[11px] text-brand-700 font-normal">
