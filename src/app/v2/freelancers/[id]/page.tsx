@@ -6,7 +6,7 @@ import { usuarioEhResponsavelGed } from "@/lib/ged";
 import { formatarDataHoraComDiaSemana, formatarDataHora } from "@/lib/data";
 import { formatarDocumento, LABEL_TIPO_DOCUMENTO, LABEL_TIPO_CHAVE_PIX } from "@/lib/documento";
 import { calcularRiscoCltPessoa } from "@/lib/riscoClt";
-import SelecaoTurnos from "@/app/freelancers/[id]/SelecaoTurnos";
+import SelecaoTurnos from "@/components/v2/SelecaoTurnosV2";
 import CorrigirFuncaoForm from "@/app/turnos/[id]/CorrigirFuncaoForm";
 import PagamentoForm from "@/app/freelancers/[id]/PagamentoForm";
 import MetaHorasForm from "@/app/freelancers/[id]/MetaHorasForm";
@@ -25,9 +25,12 @@ import { contarDesmarquesPessoaDepoisDeAceitar } from "@/lib/confiabilidade-extr
  * tocado) — mesmas 5 queries em paralelo, mesmos formulários/cartões
  * reaproveitados sem alteração (DadosPessoaForm, CorrigirFuncaoForm,
  * ReputacaoCard, ConverterParaCltButton, PagamentoForm,
- * TurnoPredefinidoSelect, MetaHorasForm, RestricaoHorarioForm,
- * SelecaoTurnos — todos já são cartões brancos genéricos, sem chrome do
- * v1). Só o cabeçalho ganhou o visual novo. */
+ * TurnoPredefinidoSelect, MetaHorasForm, RestricaoHorarioForm — todos já
+ * são cartões brancos genéricos, sem chrome do v1). SelecaoTurnos É A
+ * EXCEÇÃO: usa o twin src/components/v2/SelecaoTurnosV2.tsx (não o
+ * componente v1), porque o "Detalhes" de cada turno precisa abrir
+ * /v2/turnos/[id], não a tela de turno da v1. Só o cabeçalho ganhou o
+ * visual novo. */
 export default async function V2FreelancerDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const sessao = await requireModulo("freelancers");
   const { id } = await params;
@@ -168,7 +171,12 @@ export default async function V2FreelancerDetalhePage({ params }: { params: Prom
         totalIndicacoes={totalIndicacoes}
       />
 
-      <ConverterParaCltButton pessoaId={pessoaId} pessoaNome={vinculo.pessoa.nome} responsavelGed={responsavelGed} />
+      <ConverterParaCltButton
+        pessoaId={pessoaId}
+        pessoaNome={vinculo.pessoa.nome}
+        responsavelGed={responsavelGed}
+        gedBase="/v2/ged"
+      />
 
       {riscoClt && (
         <AlertaRiscoCltPessoa

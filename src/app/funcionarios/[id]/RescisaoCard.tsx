@@ -53,6 +53,7 @@ export default function RescisaoCard({
   rescisaoAvisoPrevio,
   rescisaoDataPedidoLabel,
   documentosAssinados,
+  gedBase = "/ged",
 }: {
   pessoaId: number;
   pessoaNome: string;
@@ -71,6 +72,8 @@ export default function RescisaoCard({
   rescisaoAvisoPrevio: TipoAvisoPrevioRescisao | null;
   rescisaoDataPedidoLabel: string | null;
   documentosAssinados: boolean;
+  /// "/ged" (v1, default) ou "/v2/ged" — ver src/app/v2/funcionarios/[id]/page.tsx.
+  gedBase?: "/ged" | "/v2/ged";
 }) {
   const [state, formAction, pending] = useActionState(registrarRescisao, undefined);
   const [dataEscolhida, setDataEscolhida] = useState(dataRescisaoValue);
@@ -122,7 +125,7 @@ export default function RescisaoCard({
 
         {slugDocumento && (
           <a
-            href={`/ged/pessoas/${pessoaId}/gerar/TERMO_CIENCIA?termoSlug=${slugDocumento}`}
+            href={`${gedBase}/pessoas/${pessoaId}/gerar/TERMO_CIENCIA?termoSlug=${slugDocumento}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-brand-700 bg-white border border-brand-200 rounded-lg px-3 py-2 hover:bg-brand-50 text-center"

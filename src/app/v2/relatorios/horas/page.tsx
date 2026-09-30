@@ -179,7 +179,7 @@ export default async function V2RelatorioHorasPage({
       {pendentes > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-xs text-amber-800">
           {pendentes} registro(s) sem saída confirmada, pendente(s) de correção —{" "}
-          <Link href="/funcionarios" className="font-bold underline">
+          <Link href="/v2/funcionarios" className="font-bold underline">
             resolver em Funcionários
           </Link>
           .

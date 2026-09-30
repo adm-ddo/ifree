@@ -13,9 +13,11 @@ import type { StatusPagamento, FrequenciaPagamento } from "@/generated/prisma/en
 /** Espelho completo de src/app/pagamentos/page.tsx (v1, não tocado) —
  * mesmas queries/regras (filtros de status/frequência/período, visão por
  * pessoa vs. lista corrida, saldo Asaas), reaproveitando
- * PagamentosSelecionaveis/PagamentoRow/SaldoAsaasCard sem alteração (já
- * são cartões brancos genéricos). Só o cabeçalho/pílulas de filtro e os
- * cartões de resumo ganharam o visual novo. */
+ * PagamentosSelecionaveis/PagamentoRow/SaldoAsaasCard (já são cartões
+ * brancos genéricos), só passando linkTurnoBase="/v2/turnos" pro nome da
+ * pessoa em cada linha abrir o detalhe do turno na v2, não na v1. Só o
+ * cabeçalho/pílulas de filtro e os cartões de resumo ganharam o visual
+ * novo. */
 type StatusFiltroValor = "TODOS" | "NAO_PAGOS" | StatusPagamento;
 const STATUS_NAO_PAGOS: StatusPagamento[] = ["PENDENTE", "FALHOU", "PROCESSANDO"];
 
@@ -296,6 +298,7 @@ export default async function V2PagamentosPage({
       {pagamentos.length > 0 && (
         <PagamentosSelecionaveis
           agruparPorPessoa={visaoFiltro === "pessoa"}
+          linkTurnoBase="/v2/turnos"
           pagamentos={pagamentos.map((p) => ({
             turnoId: p.turnoId,
             pessoaId: p.turno.pessoa.id,

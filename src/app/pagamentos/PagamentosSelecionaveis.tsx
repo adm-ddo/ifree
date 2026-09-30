@@ -33,9 +33,13 @@ export type PagamentoItem = {
 export default function PagamentosSelecionaveis({
   pagamentos,
   agruparPorPessoa,
+  linkTurnoBase = "/turnos",
 }: {
   pagamentos: PagamentoItem[];
   agruparPorPessoa: boolean;
+  /** Repassado pra PagamentoRow — "/v2/turnos" quando chamado por
+   * src/app/v2/pagamentos/page.tsx, senão o "/turnos" (v1) de sempre. */
+  linkTurnoBase?: "/turnos" | "/v2/turnos";
 }) {
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [erro, setErro] = useState<string | null>(null);
@@ -182,6 +186,7 @@ export default function PagamentosSelecionaveis({
                     selecionavel
                     selecionado={selecionados.has(p.turnoId)}
                     aoAlternarSelecao={() => alternar(p.turnoId)}
+                    linkTurnoBase={linkTurnoBase}
                   />
                 ))}
               </ul>
@@ -196,6 +201,7 @@ export default function PagamentosSelecionaveis({
                 selecionavel
                 selecionado={selecionados.has(p.turnoId)}
                 aoAlternarSelecao={() => alternar(p.turnoId)}
+                linkTurnoBase={linkTurnoBase}
               />
             ))}
           </ul>

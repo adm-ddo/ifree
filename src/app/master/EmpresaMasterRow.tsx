@@ -18,6 +18,11 @@ type Empresa = {
   statusAssinatura: StatusAssinatura;
   assinaturaVenceEm: Date | null;
   counts: { funcoes: number; totens: number; turnos: number };
+  /// Quantas pessoas estão com turno/ponto ABERTO agora nesta empresa
+  /// (soma de Turno + RegistroPonto, ver master/page.tsx) — 0 significa
+  /// que dá pra mexer no sistema sem interromper ninguém no meio de um
+  /// check-in/check-out.
+  emTurnoAgora: number;
   /// Só preenchidos enquanto a última desativação foi manual (ver
   /// desativarEmpresaMaster) — voltam a null depois de reativada
   /// (reativarEmpresaMaster), mesmo a empresa ficando CANCELADA de novo
@@ -71,6 +76,16 @@ export default function EmpresaMasterRow({
             className={`text-[10px] font-medium uppercase tracking-wide rounded-full border px-1.5 py-0.5 shrink-0 ${STATUS_CLASSE[empresa.statusAssinatura]}`}
           >
             {STATUS_LABEL[empresa.statusAssinatura]}
+          </span>
+          <span
+            className={`text-[10px] font-medium rounded-full border px-1.5 py-0.5 shrink-0 ${
+              empresa.emTurnoAgora > 0
+                ? "bg-blue-50 text-blue-700 border-blue-200"
+                : "bg-stone-100 text-stone-400 border-stone-200"
+            }`}
+            title="Pessoas com turno ou ponto aberto agora nesta empresa"
+          >
+            {empresa.emTurnoAgora > 0 ? `🟢 ${empresa.emTurnoAgora} em turno agora` : "sem ninguém em turno"}
           </span>
         </p>
         <p className="text-sm text-stone-500">

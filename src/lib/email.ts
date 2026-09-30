@@ -609,7 +609,7 @@ export async function enviarEmailTurnoRetido(
       "Pra evitar pagar um valor errado, o PIX automático NÃO foi disparado. Revise o horário de entrada e saída desse turno e libere o pagamento manualmente quando estiver correto.",
     ],
     textoBotao: "Revisar turno agora",
-    linkBotao: `${SITE_URL}/turnos/${turnoId}`,
+    linkBotao: `${SITE_URL}/v2/turnos/${turnoId}`,
   });
 
   try {

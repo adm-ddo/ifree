@@ -52,7 +52,7 @@ export default async function V2ResumoHorasPage({ searchParams }: { searchParams
             Freelancers
           </Link>{" "}
           ou{" "}
-          <Link href="/funcionarios" className="underline">
+          <Link href="/v2/funcionarios" className="underline">
             Funcionários
           </Link>
           ).

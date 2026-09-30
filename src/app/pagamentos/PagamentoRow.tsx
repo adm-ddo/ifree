@@ -42,6 +42,7 @@ export default function PagamentoRow({
   selecionavel = false,
   selecionado = false,
   aoAlternarSelecao,
+  linkTurnoBase = "/turnos",
 }: {
   pagamento: Pagamento;
   /** Mostra o checkbox de seleção em lote — só faz sentido pra quem ainda
@@ -49,6 +50,12 @@ export default function PagamentoRow({
   selecionavel?: boolean;
   selecionado?: boolean;
   aoAlternarSelecao?: () => void;
+  /** Base do link do nome da pessoa pro detalhe do turno — "/turnos" (v1,
+   * default) ou "/v2/turnos" (ver src/app/v2/pagamentos/page.tsx). Só esse
+   * link muda entre as duas versões, por isso um prop em vez de duplicar o
+   * componente inteiro (diferente de SelecaoTurnos/SelecaoTurnosV2, que
+   * tinha mais de um link pra trocar). */
+  linkTurnoBase?: "/turnos" | "/v2/turnos";
 }) {
   const [pending, startTransition] = useTransition();
 
@@ -65,7 +72,7 @@ export default function PagamentoRow({
           />
         )}
         <div>
-        <Link href={`/turnos/${pagamento.turnoId}`} className="font-medium text-navy-900 hover:underline">
+        <Link href={`${linkTurnoBase}/${pagamento.turnoId}`} className="font-medium text-navy-900 hover:underline">
           {pagamento.pessoaNome}
         </Link>
         <p className="text-xs text-stone-500">

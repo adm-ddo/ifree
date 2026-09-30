@@ -17,9 +17,16 @@ const TITULO: Record<TipoDocumentoGed, string> = {
 /** Espelho completo de src/app/ged/pessoas/[pessoaId]/gerar/[tipo]/page.tsx
  * (v1, não tocado) — mesma query/regra; GerarDocumentoForm reaproveitado
  * direto (o único link interno dele é a rota de PDF, igual nos dois). */
-export default async function V2GerarDocumentoPage({ params }: { params: Promise<{ pessoaId: string; tipo: string }> }) {
+export default async function V2GerarDocumentoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ pessoaId: string; tipo: string }>;
+  searchParams: Promise<{ termoSlug?: string }>;
+}) {
   const sessao = await requireResponsavelGed();
   const { pessoaId: pessoaIdBruto, tipo: tipoBruto } = await params;
+  const { termoSlug: termoSlugInicial } = await searchParams;
   const pessoaId = Number(pessoaIdBruto);
   if (!Number.isInteger(pessoaId)) notFound();
   if (!TIPOS_VALIDOS.includes(tipoBruto as TipoDocumentoGed)) notFound();
@@ -57,6 +64,7 @@ export default async function V2GerarDocumentoPage({ params }: { params: Promise
         tipo={tipo}
         modelosPadrao={modelosPadrao}
         termosCiencia={tipo === "TERMO_CIENCIA" ? TERMOS_CIENCIA_PADRAO.map((t) => ({ slug: t.slug, nome: t.nome })) : []}
+        termoSlugInicial={termoSlugInicial}
       />
     </div>
   );

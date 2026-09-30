@@ -19,6 +19,7 @@ export default function ConverterParaCltButton({
   pessoaId,
   pessoaNome,
   responsavelGed,
+  gedBase = "/ged",
 }: {
   pessoaId: number;
   pessoaNome: string;
@@ -27,6 +28,8 @@ export default function ConverterParaCltButton({
   /// responsável pelo GED clicaria e cairia num redirecionamento sem
   /// explicação (requireResponsavelGed na rota de destino).
   responsavelGed?: boolean;
+  /// "/ged" (v1, default) ou "/v2/ged" — ver src/app/v2/freelancers/[id]/page.tsx.
+  gedBase?: "/ged" | "/v2/ged";
 }) {
   const [aberto, setAberto] = useState(false);
   const [modo, setModo] = useState<"hoje" | "retroativo">("hoje");
@@ -71,7 +74,7 @@ export default function ConverterParaCltButton({
         </button>
         {responsavelGed && (
           <Link
-            href={`/ged/pessoas/${pessoaId}/gerar/TERMO_CIENCIA?termoSlug=opcao-autonomo-apos-oferta-clt`}
+            href={`${gedBase}/pessoas/${pessoaId}/gerar/TERMO_CIENCIA?termoSlug=opcao-autonomo-apos-oferta-clt`}
             className="text-sm text-stone-500 hover:text-brand-700 hover:underline"
           >
             Ofereceu CLT e {pessoaNome.split(" ")[0]} preferiu continuar como extra? Gerar declaração →

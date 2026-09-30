@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireMaster } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { inicioDoDiaBrasil, inicioDaSemanaBrasil, inicioDoMesBrasil } from "@/lib/data";
+import AutoRefresh from "@/components/AutoRefresh";
 import EmpresaMasterRow from "./EmpresaMasterRow";
 import UsuarioMasterHeader from "./UsuarioMasterHeader";
 import type { Prisma } from "@/generated/prisma/client";
@@ -20,6 +21,29 @@ const EMPRESA_SELECT = {
     select: { funcoes: true, totens: true, turnos: true },
   },
 } as const;
+
+/** Quantas pessoas estão com turno (Extra) ou ponto (CLT) ABERTO agora,
+ * por empresa e no total — pedido do Thiago em 2026-09-30 pra saber
+ * quando dá pra fazer manutenção/deploy sem interromper ninguém no meio
+ * de um check-in/check-out. Soma os dois fluxos porque, do ponto de vista
+ * de "tem alguém no meio de uma ação agora", tanto faz se é Extra ou CLT.
+ * Página inteira já usa AutoRefresh (ver render abaixo) pra ficar
+ * "em tempo real" sem precisar de WebSocket. */
+async function emTurnoAgoraPorEmpresa(): Promise<{ porEmpresa: Map<number, number>; total: number }> {
+  const [turnosAbertos, pontosAbertos] = await Promise.all([
+    prisma.turno.groupBy({ by: ["empresaId"], where: { status: "ABERTO" }, _count: { _all: true } }),
+    prisma.registroPonto.groupBy({ by: ["empresaId"], where: { status: "ABERTO" }, _count: { _all: true } }),
+  ]);
+
+  const porEmpresa = new Map<number, number>();
+  let total = 0;
+  for (const grupo of [...turnosAbertos, ...pontosAbertos]) {
+    const atual = porEmpresa.get(grupo.empresaId) ?? 0;
+    porEmpresa.set(grupo.empresaId, atual + grupo._count._all);
+    total += grupo._count._all;
+  }
+  return { porEmpresa, total };
+}
 
 function ResumoCard({ label, valor, destaque }: { label: string; valor: number | string; destaque?: boolean }) {
   if (destaque) {
@@ -121,7 +145,7 @@ export default async function MasterPage({
     return query ? `/master?${query}` : "/master";
   }
 
-  const [pessoasBrutas, empresasSemDono] = await Promise.all([
+  const [pessoasBrutas, empresasSemDono, { porEmpresa: emTurnoAgoraPorEmpresaId, total: emTurnoAgoraTotal }] = await Promise.all([
     prisma.usuario.findMany({
       where: { isMaster: false, ...filtroPeriodo, ...filtroBusca },
       // Ordem alfabética de verdade (sem diferenciar maiúscula/minúscula)
@@ -143,6 +167,7 @@ export default async function MasterPage({
       where: { usuarios: { none: {} } },
       select: EMPRESA_SELECT,
     }),
+    emTurnoAgoraPorEmpresa(),
   ]);
 
   const pessoas =
@@ -160,6 +185,11 @@ export default async function MasterPage({
 
   return (
     <div className="flex flex-col gap-6 max-w-5xl">
+      {/* Atualiza sozinho a cada 10s — é o que torna "em turno agora"
+       * abaixo de verdade em tempo real, sem precisar recarregar a tela
+       * pra saber se já dá pra mexer no sistema com segurança. */}
+      <AutoRefresh intervaloMs={10_000} />
+
       <div>
         <h1 className="text-xl font-extrabold text-navy-900">Empresas</h1>
         <p className="text-stone-500 text-sm mt-0.5">
@@ -168,8 +198,13 @@ export default async function MasterPage({
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <ResumoCard label="Logins cadastrados" valor={pessoas.length} destaque />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <ResumoCard
+          label={emTurnoAgoraTotal > 0 ? "Pessoas em turno agora" : "Ninguém em turno agora — seguro pra manutenção"}
+          valor={emTurnoAgoraTotal}
+          destaque
+        />
+        <ResumoCard label="Logins cadastrados" valor={pessoas.length} />
         <ResumoCard label="Empresas no total" valor={totalEmpresas} />
         <ResumoCard label="Sem dono vinculado" valor={empresasSemDono.length} />
       </div>
@@ -290,6 +325,7 @@ export default async function MasterPage({
                         motivoDesativacao: empresa.motivoDesativacao,
                         desativadaPorEmail: empresa.desativadaPorEmail,
                         counts: empresa._count,
+                        emTurnoAgora: emTurnoAgoraPorEmpresaId.get(empresa.id) ?? 0,
                       }}
                       vinculadoEm={formatarData(criadoEm)}
                       jaMinha={idsMinhasEmpresas.has(empresa.id)}
@@ -322,6 +358,7 @@ export default async function MasterPage({
                   motivoDesativacao: empresa.motivoDesativacao,
                   desativadaPorEmail: empresa.desativadaPorEmail,
                   counts: empresa._count,
+                  emTurnoAgora: emTurnoAgoraPorEmpresaId.get(empresa.id) ?? 0,
                 }}
                 vinculadoEm={null}
                 jaMinha={idsMinhasEmpresas.has(empresa.id)}

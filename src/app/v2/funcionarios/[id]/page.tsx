@@ -383,6 +383,7 @@ export default async function V2FuncionarioDetalhePage({ params }: { params: Pro
         rescisaoAvisoPrevio={vinculo.rescisaoAvisoPrevio}
         rescisaoDataPedidoLabel={vinculo.rescisaoDataPedido ? formatarDataUTC(vinculo.rescisaoDataPedido) : null}
         documentosAssinados={vinculo.rescisaoDocumentosAssinadosEm !== null}
+        gedBase="/v2/ged"
       />
 
       <AtestadosCard
