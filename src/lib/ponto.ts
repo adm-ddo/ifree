@@ -3,9 +3,8 @@
 // validar) — as duas precisam da mesma lógica, então não pode ser
 // server-only. Nenhuma função deste arquivo toca banco de dados.
 
-import { dataISOBrasil, instanteBrasil } from "@/lib/data";
+import { dataISOBrasil, instanteBrasil, minutosDesdeMeiaNoiteBrasil } from "@/lib/data";
 import { LIMIAR_PAUSA_MIN, DESCONTO_POR_MODO } from "@/lib/pausa";
-import { classificarTurno } from "@/lib/turno";
 import type { EscalaTrabalho, ModoPausa, TurnoPredefinido } from "@/generated/prisma/enums";
 
 /** Converte "HH:MM" em minutos desde meia-noite — null se o formato não
@@ -231,16 +230,21 @@ export function horarioEsperadoClt(
 
 /** "DIA" ou "NOITE" a partir do horário REAL de entrada, ignorando
  * qualquer turno configurado na pessoa — pro `forcarTurnoReal` de
- * horarioEsperadoClt, quando o RegistroPonto tem trocaTurnoOficialHoje.
- * Passa "LIVRE" fixo pro classificarTurno (src/lib/turno.ts) pra forçar
- * a inferência por horário (MANHA/NOITE ali manda sempre, o que
- * anularia o propósito aqui — a pessoa pode ter escalaTurno=NOITE e ter
- * batido ponto de dia, é exatamente esse desvio que queremos captar). */
+ * horarioEsperadoClt, quando o RegistroPonto tem trocaTurnoOficialHoje
+ * (a pessoa pode ter escalaTurno=NOITE e ter batido ponto de dia, é
+ * exatamente esse desvio que queremos captar, então sempre infere pelo
+ * horário real, nunca pelo turno configurado). Mesma conta do ponto
+ * médio de classificarTurno (src/lib/turno.ts) com turnoPredefinido
+ * "LIVRE" — duplicada aqui de propósito (não importada) porque
+ * src/lib/turno.ts é "server-only" (usa Prisma) e ponto.ts precisa
+ * continuar importável por client component (ver comentário no topo do
+ * arquivo) — importar de lá quebraria o bundle do totem (client). */
 export function turnoRealDoRegistro(
   horaEntrada: Date,
   empresa: { horarioInicioDiaMin: number; horarioInicioNoiteMin: number }
 ): "DIA" | "NOITE" {
-  return classificarTurno(horaEntrada, "LIVRE", empresa.horarioInicioDiaMin, empresa.horarioInicioNoiteMin);
+  const meioDoCaminho = (empresa.horarioInicioDiaMin + empresa.horarioInicioNoiteMin) / 2;
+  return minutosDesdeMeiaNoiteBrasil(horaEntrada) < meioDoCaminho ? "DIA" : "NOITE";
 }
 
 /** Wrapper de horarioEsperadoClt já resolvendo o `forcarTurnoReal` sozinho
