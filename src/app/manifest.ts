@@ -17,7 +17,10 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#ffffff",
+    // Preto pra casar com a arte de splash nova (ver SplashScreen.tsx) —
+    // esse background_color é o que o Android pinta ANTES do JS carregar;
+    // deixar branco aqui criaria um flash branco->preto na abertura.
+    background_color: "#000000",
     theme_color: "#00C896",
     icons: [
       { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" },

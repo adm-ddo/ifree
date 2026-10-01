@@ -2,19 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { LogoIcon } from "./Logo";
 
 const DURACAO_VISIVEL_MS = 900;
 const DURACAO_FADE_MS = 300;
 
-/** Mostra a logo cheia (ícone + "iFREE" + frase), montada em JSX a partir
- * do componente Logo (src/components/Logo.tsx) em vez de uma imagem
- * única já achatada — antes usava /brand/logo/png/empilhado-cor-1200.png
- * (versão antiga do ícone, sem o arquivo-fonte novo do Thiago). Assim o
- * texto fica sempre nítido e já acompanha qualquer atualização futura do
- * ícone, sem precisar gerar uma imagem composta de novo. Aparece em tela
- * cheia por um instante quando o painel é aberto como app instalado no
- * celular
+/** Mostra a arte final de logo (ícone + "iFREE" + "Seu tempo. Sua hora.
+ * Sua liberdade.", public/splash-ifree.webp) — Thiago pediu pra trocar a
+ * versão anterior (montada em JSX a partir do Logo.tsx) por essa arte
+ * pronta em 2026-09-30. Aparece em tela cheia por um instante quando o
+ * painel é aberto como app instalado no celular
  * (display-mode: standalone/PWA "Adicionar à tela inicial") — é o pedido
  * do Thiago de ter essa imagem na abertura do app dos clientes-empresa.
  * Só existe display-mode standalone quando o manifest raiz (src/app/
@@ -61,20 +57,20 @@ export default function SplashScreen() {
 
   return (
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-white transition-opacity ease-out ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black transition-opacity ease-out ${
         fase === "saindo" ? "opacity-0" : "opacity-100"
       }`}
       style={{ transitionDuration: `${DURACAO_FADE_MS}ms` }}
       aria-hidden="true"
     >
-      <div className="flex flex-col items-center gap-3">
-        <LogoIcon size={96} />
-        <p className="font-black tracking-tight text-3xl">
-          <span className="text-brand-500">i</span>
-          <span className="text-navy-900">FREE</span>
-        </p>
-        <p className="text-stone-500 font-medium">Entrou. Trabalhou. Recebeu.</p>
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element -- splash some
+          por menos de 1s, antes do app React terminar de montar; não vale
+          a pena puxar o pipeline de otimização do next/image pra isso */}
+      <img
+        src="/splash-ifree.webp"
+        alt=""
+        className="w-full max-w-md px-8"
+      />
     </div>
   );
 }
