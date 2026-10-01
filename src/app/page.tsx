@@ -116,12 +116,15 @@ export default async function Home() {
           }}
         />
         <div className="relative mx-auto max-w-5xl lg:max-w-6xl xl:max-w-7xl px-4 py-16 sm:py-24 lg:py-32 flex flex-col items-center text-center gap-6 lg:gap-8">
-          <span className="lg:hidden">
-            <Logo size={64} claro />
-          </span>
-          <span className="hidden lg:inline-block">
-            <Logo size={92} claro />
-          </span>
+          {/* eslint-disable-next-line @next/next/no-img-element -- arte
+              pronta (ifree-kit-marca/logo/logo ifree.png, recortada e já
+              com fundo transparente) em vez do Logo em JSX, só aqui na
+              abertura da home pública onde o visual de marca pesa mais */}
+          <img
+            src="/brand/logo-ifree-hero.webp"
+            alt="iFREE"
+            className="w-56 sm:w-72 lg:w-[26rem] h-auto drop-shadow-[0_0_40px_rgba(0,200,150,0.25)]"
+          />
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-brand-300">
             <LogoIcon size={15} />
             O maior ecossistema de gestão e contratação de pessoas

@@ -8,10 +8,10 @@ import { NextResponse } from "next/server";
  * já está logado no aparelho que vai instalar. `scope` fica em todo
  * `/portal` (mais amplo que start_url) pra continuar em modo app depois
  * do login, quando o freelancer navega pro resto do Portal. Ícone próprio
- * (arte mandada pelo Thiago em 2026-09-26, gerado em 3 tamanhos + versão
- * maskable com fundo preto sólido via sharp — Android aplica a própria
- * máscara de forma por cima, não pode ter transparência), diferente do
- * ícone genérico do resto do site. */
+ * (arte "iFREE Freelancer" verde mandada pelo Thiago em 2026-09-30,
+ * substituindo a versão de 2026-09-26 — gerado em 3 tamanhos + versão
+ * maskable, já vem com fundo sólido na própria arte), diferente do ícone
+ * genérico do resto do site e do azul "iFREE Empresas" do painel. */
 export async function GET() {
   const manifest = {
     name: "iFREE Conecta",

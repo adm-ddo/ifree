@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Sora } from "next/font/google";
 import { requireSessao } from "@/lib/auth";
 import NavShell, { type ItemNavV2 } from "@/components/v2/NavShell";
@@ -6,6 +7,15 @@ import { buscarDadosLayoutV2, type DadosLayoutV2 } from "@/lib/alertas";
 import { MODULOS_EQUIPE } from "@/lib/modulosEquipe";
 
 const sora = Sora({ variable: "--font-sora", subsets: ["latin"] });
+
+/// iOS ignora os ícones do manifest.json pra "Adicionar à Tela de Início"
+/// — só lê apple-touch-icon. O ícone global do site (src/app/apple-icon.png)
+/// é o genérico verde (compartilhado com a home pública); aqui, dentro do
+/// painel de verdade da empresa, troca pro "iFREE Empresas" azul (mesmo
+/// ícone do manifest.ts) — mesmo padrão de src/app/portal/layout.tsx.
+export const metadata: Metadata = {
+  icons: { apple: "/brand/icones-app/icon-empresas-180.png" },
+};
 
 /// Mesma lista de verdade de src/components/AppHeader.tsx (v1) — só com
 /// ícone adicionado. Central de Ética/GED entram condicionalmente, igual

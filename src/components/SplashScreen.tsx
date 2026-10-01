@@ -6,11 +6,13 @@ import { usePathname } from "next/navigation";
 const DURACAO_VISIVEL_MS = 900;
 const DURACAO_FADE_MS = 300;
 
-/** Mostra a arte final de logo (ícone + "iFREE" + "Seu tempo. Sua hora.
- * Sua liberdade.", public/splash-ifree.webp) — Thiago pediu pra trocar a
- * versão anterior (montada em JSX a partir do Logo.tsx) por essa arte
- * pronta em 2026-09-30. Aparece em tela cheia por um instante quando o
- * painel é aberto como app instalado no celular
+/** Mostra a arte "iFREE Empresas" azul (public/splash-ifree-empresas.webp)
+ * — mesma arte do ícone do app (ver manifest.ts) — pra não ficar o ícone
+ * azul na tela inicial e, ao abrir, piscar uma splash verde (pedido do
+ * Thiago em 2026-09-30: "não fica o ícone azul da empresa e aí quando o
+ * app entra muda pra aquela tela verde, vamos manter só esse logo pra
+ * empresa"). Aparece em tela cheia por um instante quando o painel é
+ * aberto como app instalado no celular
  * (display-mode: standalone/PWA "Adicionar à tela inicial") — é o pedido
  * do Thiago de ter essa imagem na abertura do app dos clientes-empresa.
  * Só existe display-mode standalone quando o manifest raiz (src/app/
@@ -67,7 +69,7 @@ export default function SplashScreen() {
           por menos de 1s, antes do app React terminar de montar; não vale
           a pena puxar o pipeline de otimização do next/image pra isso */}
       <img
-        src="/splash-ifree.webp"
+        src="/splash-ifree-empresas.webp"
         alt=""
         className="w-full max-w-md px-8"
       />
