@@ -142,7 +142,7 @@ export default function ExperienciaCard({
                     action={marcarExperienciaEfetivada}
                     pessoaId={pessoaId}
                     label="✅ Marcar como efetivado"
-                    confirmText="Confirmar que essa pessoa foi efetivada? Isso encerra o aviso de vencimento do contrato de experiência."
+                    confirmText="Tem certeza que deseja efetivar esse funcionário, ainda em contrato de experiência? Isso encerra o aviso de vencimento e não tem desfazer pela tela depois."
                   />
                   <p className="text-xs text-stone-500">
                     Não vai efetivar essa pessoa? Registre a rescisão no card
