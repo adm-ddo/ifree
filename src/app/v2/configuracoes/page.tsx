@@ -132,6 +132,16 @@ export default async function V2ConfiguracoesPage() {
 
       <div className="rounded-2xl bg-white border border-stone-200 p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
+          <h2 className="font-bold text-navy-900 text-sm">Integração via API</h2>
+          <p className="text-xs text-stone-500 mt-0.5">Gere uma chave pra outro sistema (ex.: seu financeiro) consultar saldo Pix e pagamentos feitos.</p>
+        </div>
+        <Link href="/v2/configuracoes/api" className="rounded-full border border-stone-200 text-xs font-bold px-4 py-2 shrink-0">
+          🔌 Gerenciar chaves
+        </Link>
+      </div>
+
+      <div className="rounded-2xl bg-white border border-stone-200 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
           <h2 className="font-bold text-navy-900 text-sm">Equipe</h2>
           <p className="text-xs text-stone-500 mt-0.5">Convide gente pra esta empresa com só os módulos que você marcar — pro financeiro, por exemplo.</p>
         </div>

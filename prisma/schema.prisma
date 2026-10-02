@@ -462,6 +462,7 @@ model Empresa {
   acoesPgr                        AcaoPgr[]
   convitesEquipe                  ConviteEquipe[]
   extrasMarcados                  ExtraMarcado[]
+  apiKeysExternas                 ApiKeyExterna[]
 }
 
 enum StatusAssinatura {
@@ -1606,6 +1607,43 @@ model ContaAsaasEmpresa {
   atualizadoEm          DateTime         @updatedAt
 
   empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+}
+
+/// Chave de API pra um sistema externo (ex.: o financeiro próprio da
+/// empresa) consultar dados do iFREE via /api/v1/** — ver
+/// src/lib/api-externa/auth.ts. Só a empresa dona gera/revoga a própria
+/// chave (não existe chave "master" cross-empresa). Guarda só o hash
+/// SHA-256 da chave (nunca a chave em texto puro — diferente de
+/// ContaAsaasEmpresa.apiKeyCriptografada, que PRECISA ser recuperável pra
+/// mandar de volta pra Asaas; aqui a gente só precisa COMPARAR, então hash
+/// de mão única é suficiente e mais seguro). A chave completa só existe
+/// na tela no instante da criação — se perder, só gerando outra.
+model ApiKeyExterna {
+  id             Int       @id @default(autoincrement())
+  empresaId      Int
+  /// Rótulo livre que a própria empresa escolhe (ex.: "Sistema financeiro
+  /// Contabilizei") — só pra identificar qual chave é qual na lista.
+  nome           String
+  /// Primeiros 8 caracteres da chave (ex.: "ifree_a1b2c3d4"), guardados em
+  /// texto puro só pra empresa reconhecer a chave certa numa lista sem
+  /// precisar guardar/comparar o valor inteiro.
+  prefixo        String
+  /// SHA-256 (hex) da chave completa — nunca a chave em si.
+  chaveHash      String    @unique
+  criadoEm       DateTime  @default(now())
+  criadoPorEmail String
+  /// Atualizado (best-effort, sem bloquear a resposta) a cada chamada
+  /// autenticada com esta chave — só informativo, pra empresa ver se uma
+  /// chave antiga ainda está em uso antes de revogar.
+  ultimoUsoEm    DateTime?
+  /// Revogação é lógica (nunca apaga a linha) — preserva o hash único pra
+  /// nunca reemitir sem querer a mesma chave, e mantém o histórico de
+  /// quando cada chave existiu.
+  revogadaEm     DateTime?
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId])
 }
 
 enum StatusDepositoAsaas {
