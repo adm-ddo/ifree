@@ -4,6 +4,7 @@ import { randomBytes, createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
+import { filtrarEscoposValidos } from "@/lib/api-externa/escopos";
 
 export type CriarApiKeyState = { erro: string } | { chave: string } | undefined;
 
@@ -23,6 +24,10 @@ export async function criarApiKeyExterna(
   if (!nome) {
     return { erro: "Dê um nome pra essa chave (ex.: \"Sistema financeiro\")." };
   }
+  const escopos = filtrarEscoposValidos(formData.getAll("escopos").map(String));
+  if (escopos.length === 0) {
+    return { erro: "Marque pelo menos um escopo (o que essa chave vai poder consultar)." };
+  }
 
   const segredo = randomBytes(32).toString("hex");
   const chave = `ifree_${segredo}`;
@@ -34,6 +39,7 @@ export async function criarApiKeyExterna(
       nome,
       prefixo: chave.slice(0, 14),
       chaveHash: hash,
+      escopos,
       criadoPorEmail: sessao.email,
     },
   });

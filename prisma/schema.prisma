@@ -1630,6 +1630,12 @@ model ApiKeyExterna {
   prefixo        String
   /// SHA-256 (hex) da chave completa — nunca a chave em si.
   chaveHash      String    @unique
+  /// Quais endpoints esta chave pode chamar — catálogo fixo em
+  /// src/lib/api-externa/escopos.ts (ex.: "saldo", "pagamentos"), igual
+  /// espírito de UsuarioEmpresa.modulosPermitidos. Escolhido pela própria
+  /// empresa na hora de gerar a chave; cada rota em /api/v1/** exige o
+  /// escopo correspondente (403 sem ele), mesmo com a chave sendo válida.
+  escopos        String[]  @default([])
   criadoEm       DateTime  @default(now())
   criadoPorEmail String
   /// Atualizado (best-effort, sem bloquear a resposta) a cada chamada

@@ -7,7 +7,7 @@ import { buscarSaldoAsaas } from "@/lib/pagamentos/asaas-deposito";
  * puxar sem precisar logar no painel. Ver src/lib/api-externa/auth.ts pra
  * como a chave é gerada/validada. */
 export async function GET(request: Request) {
-  const auth = await autenticarApiExterna(request);
+  const auth = await autenticarApiExterna(request, "saldo");
   if ("erro" in auth) {
     return NextResponse.json({ erro: auth.erro }, { status: auth.status });
   }

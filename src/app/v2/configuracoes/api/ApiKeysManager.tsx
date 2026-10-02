@@ -2,15 +2,21 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { criarApiKeyExterna, revogarApiKeyExterna, type CriarApiKeyState } from "./actions";
+import { ESCOPOS_API_EXTERNA } from "@/lib/api-externa/escopos";
 
 type Chave = {
   id: number;
   nome: string;
   prefixo: string;
+  escopos: string[];
   criadoEm: Date;
   ultimoUsoEm: Date | null;
   revogadaEm: Date | null;
 };
+
+function labelEscopo(chave: string): string {
+  return ESCOPOS_API_EXTERNA.find((e) => e.chave === chave)?.label ?? chave;
+}
 
 function formatarData(data: Date | null): string {
   if (!data) return "nunca";
@@ -75,21 +81,39 @@ export default function ApiKeysManager({ chaves }: { chaves: Chave[] }) {
         <form
           action={formAction}
           onReset={(e) => e.preventDefault()}
-          className="rounded-2xl border border-stone-200 bg-white p-4 flex flex-wrap items-end gap-3"
+          className="rounded-2xl border border-stone-200 bg-white p-4 flex flex-col gap-3"
         >
-          <label className="flex flex-col gap-1 text-sm text-stone-700 flex-1 min-w-[200px]">
+          <label className="flex flex-col gap-1 text-sm text-stone-700">
             Nome da chave
             <input
               name="nome"
               type="text"
               placeholder="Ex.: Sistema financeiro"
-              className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 max-w-sm"
             />
           </label>
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="text-sm text-stone-700 mb-1">O que essa chave pode consultar</legend>
+            {ESCOPOS_API_EXTERNA.map((escopo) => (
+              <label key={escopo.chave} className="flex items-start gap-2 text-sm text-stone-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  name="escopos"
+                  value={escopo.chave}
+                  defaultChecked
+                  className="mt-0.5 h-4 w-4 accent-brand-600"
+                />
+                <span>
+                  <span className="font-medium">{escopo.label}</span>
+                  <span className="text-stone-500"> — {escopo.descricao}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
           <button
             type="submit"
             disabled={pending}
-            className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2.5 disabled:opacity-50 transition-colors"
+            className="rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2.5 disabled:opacity-50 transition-colors self-start"
           >
             {pending ? "Gerando..." : "🔑 Gerar nova chave"}
           </button>
@@ -117,6 +141,16 @@ export default function ApiKeysManager({ chaves }: { chaves: Chave[] }) {
                 <p className="text-xs text-stone-500 mt-0.5">
                   Criada em {formatarData(chave.criadoEm)} · Último uso: {formatarData(chave.ultimoUsoEm)}
                 </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {chave.escopos.map((escopo) => (
+                    <span
+                      key={escopo}
+                      className="text-[10px] uppercase tracking-wide font-bold rounded-full border border-brand-200 bg-brand-50 text-brand-700 px-2 py-0.5"
+                    >
+                      {labelEscopo(escopo)}
+                    </span>
+                  ))}
+                </div>
                 {chave.revogadaEm && (
                   <p className="text-xs text-red-600 mt-0.5">🚫 Revogada em {formatarData(chave.revogadaEm)}</p>
                 )}

@@ -10,7 +10,7 @@ import { autenticarApiExterna } from "@/lib/api-externa/auth";
  * em src/lib/pagamentos/asaas-status.ts), não por `criadoEm` (quando o
  * registro de pagamento foi só criado, ainda pendente). */
 export async function GET(request: Request) {
-  const auth = await autenticarApiExterna(request);
+  const auth = await autenticarApiExterna(request, "pagamentos");
   if ("erro" in auth) {
     return NextResponse.json({ erro: auth.erro }, { status: auth.status });
   }

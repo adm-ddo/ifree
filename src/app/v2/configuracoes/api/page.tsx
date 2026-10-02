@@ -15,6 +15,7 @@ export default async function ApiExternaPage() {
       id: true,
       nome: true,
       prefixo: true,
+      escopos: true,
       criadoEm: true,
       ultimoUsoEm: true,
       revogadaEm: true,
