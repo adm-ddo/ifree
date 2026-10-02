@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireModulo } from "@/lib/requireModulo";
 import ApiKeysManager from "./ApiKeysManager";
@@ -24,12 +25,21 @@ export default async function ApiExternaPage() {
 
   return (
     <div className="flex flex-col gap-4 max-w-3xl">
-      <div>
-        <h1 className="text-xl font-extrabold text-navy-900">Integração via API</h1>
-        <p className="text-stone-500 text-sm mt-0.5">
-          Gere uma chave pra outro sistema (ex.: seu financeiro) consultar o saldo Pix e os pagamentos
-          feitos pelo iFREE, sem precisar logar no painel.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-extrabold text-navy-900">Integração via API</h1>
+          <p className="text-stone-500 text-sm mt-0.5">
+            Gere uma chave pra outro sistema (ex.: seu financeiro) consultar o saldo Pix e os pagamentos
+            feitos pelo iFREE, sem precisar logar no painel.
+          </p>
+        </div>
+        <Link
+          href="/manual/api-externa"
+          target="_blank"
+          className="rounded-full border border-stone-200 text-xs font-bold px-4 py-2 shrink-0 whitespace-nowrap"
+        >
+          📄 Ver manual / baixar PDF
+        </Link>
       </div>
 
       <div className="rounded-2xl bg-white border border-stone-200 p-4 flex flex-col gap-3 text-sm">
