@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import CandidaturaCardV2 from "./CandidaturaCardV2";
-import type { Sexo } from "@/generated/prisma/enums";
+import type { Sexo, SeloFreelancer } from "@/generated/prisma/enums";
 import type { ExtraMarcadoItem } from "@/app/vagas/[id]/ExtraMarcadoEmpresa";
 
 type Item = {
@@ -22,6 +22,7 @@ type Item = {
     meiosTransporte: string[];
     temFoto: boolean;
     sexo: Sexo | null;
+    selo: SeloFreelancer;
   };
   reputacaoCard: ReactNode;
 };

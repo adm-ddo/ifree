@@ -5,7 +5,7 @@ import Link from "next/link";
 import { aceitarCandidatura, recusarCandidatura, reconsiderarCandidatura } from "@/app/vagas/[id]/actions";
 import { formatarDataHora } from "@/lib/data";
 import AvatarPessoa from "@/components/AvatarPessoa";
-import type { Sexo } from "@/generated/prisma/enums";
+import type { Sexo, SeloFreelancer } from "@/generated/prisma/enums";
 import ExtraMarcadoEmpresa, { type ExtraMarcadoItem } from "@/app/vagas/[id]/ExtraMarcadoEmpresa";
 
 const LABEL_STATUS: Record<string, string> = {
@@ -30,12 +30,17 @@ type Pessoa = {
   meiosTransporte: string[];
   temFoto: boolean;
   sexo: Sexo | null;
+  selo: SeloFreelancer;
 };
 
 /** Mesma lógica/props de src/app/vagas/[id]/CandidaturaCard.tsx (v1, não
  * tocado) — links do candidato e da conversa vão pro /v2 (já existem).
  * Usa AvatarPessoa (foto do Conecta + bonequinho por gênero) em vez do
- * emoji genérico do v1. */
+ * emoji genérico do v1. Candidato com selo Ouro ganha borda/selo dourado
+ * no card — cumpre a promessa de "destaque dourado pras empresas" feita
+ * em /portal/selo (ver src/lib/selo-freelancer.ts), que antes de
+ * 2026-10-02 só existia como linha na tabela de benefícios, sem nenhum
+ * efeito real em lugar nenhum do app. */
 export default function CandidaturaCardV2({
   vagaId,
   candidatura,
@@ -60,7 +65,13 @@ export default function CandidaturaCardV2({
   const [pending, startTransition] = useTransition();
 
   return (
-    <li className="rounded-xl bg-white border border-stone-200 p-3.5 flex flex-col gap-3">
+    <li
+      className={`rounded-xl bg-white p-3.5 flex flex-col gap-3 ${
+        pessoa.selo === "OURO"
+          ? "border-2 border-amber-300 shadow-[0_0_0_3px_rgba(217,119,6,0.08)]"
+          : "border border-stone-200"
+      }`}
+    >
       <div className="flex items-start gap-3">
         <AvatarPessoa pessoaId={pessoa.id} nome={pessoa.nome} temFoto={pessoa.temFoto} sexo={pessoa.sexo} tamanho="lg" />
         <div className="min-w-0 flex-1">
@@ -71,6 +82,14 @@ export default function CandidaturaCardV2({
             >
               {pessoa.nome}
             </Link>
+            {pessoa.selo === "OURO" && (
+              <span
+                className="rounded-full border border-amber-300 bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-0.5"
+                title="Freelancer selo Ouro — assinatura paga, perfil em dia"
+              >
+                🏅 Ouro
+              </span>
+            )}
             <span className={`rounded-full border text-[10px] font-bold px-2 py-0.5 ${COR_STATUS[candidatura.status]}`}>
               {LABEL_STATUS[candidatura.status]}
             </span>

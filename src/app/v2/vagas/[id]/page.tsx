@@ -57,6 +57,7 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
               habilidades: true,
               vagasDesejadas: true,
               meiosTransporte: true,
+              selo: true,
             },
           },
         },
@@ -157,6 +158,7 @@ export default async function V2VagaDetalhePage({ params }: { params: Promise<{ 
               meiosTransporte: c.pessoa.meiosTransporte,
               temFoto: Boolean(c.pessoa.fotoPerfilUrl),
               sexo: c.pessoa.sexo,
+              selo: c.pessoa.selo,
             },
             reputacaoCard: (
               <ReputacaoCard

@@ -7,13 +7,65 @@ import type { SeloFreelancer } from "@/generated/prisma/enums";
  * src/lib/match-passivo.ts). */
 export const VALOR_SELO_PRATA = 9.9;
 
-/** Mensalidade do selo Ouro — tudo do Prata + destaque visual/filtro pras
- * empresas (fases seguintes, ainda não implementadas). */
+/** Mensalidade do selo Ouro — tudo do Prata + destaque dourado pras
+ * empresas (ver CandidaturaCardV2.tsx, implementado em 2026-10-02). */
 export const VALOR_SELO_OURO = 19.9;
 
 export function valorDoSelo(selo: Extract<SeloFreelancer, "PRATA" | "OURO">): number {
   return selo === "PRATA" ? VALOR_SELO_PRATA : VALOR_SELO_OURO;
 }
+
+/** "R$ 9,90" — formatação em vírgula (pt-BR), não ponto. .toFixed(2)
+ * sozinho devolve "9.90", errado pro público brasileiro. */
+export function formatarValorSelo(valor: number): string {
+  return `R$ ${valor.toFixed(2).replace(".", ",")}`;
+}
+
+/// Catálogo de benefícios por selo — fonte única pra tabela comparativa
+/// em /portal/selo (ver página). Mesmo espírito "catálogo em código" de
+/// MODULOS_EQUIPE (src/lib/modulosEquipe.ts). `destaque` marca a linha
+/// que vale a pena puxar pra fora da tabela como headline de venda.
+export const BENEFICIOS_SELO: {
+  label: string;
+  descricao: string;
+  bronze: boolean;
+  prata: boolean;
+  ouro: boolean;
+  destaque?: boolean;
+}[] = [
+  {
+    label: "Ver vagas e se candidatar",
+    descricao: "Acesso normal ao mural de vagas, sem limite.",
+    bronze: true,
+    prata: true,
+    ouro: true,
+  },
+  {
+    label: "Alerta no e-mail assim que sai vaga nova",
+    descricao:
+      "Chega direto na sua caixa de entrada no instante em que a empresa publica — sem precisar abrir o app toda hora pra conferir.",
+    bronze: false,
+    prata: true,
+    ouro: true,
+    destaque: true,
+  },
+  {
+    label: "Currículo em PDF",
+    descricao: "Um currículo pronto, com seu perfil e habilidades, pra mandar direto pra quem contrata.",
+    bronze: false,
+    prata: true,
+    ouro: true,
+  },
+  {
+    label: "Destaque dourado pras empresas",
+    descricao:
+      "Seu card aparece com borda e selo dourado na lista de candidatos — você se destaca na hora que a empresa decide quem chamar.",
+    bronze: false,
+    prata: false,
+    ouro: true,
+    destaque: true,
+  },
+];
 
 /** "2026-08" — mês de competência, mesmo formato de referenciaMesAtual em
  * src/lib/assinatura.ts. */
