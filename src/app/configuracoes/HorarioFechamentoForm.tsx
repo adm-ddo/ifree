@@ -47,61 +47,76 @@ export default function HorarioFechamentoForm({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-sm text-stone-700">
-          ☀️ Início do turno do dia
-          <input
-            type="time"
-            name="horarioInicioDia"
-            defaultValue={minutosParaHoraMin(horarioInicioDiaMin)}
-            required
-            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-stone-700">
-          🌙 Início do turno da noite
-          <input
-            type="time"
-            name="horarioInicioNoite"
-            defaultValue={minutosParaHoraMin(horarioInicioNoiteMin)}
-            required
-            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-stone-700">
-          🌌 Início do turno da madrugada
-          <input
-            type="time"
-            name="horarioInicioMadrugada"
-            defaultValue={minutosParaHoraMin(horarioInicioMadrugadaMin)}
-            required
-            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-          <span className="text-xs text-stone-500 font-normal">
-            Só usado na checagem de horário incomum do totem (ver Turno
-            fixo em cada pessoa).
-          </span>
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-stone-700">
-          ☀️ Fim do turno do dia
-          <input
-            type="time"
-            name="horarioFechamentoDia"
-            defaultValue={minutosParaHoraMin(horarioFechamentoDiaMin)}
-            required
-            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm text-stone-700">
-          🌙 Fim do turno da noite
-          <input
-            type="time"
-            name="horarioFechamentoNoite"
-            defaultValue={minutosParaHoraMin(horarioFechamentoNoiteMin)}
-            required
-            className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-        </label>
+      <div className="flex flex-col gap-4">
+        <div className="rounded-xl border border-stone-200 p-3.5 flex flex-col gap-2">
+          <p className="text-sm font-semibold text-navy-900">☀️ Turno do dia</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1 text-sm text-stone-700">
+              Início
+              <input
+                type="time"
+                name="horarioInicioDia"
+                defaultValue={minutosParaHoraMin(horarioInicioDiaMin)}
+                required
+                className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-stone-700">
+              Fim
+              <input
+                type="time"
+                name="horarioFechamentoDia"
+                defaultValue={minutosParaHoraMin(horarioFechamentoDiaMin)}
+                required
+                className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 p-3.5 flex flex-col gap-2">
+          <p className="text-sm font-semibold text-navy-900">🌙 Turno da noite</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex flex-col gap-1 text-sm text-stone-700">
+              Início
+              <input
+                type="time"
+                name="horarioInicioNoite"
+                defaultValue={minutosParaHoraMin(horarioInicioNoiteMin)}
+                required
+                className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-stone-700">
+              Fim
+              <input
+                type="time"
+                name="horarioFechamentoNoite"
+                defaultValue={minutosParaHoraMin(horarioFechamentoNoiteMin)}
+                required
+                className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-stone-200 p-3.5 flex flex-col gap-2">
+          <p className="text-sm font-semibold text-navy-900">🌌 Madrugada</p>
+          <label className="flex flex-col gap-1 text-sm text-stone-700 max-w-[calc(50%-0.375rem)]">
+            Início
+            <input
+              type="time"
+              name="horarioInicioMadrugada"
+              defaultValue={minutosParaHoraMin(horarioInicioMadrugadaMin)}
+              required
+              className="border border-stone-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </label>
+          <p className="text-xs text-stone-500">
+            Sem horário de fim — só usado na checagem de horário incomum do totem (ver Turno fixo em
+            cada pessoa).
+          </p>
+        </div>
       </div>
 
       {state?.erro && (

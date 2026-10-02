@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { FrequenciaPagamento } from "@/generated/prisma/enums";
+import type { FrequenciaPagamento, StatusTurno } from "@/generated/prisma/enums";
+import { dataISOBrasil } from "@/lib/data";
 
 export type LinhaPorFuncao = {
   funcaoId: number;
@@ -113,4 +114,79 @@ export async function agregarCustoPorFuncao(
     porFuncao: [...porFuncao.values()].sort((a, b) => b.valor - a.valor),
     porPessoaFuncao: [...porPessoaFuncao.values()].sort((a, b) => b.valor - a.valor),
   };
+}
+
+export type LinhaTurnoDiario = {
+  turnoId: number;
+  dataISO: string;
+  pessoaNome: string;
+  funcaoNome: string;
+  horaEntrada: Date;
+  horaSaida: Date | null;
+  minutos: number;
+  valor: number;
+  status: StatusTurno;
+};
+
+export type DiaTurnos = {
+  dataISO: string;
+  turnos: LinhaTurnoDiario[];
+  totalMinutos: number;
+  totalValor: number;
+};
+
+/** Lista "achatada" (um item por turno, SEM somar por pessoa nem por
+ * função) do período, só separada visualmente por dia-calendário
+ * (horário de Brasília) — pro relatório analítico diário, bem diferente
+ * de agregarCustoPorFuncao acima (que soma tudo em buckets por
+ * pessoa/função). Mesmo filtro-base de agregarCustoPorFuncao
+ * (valorTotal preenchido + horaEntrada no período), sem filtro de
+ * frequência (esse relatório é sempre "tudo"). */
+export async function listarTurnosDiario(
+  empresaId: number,
+  inicio: Date,
+  fim: Date
+): Promise<DiaTurnos[]> {
+  const turnos = await prisma.turno.findMany({
+    where: {
+      empresaId,
+      valorTotal: { not: null },
+      horaEntrada: { gte: inicio, lte: fim },
+    },
+    orderBy: { horaEntrada: "asc" },
+    select: {
+      id: true,
+      horaEntrada: true,
+      horaSaida: true,
+      minutosArredondados: true,
+      valorTotal: true,
+      status: true,
+      pessoa: { select: { nome: true } },
+      funcao: { select: { nome: true } },
+    },
+  });
+
+  const porDia = new Map<string, DiaTurnos>();
+  for (const t of turnos) {
+    const dataISO = dataISOBrasil(t.horaEntrada);
+    const dia = porDia.get(dataISO) ?? { dataISO, turnos: [], totalMinutos: 0, totalValor: 0 };
+    const minutos = t.minutosArredondados ?? 0;
+    const valor = Number(t.valorTotal ?? 0);
+    dia.turnos.push({
+      turnoId: t.id,
+      dataISO,
+      pessoaNome: t.pessoa.nome,
+      funcaoNome: t.funcao.nome,
+      horaEntrada: t.horaEntrada,
+      horaSaida: t.horaSaida,
+      minutos,
+      valor,
+      status: t.status,
+    });
+    dia.totalMinutos += minutos;
+    dia.totalValor += valor;
+    porDia.set(dataISO, dia);
+  }
+
+  return [...porDia.values()].sort((a, b) => a.dataISO.localeCompare(b.dataISO));
 }

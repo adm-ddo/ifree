@@ -167,6 +167,9 @@ export default async function V2RelatoriosPage({
           <Link href="/v2/relatorios/resumo" className="rounded-full border border-stone-200 text-xs font-bold px-3 py-2">
             📊 Resumo semanal/mensal (extra + CLT)
           </Link>
+          <Link href="/v2/relatorios/diario" className="rounded-full border border-stone-200 text-xs font-bold px-3 py-2">
+            📅 Relatório analítico diário
+          </Link>
         </div>
       </div>
 
