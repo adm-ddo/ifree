@@ -356,7 +356,7 @@ export async function enviarEmailContaAsaasAprovada(
       "Agora é só colocar saldo pra começar a pagar os extras automaticamente pelo iFREE — o PIX sai sozinho assim que cada turno fecha.",
     ],
     textoBotao: "Colocar saldo agora",
-    linkBotao: `${SITE_URL}/pagamentos`,
+    linkBotao: `${SITE_URL}/v2/pagamentos`,
   });
 
   try {
@@ -397,7 +397,7 @@ export async function enviarEmailSaldoBaixo(
       "Coloque mais saldo agora pra garantir que os extras continuem sendo pagos automaticamente sem interrupção.",
     ],
     textoBotao: "Colocar saldo agora",
-    linkBotao: `${SITE_URL}/pagamentos`,
+    linkBotao: `${SITE_URL}/v2/pagamentos`,
   });
 
   try {
@@ -438,7 +438,7 @@ export async function enviarEmailSaldoBaixoSextaFeira(
       "Pra ter um final de semana tranquilo e sem surpresas, abasteça sua conta de pagamento de extras agora e aproveite o final de semana!",
     ],
     textoBotao: "Colocar saldo agora",
-    linkBotao: `${SITE_URL}/pagamentos`,
+    linkBotao: `${SITE_URL}/v2/pagamentos`,
   });
 
   try {
@@ -563,7 +563,7 @@ export async function enviarEmailCandidatoCompativel(
       "Dá uma olhada no seu painel de vagas.",
     ],
     textoBotao: "Ver minhas vagas",
-    linkBotao: `${SITE_URL}/vagas`,
+    linkBotao: `${SITE_URL}/v2/vagas`,
   });
 
   try {
